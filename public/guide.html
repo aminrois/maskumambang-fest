@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panduan & Rekening Resmi - MASKUMAMBANG FEST #4</title>
+  <link rel="icon" type="image/webp" id="app-favicon" href="/static/img/favicon_87007b6344.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <style>
+    .theme-toggle-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 9999px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body class="public-layout">
+
+  <!-- Public Header Navbar -->
+  <header class="public-navbar">
+    <div class="nav-container">
+      <a href="/" class="brand-logo" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+        <img id="nav-logo" src="/static/img/logo_e7a8b6a95d.webp" alt="Logo" style="height: 38px; width: auto; border-radius: 6px;" onerror="this.style.display='none'">
+        <span class="brand-logo-title" id="nav-title" style="font-weight: 800; font-size: 1.15rem; color: var(--text-heading);">MASKUMAMBANG FEST #4</span>
+      </a>
+
+      <button type="button" class="btn-toggle-public-menu" id="btn-toggle-public-menu" onclick="togglePublicMenu(event)" aria-label="Menu Navigasi" style="cursor: pointer;">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+
+      <nav>
+        <ul class="nav-menu" id="public-nav-menu">
+          <li><a href="/" class="nav-link">Beranda</a></li>
+          <li><a href="/cek-peserta.html" class="nav-link">Cek Peserta</a></li>
+          <li><a href="/guide.html" class="nav-link active">Panduan & Rekening</a></li>
+          <li id="auth-buttons-nav" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="/login.html" class="btn btn-sm btn-secondary">Masuk</a>
+            <a href="/register.html" class="btn btn-sm btn-primary">Daftar Akun</a>
+          </li>
+          <li id="user-logged-nav" style="display: none;">
+            <a href="/dashboard.html" class="btn btn-sm btn-primary"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-wrapper" style="flex: 1; padding: 40px 20px;">
+    <div class="container" style="max-width: 1100px; margin: 0 auto;">
+      
+      <div style="text-align: center; margin-bottom: 40px;">
+        <span class="role-badge-pill role-PESERTA" style="margin-bottom: 10px;"><i class="fa-solid fa-book-open"></i> PANDUAN LENGKAP</span>
+        <h1 style="font-size: 2.2rem; color: var(--text-heading); margin-bottom: 10px;">Panduan Pendaftaran & Rekening Resmi</h1>
+        <p style="color: var(--text-muted); font-size: 1rem; max-width: 700px; margin: 0 auto;">
+          Ikuti langkah-langkah pendaftaran di bawah ini dan pastikan melakukan transfer ke rekening resmi panitia.
+        </p>
+      </div>
+
+      <!-- 4 Langkah Pendaftaran Grid -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 50px;">
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 1.8rem; font-weight: 800; color: var(--primary-600); margin-bottom: 10px;">01</div>
+          <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 8px;">Daftar Akun</h3>
+          <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.5;">
+            Buat akun pendaftar menggunakan email dan nomor WhatsApp aktif.
+          </p>
+        </div>
+
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 1.8rem; font-weight: 800; color: var(--accent-600); margin-bottom: 10px;">02</div>
+          <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 8px;">Pilih Cabang Lomba</h3>
+          <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.5;">
+            Pilih Kategori, Jenjang, dan Cabang Lomba, lalu isi formulir peserta / tim.
+          </p>
+        </div>
+
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 1.8rem; font-weight: 800; color: var(--warning-600); margin-bottom: 10px;">03</div>
+          <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 8px;">Transfer & Upload Bukti</h3>
+          <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.5;">
+            Transfer biaya pendaftaran Rp 150.000 ke rekening resmi dan unggah bukti transfer.
+          </p>
+        </div>
+
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 1.8rem; font-weight: 800; color: var(--success-600); margin-bottom: 10px;">04</div>
+          <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 8px;">Cetak Kartu Peserta</h3>
+          <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.5;">
+            Setelah disetujui Bendahara, unduh & cetak Kartu Peserta resmi dengan QR Code.
+          </p>
+        </div>
+      </div>
+
+      <!-- Rekening Pembayaran Resmi Section -->
+      <div style="margin-bottom: 50px;">
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 8px; text-align: center;">Rekening Resmi Panitia</h2>
+        <p style="color: var(--text-muted); text-align: center; margin-bottom: 28px;">Hanya lakukan transfer ke rekening bank resmi berikut atas nama <strong>Panitia Lomba Nasional 2026</strong>:</p>
+
+        <div id="accounts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+          <!-- Populated from /api/payments/accounts -->
+          <div style="text-align: center; padding: 20px; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Memuat rekening bank...</div>
+        </div>
+      </div>
+
+      <div style="text-align: center;">
+        <a href="/register.html" class="btn btn-primary" style="padding: 14px 28px; font-weight: 700; font-size: 1rem;">
+          <i class="fa-solid fa-user-plus"></i> Daftar Akun Sekarang
+        </a>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer" style="background: var(--bg-card); border-top: 1px solid var(--border-subtle); padding: 30px 20px; text-align: center;">
+    <div class="container" style="max-width: 1100px; margin: 0 auto;">
+      <div style="font-weight: 700; color: var(--text-heading); font-size: 1rem; margin-bottom: 0.35rem;" id="footer-title">
+        MASKUMAMBANG FEST #4
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.875rem;" id="footer-desc">
+        Sistem Pendaftaran & Verifikasi Lomba Nasional Resmi.
+      </p>
+      <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-dim);">
+        &copy; 2026 MASKUMAMBANG FEST. Hak Cipta Dilindungi.
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      initTheme();
+      loadBrandingInfo();
+
+      if (state.token && state.user) {
+        document.getElementById('auth-buttons-nav').style.display = 'none';
+        document.getElementById('user-logged-nav').style.display = 'block';
+      }
+
+      // Load official bank accounts
+      try {
+        const res = await apiRequest('/api/payments/accounts');
+        if (res.success && res.data) {
+          const container = document.getElementById('accounts-grid');
+          container.innerHTML = res.data.map(acc => `
+            <div class="card" style="background: var(--bg-card); border: 2px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span class="badge badge-primary" style="font-size: 0.75rem;">${acc.bankName}</span>
+                <i class="fa-solid fa-building-columns" style="color: var(--primary-600); font-size: 1.2rem;"></i>
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Nomor Rekening:</div>
+              <div style="font-size: 1.25rem; font-weight: 800; color: var(--primary-600); font-family: monospace; letter-spacing: 0.05em; margin: 4px 0 10px;">
+                ${acc.accountNumber}
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Atas Nama:</div>
+              <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-heading);">${acc.accountHolder}</div>
+            </div>
+          `).join('');
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>

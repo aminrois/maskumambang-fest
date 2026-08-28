@@ -1,0 +1,225 @@
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { ConfigService } from '@nestjs/config';
+import { QrEngineUtil } from '../common/utils/qr-engine.util';
+import { ScanCheckInDto } from './dto/checkin.dto';
+import { CheckInMethod, RegistrationStatus } from '@prisma/client';
+
+@Injectable()
+export class CheckInService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  /**
+   * Processes event-day check-in via QR Scanner or Manual Code.
+   * Concurrency-safe atomic duplicate prevention with audit logging.
+   */
+  async processCheckIn(staffUserId: string, dto: ScanCheckInDto) {
+    const cleaned = dto.token.trim();
+    const salt = this.configService.get<string>('qr.salt') || 'default_salt';
+
+    // 1. Locate registration by qr_code_token OR registration_number
+    const reg = await this.prisma.registration.findFirst({
+      where: {
+        OR: [
+          { qrCodeToken: cleaned },
+          { registrationNumber: { equals: cleaned, mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        branch: {
+          include: {
+            level: {
+              include: {
+                category: true,
+              },
+            },
+          },
+        },
+        individualParticipant: true,
+        team: true,
+        checkIn: {
+          include: {
+            checkedInBy: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!reg) {
+      return {
+        success: false,
+        message: 'Data pendaftaran atau QR Code tidak ditemukan dalam sistem.',
+        data: null,
+        already_checked_in: false,
+      };
+    }
+
+    // 2. Check approval status
+    if (reg.status !== RegistrationStatus.APPROVED) {
+      return {
+        success: false,
+        message: `Pendaftaran ini belum disetujui panitia/bendahara. Status saat ini: ${reg.status}.`,
+        data: null,
+        already_checked_in: false,
+      };
+    }
+
+    // 3. Anti-tamper QR HMAC verification
+    if (dto.method === CheckInMethod.QR_SCAN && cleaned.startsWith('REGQR_')) {
+      const isValidHmac = QrEngineUtil.verifyToken(
+        cleaned,
+        reg.id,
+        reg.registrationNumber,
+        salt,
+      );
+
+      if (!isValidHmac) {
+        await this.auditService.log({
+          userId: staffUserId,
+          action: 'TAMPERED_QR_SCAN_ATTEMPT',
+          targetTable: 'registrations',
+          targetId: reg.id,
+          details: `Percobaan check-in dengan QR palsu / tampered token: ${cleaned}`,
+        });
+
+        return {
+          success: false,
+          message: 'QR Code tidak valid atau tanda tangan digital telah dimanipulasi.',
+          data: null,
+          already_checked_in: false,
+        };
+      }
+    }
+
+    // 4. Duplicate Check-in Prevention (Atomic check)
+    if (reg.checkIn) {
+      await this.auditService.log({
+        userId: staffUserId,
+        action: 'DUPLICATE_CHECK_IN_ATTEMPT',
+        targetTable: 'check_ins',
+        targetId: reg.checkIn.id,
+        details: `Percobaan check-in duplikat untuk ${reg.registrationNumber}`,
+      });
+
+      return {
+        success: false,
+        message: `Peserta sudah pernah melakukan check-in sebelumnya pada ${reg.checkIn.checkInTime.toISOString()} oleh petugas ${reg.checkIn.checkedInBy.name}.`,
+        data: {
+          registration_number: reg.registrationNumber,
+          participant_name:
+            reg.individualParticipant?.fullName || reg.team?.teamName || 'Peserta',
+          school_name:
+            reg.individualParticipant?.schoolName || reg.team?.schoolName || '-',
+          branch_name: reg.branch.name,
+        },
+        already_checked_in: true,
+        previous_time: reg.checkIn.checkInTime.toISOString(),
+        previous_staff: reg.checkIn.checkedInBy.name,
+      };
+    }
+
+    // 5. Atomic check-in recording (Protected against race conditions via unique constraint)
+    try {
+      const checkInRecord = await this.prisma.checkIn.create({
+        data: {
+          registrationId: reg.id,
+          checkedInByUserId: staffUserId,
+          checkInMethod: dto.method,
+          notes: dto.notes?.trim() || `Check-in berhasil via ${dto.method}`,
+        },
+        include: {
+          checkedInBy: {
+            select: { name: true },
+          },
+        },
+      });
+
+      await this.auditService.log({
+        userId: staffUserId,
+        action: 'CHECK_IN_SUCCESS',
+        targetTable: 'check_ins',
+        targetId: checkInRecord.id,
+        details: `Check-in berhasil (${dto.method}) untuk ${reg.registrationNumber}`,
+      });
+
+      return {
+        success: true,
+        message: `Check-in BERHASIL untuk pendaftaran ${reg.registrationNumber}!`,
+        data: {
+          registration_number: reg.registrationNumber,
+          participant_name:
+            reg.individualParticipant?.fullName || reg.team?.teamName || 'Peserta',
+          school_name:
+            reg.individualParticipant?.schoolName || reg.team?.schoolName || '-',
+          category_name: reg.branch.level.category.name,
+          level_name: reg.branch.level.name,
+          branch_name: reg.branch.name,
+          participant_type: reg.branch.participantType,
+          check_in_time: checkInRecord.checkInTime.toISOString(),
+          checked_in_by: checkInRecord.checkedInBy.name,
+          method: checkInRecord.checkInMethod,
+        },
+        already_checked_in: false,
+      };
+    } catch (error: any) {
+      // Handle race condition where another concurrent request checked in simultaneously
+      if (error?.code === 'P2002') {
+        return {
+          success: false,
+          message: 'Peserta sudah pernah melakukan check-in pada sesi bersamaan.',
+          already_checked_in: true,
+        };
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves recent check-in live log.
+   */
+  async getLiveCheckInLogs(limit = 50) {
+    const records = await this.prisma.checkIn.findMany({
+      take: limit,
+      orderBy: { checkInTime: 'desc' },
+      include: {
+        checkedInBy: {
+          select: { name: true },
+        },
+        registration: {
+          include: {
+            branch: true,
+            individualParticipant: true,
+            team: true,
+          },
+        },
+      },
+    });
+
+    return records.map((r) => ({
+      id: r.id,
+      registration_number: r.registration.registrationNumber,
+      participant_name:
+        r.registration.individualParticipant?.fullName ||
+        r.registration.team?.teamName ||
+        'Peserta',
+      school_name:
+        r.registration.individualParticipant?.schoolName ||
+        r.registration.team?.schoolName ||
+        '-',
+      branch_name: r.registration.branch.name,
+      check_in_time: r.checkInTime.toISOString(),
+      checked_in_by_name: r.checkedInBy.name,
+      check_in_method: r.checkInMethod,
+    }));
+  }
+}

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Masuk - MASKUMAMBANG FEST #4</title>
+  <link rel="icon" type="image/webp" id="app-favicon" href="/static/img/favicon_87007b6344.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <style>
+    .auth-page-wrapper {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-xl);
+      padding: 36px;
+    }
+    .theme-toggle-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 8px 14px;
+      border-radius: 9999px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body class="public-layout">
+
+  <div class="auth-page-wrapper">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <a href="/" style="display: inline-flex; align-items: center; gap: 10px; text-decoration: none;">
+        <img id="nav-logo" src="/static/img/logo_e7a8b6a95d.webp" alt="Logo" style="height: 44px; width: auto; border-radius: 8px;" onerror="this.style.display='none'">
+        <h2 id="auth-app-title" style="font-size: 1.4rem; color: var(--text-heading); font-weight: 800; margin: 0;">MASKUMAMBANG FEST #4</h2>
+      </a>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 6px;">Portal Resmi Pendaftaran & Verifikasi Lomba</p>
+    </div>
+
+    <div class="auth-card">
+      <div style="margin-bottom: 24px;">
+        <h3 style="font-size: 1.3rem; margin-bottom: 6px; color: var(--text-heading);">Masuk ke Akun</h3>
+        <p style="color: var(--text-muted); font-size: 0.875rem;">Gunakan email dan kata sandi Anda untuk mengakses dashboard.</p>
+      </div>
+
+      <div id="login-alert" style="display: none; padding: 12px; border-radius: 8px; margin-bottom: 18px; font-size: 0.9rem;"></div>
+
+      <form id="login-form" onsubmit="handleLoginSubmit(event)">
+        <div class="form-group" style="margin-bottom: 18px;">
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Email</label>
+          <input type="email" id="login-email" class="form-control" placeholder="nama@email.com" required autocomplete="email" style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+        <div class="form-group" style="margin-bottom: 22px;">
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Kata Sandi</label>
+          <input type="password" id="login-password" class="form-control" placeholder="••••••••" required autocomplete="current-password" style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+        <button type="submit" id="login-submit-btn" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.95rem; font-weight: 700;">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> Masuk Sekarang
+        </button>
+      </form>
+
+      <div style="text-align: center; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border-subtle); font-size: 0.9rem; color: var(--text-muted);">
+        Belum memiliki akun? <a href="/register.html" style="color: var(--primary-600); font-weight: 700; text-decoration: none;">Daftar Akun Baru</a>
+      </div>
+      <div style="text-align: center; margin-top: 10px; font-size: 0.85rem;">
+        <a href="/" style="color: var(--text-dim); text-decoration: none;"><i class="fa-solid fa-arrow-left"></i> Kembali ke Beranda</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      loadBrandingInfo();
+    });
+
+    async function handleLoginSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('login-submit-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
+
+      try {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+
+        const res = await apiRequest('/api/auth/login', {
+          method: 'POST',
+          body: { email, password },
+        });
+
+        if (res.success && res.data) {
+          setSession(res.data.accessToken, res.data.user);
+          window.location.href = '/dashboard.html';
+        }
+      } catch (err) {
+        showBannerAlert('login-alert', err.message, 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Masuk Sekarang';
+      }
+    }
+  </script>
+</body>
+</html>

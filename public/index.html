@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Pendaftaran Lomba - MASKUMAMBANG FEST #4</title>
+  <link rel="icon" type="image/webp" id="app-favicon" href="/static/img/favicon_87007b6344.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <style>
+    .hero-section {
+      padding: 70px 20px 50px;
+      text-align: center;
+      max-width: 950px;
+      margin: 0 auto;
+    }
+    .category-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: var(--transition-normal);
+    }
+    .category-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--primary-400);
+    }
+    .theme-toggle-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 9999px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body class="public-layout">
+
+  <!-- Header / Navbar -->
+  <header class="public-navbar">
+    <div class="nav-container">
+      <a href="/" class="brand-logo" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+        <img id="nav-logo" src="/static/img/logo_e7a8b6a95d.webp" alt="Logo" style="height: 38px; width: auto; border-radius: 6px;" onerror="this.style.display='none'">
+        <span class="brand-logo-title" id="nav-title" style="font-weight: 800; font-size: 1.15rem; color: var(--text-heading);">MASKUMAMBANG FEST #4</span>
+      </a>
+
+      <button type="button" class="btn-toggle-public-menu" id="btn-toggle-public-menu" onclick="togglePublicMenu(event)" aria-label="Menu Navigasi" style="cursor: pointer;">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+
+      <nav>
+        <ul class="nav-menu" id="public-nav-menu">
+          <li><a href="/" class="nav-link active">Beranda</a></li>
+          <li><a href="/cek-peserta.html" class="nav-link">Cek Peserta</a></li>
+          <li><a href="/guide.html" class="nav-link">Panduan & Rekening</a></li>
+          <li id="auth-buttons-nav" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="/login.html" class="btn btn-sm btn-secondary" id="btn-nav-login">Masuk</a>
+            <a href="/register.html" class="btn btn-sm btn-primary" id="btn-nav-register">Daftar Akun</a>
+          </li>
+          <li id="user-logged-nav" style="display: none;">
+            <a href="/dashboard.html" class="btn btn-sm btn-primary"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <span class="role-badge-pill role-PESERTA" style="margin-bottom: 16px; font-size: 0.85rem;"><i class="fa-solid fa-trophy"></i> KOMPETISI TINGKAT NASIONAL 2026</span>
+    <h1 style="font-size: clamp(1.8rem, 5vw, 2.8rem); line-height: 1.25; margin-bottom: 18px; color: var(--text-heading);">
+      Raih Prestasi Gemilang di <span id="hero-title" style="color: var(--primary-600);">MASKUMAMBANG FEST #4</span>
+    </h1>
+    <p id="hero-desc" style="font-size: clamp(0.95rem, 2.5vw, 1.1rem); color: var(--text-muted); line-height: 1.6; max-width: 750px; margin: 0 auto 30px;">
+      Ajang Kompetisi Tingkat Nasional Paling Bergengsi Tahun 2026. Buka peluang emas dan kembangkan potensimu bersama ribuan talenta hebat di seluruh penjuru negeri!
+    </p>
+
+    <div class="hero-cta-buttons" style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+      <a href="/register.html" class="btn btn-primary" id="btn-hero-register" style="padding: 14px 28px; font-weight: 700; font-size: 1rem;">
+        <i class="fa-solid fa-paper-plane"></i> Daftar Lomba Sekarang
+      </a>
+      <a href="/cek-peserta.html" class="btn btn-secondary" id="btn-hero-cek-peserta" style="padding: 14px 28px; font-weight: 700; font-size: 1rem;">
+        <i class="fa-solid fa-magnifying-glass"></i> Cek Status Peserta
+      </a>
+    </div>
+  </section>
+
+  <!-- 5 Categories Master Section -->
+  <section style="max-width: 1100px; margin: 0 auto; padding: 40px 20px 60px;">
+    <div style="text-align: center; margin-bottom: 40px;">
+      <h2 style="font-size: 2rem; color: var(--text-heading); margin-bottom: 10px;">5 Kategori Lomba Utama</h2>
+      <p style="color: var(--text-muted); font-size: 1rem;">Pilih kategori yang sesuai dengan bakat, jenjang, dan keahlianmu</p>
+    </div>
+
+    <div id="categories-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+      <!-- Populated dynamically from /api/competitions/tree -->
+      <div style="text-align: center; padding: 40px; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data kategori lomba...</div>
+    </div>
+  </section>
+
+  <!-- Guide Banner Section -->
+  <section style="background: var(--bg-card); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); padding: 50px 20px;">
+    <div style="max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+      <div>
+        <h3 style="font-size: 1.4rem; color: var(--text-heading); margin-bottom: 6px;">Butuh Bantuan atau Informasi Rekening?</h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">Lihat rekening resmi panitia, petunjuk teknis lomba, dan alur verifikasi.</p>
+      </div>
+      <a href="/guide.html" class="btn btn-secondary" style="padding: 12px 24px; font-weight: 700;">
+        <i class="fa-solid fa-book-open"></i> Buka Panduan Lengkap
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer" style="background: var(--bg-card); border-top: 1px solid var(--border-subtle); padding: 30px 20px; text-align: center;">
+    <div class="container" style="max-width: 1100px; margin: 0 auto;">
+      <div style="font-weight: 700; color: var(--text-heading); font-size: 1rem; margin-bottom: 0.35rem;" id="footer-title">
+        MASKUMAMBANG FEST #4
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.875rem;" id="footer-desc">
+        Sistem Pendaftaran & Verifikasi Lomba Nasional Resmi.
+      </p>
+      <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-dim);">
+        &copy; 2026 MASKUMAMBANG FEST. Hak Cipta Dilindungi.
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      initTheme();
+      loadBrandingInfo();
+
+      if (state.token && state.user) {
+        document.getElementById('auth-buttons-nav').style.display = 'none';
+        document.getElementById('user-logged-nav').style.display = 'block';
+      }
+
+      // Load Competition Tree
+      try {
+        const res = await apiRequest('/api/competitions/tree');
+        if (res.success && res.data) {
+          const container = document.getElementById('categories-grid');
+          const icons = {
+            'olympiad-nasional': 'fa-book-atlas',
+            'little-champions': 'fa-child-reaching',
+            'sport': 'fa-futbol',
+            'master-chef': 'fa-kitchen-set',
+            'robotik': 'fa-robot',
+          };
+
+          container.innerHTML = res.data.map(cat => {
+            const icon = icons[cat.slug] || 'fa-trophy';
+            return `
+              <div class="category-card">
+                <div>
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px;">
+                    <div style="width: 48px; height: 48px; border-radius: 10px; background: var(--primary-50); color: var(--primary-600); display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+                      <i class="fa-solid ${icon}"></i>
+                    </div>
+                    <span class="role-badge-pill role-PESERTA">${cat.levels.length} Jenjang</span>
+                  </div>
+                  <h3 style="font-size: 1.25rem; color: var(--text-heading); margin-bottom: 6px;">${cat.name}</h3>
+                  <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.5; margin-bottom: 16px;">${cat.description || 'Kompetisi resmi tingkat nasional.'}</p>
+                  
+                  <div style="background: var(--bg-body); border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid var(--border-subtle);">
+                    <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 6px;">Jenjang & Cabang:</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                      ${cat.levels.map(lvl => `
+                        <span class="member-chip" style="font-size: 0.75rem;">${lvl.name} (${lvl.branches.length})</span>
+                      `).join('')}
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--border-subtle);">
+                  <div>
+                    <span style="font-size: 0.75rem; color: var(--text-dim); display: block;">Biaya:</span>
+                    <strong style="color: var(--primary-600); font-size: 1.05rem;">Rp 150.000</strong>
+                  </div>
+                  <a href="/register.html" class="btn btn-sm btn-primary">
+                    <i class="fa-solid fa-arrow-right"></i> Daftar
+                  </a>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>

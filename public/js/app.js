@@ -1,0 +1,3952 @@
+/**
+ * ============================================================================
+ * MASKUMAMBANG FEST #4 - UNIFIED FRONTEND ENGINE & UI/UX PARITY SUITE
+ * ============================================================================
+ */
+
+// Global Application State
+const state = {
+  token: localStorage.getItem('lomba_jwt_token') || null,
+  user: JSON.parse(localStorage.getItem('lomba_user_data') || 'null'),
+  settings: {},
+  competitionTree: [],
+  paymentAccounts: [],
+  theme: localStorage.getItem('lomba_theme') || 'light',
+  scanner: null,
+  activeRoute: 'overview',
+  routeParams: null,
+};
+
+// ============================================================================
+// THEME MANAGER (LIGHT MODE DEFAULT + DARK MODE SWITCHER)
+// ============================================================================
+function initTheme() {
+  const savedTheme = localStorage.getItem('lomba_theme') || 'light';
+  setTheme(savedTheme);
+}
+
+function setTheme(theme) {
+  state.theme = theme;
+  localStorage.setItem('lomba_theme', theme);
+  document.documentElement.setAttribute('data-theme', theme);
+  document.body.setAttribute('data-theme', theme);
+
+  const themeBtn = document.getElementById('theme-btn');
+  if (themeBtn) {
+    if (theme === 'dark') {
+      themeBtn.innerHTML = '<i class="fa-solid fa-sun" style="color: #f59e0b;"></i> <span>Light</span>';
+    } else {
+      themeBtn.innerHTML = '<i class="fa-solid fa-moon"></i> <span>Dark</span>';
+    }
+  }
+}
+
+function toggleTheme() {
+  const newTheme = state.theme === 'dark' ? 'light' : 'dark';
+  setTheme(newTheme);
+}
+
+// ============================================================================
+// AUTH & API UTILITIES
+// ============================================================================
+function setSession(token, user) {
+  state.token = token;
+  state.user = user;
+  localStorage.setItem('lomba_jwt_token', token);
+  localStorage.setItem('lomba_user_data', JSON.stringify(user));
+}
+
+function clearSession() {
+  state.token = null;
+  state.user = null;
+  localStorage.removeItem('lomba_jwt_token');
+  localStorage.removeItem('lomba_user_data');
+}
+
+function handleLogout() {
+  clearSession();
+  window.location.href = '/login.html';
+}
+
+async function apiRequest(endpoint, options = {}) {
+  const headers = options.headers || {};
+  if (state.token) {
+    headers['Authorization'] = `Bearer ${state.token}`;
+  }
+
+  if (options.body && !(options.body instanceof FormData) && typeof options.body === 'object') {
+    headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(options.body);
+  }
+
+  options.headers = headers;
+
+  try {
+    const response = await fetch(endpoint, options);
+    const data = await response.json().catch(() => ({}));
+
+    if (response.status === 401) {
+      if (window.location.pathname.includes('dashboard')) {
+        clearSession();
+        window.location.href = '/login.html';
+      }
+    }
+
+    if (!response.ok) {
+      const errorMsg = Array.isArray(data.message)
+        ? data.message.join(', ')
+        : data.message || `Error ${response.status}: Permintaan gagal.`;
+      throw new Error(errorMsg);
+    }
+
+    return data;
+  } catch (err) {
+    throw err;
+  }
+}
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function getStatusBadge(status) {
+  switch (status) {
+    case 'APPROVED':
+      return '<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Disetujui</span>';
+    case 'PAYMENT_REJECTED':
+      return '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Pembayaran Ditolak</span>';
+    case 'WAITING_VERIFICATION':
+    default:
+      return '<span class="badge badge-warning"><i class="fa-solid fa-clock"></i> Menunggu Verifikasi</span>';
+  }
+}
+
+function getCheckInBadge(checkInRecord) {
+  if (checkInRecord) {
+    return `<span class="badge badge-success"><i class="fa-solid fa-user-check"></i> SUDAH CHECK-IN (${formatDate(checkInRecord.checkInTime)})</span>`;
+  }
+  return '<span class="badge badge-secondary" style="background: rgba(100, 116, 139, 0.2); color: var(--text-muted);"><i class="fa-solid fa-hourglass-start"></i> BELUM CHECK-IN</span>';
+}
+
+function showBannerAlert(elementId, message, type = 'success') {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.style.display = 'block';
+  el.className = type === 'success' ? 'alert alert-success' : 'alert alert-danger';
+  el.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div><i class="fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i> ${message}</div>
+      <button type="button" onclick="this.closest('.alert').style.display='none'" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: inherit;">&times;</button>
+    </div>
+  `;
+}
+
+// Modal Helpers
+function openAppModal(contentHtml) {
+  const modal = document.getElementById('app-modal');
+  const body = document.getElementById('app-modal-body');
+  if (modal && body) {
+    body.innerHTML = contentHtml;
+    modal.classList.add('active', 'open', 'show');
+    modal.style.display = 'flex';
+  }
+}
+
+function closeAppModal() {
+  const modal = document.getElementById('app-modal');
+  if (modal) {
+    modal.classList.remove('active', 'open', 'show');
+    modal.style.display = 'none';
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const modal = document.getElementById('app-modal');
+  if (modal && e.target === modal) {
+    closeAppModal();
+  }
+});
+
+// Load App Branding onto Header, Sidebar, Footer & Favicon
+async function loadBrandingInfo() {
+  try {
+    const res = await apiRequest('/api/settings');
+    if (res.success && res.data) {
+      state.settings = res.data;
+      const appName = res.data.application_name || 'MASKUMAMBANG FEST #4';
+      const shortName = res.data.application_short_name || 'MASKUMAMBANG FEST #4';
+      
+      document.querySelectorAll('#nav-title, #footer-title, #auth-app-title, #sidebar-title, #topbar-event-name').forEach(el => {
+        el.innerText = shortName;
+      });
+      document.querySelectorAll('#hero-title').forEach(el => el.innerText = appName);
+      if (res.data.application_description) {
+        document.querySelectorAll('#hero-desc, #footer-desc').forEach(el => el.innerText = res.data.application_description);
+      }
+
+      if (res.data.application_logo) {
+        document.querySelectorAll('#nav-logo, #sidebar-logo, #auth-logo, .brand-logo-img').forEach(el => {
+          el.src = `/static/img/${res.data.application_logo}`;
+        });
+      }
+
+      if (res.data.application_favicon) {
+        let favEl = document.querySelector("link[rel*='icon']");
+        if (!favEl) {
+          favEl = document.createElement('link');
+          favEl.rel = 'shortcut icon';
+          document.head.appendChild(favEl);
+        }
+        favEl.href = `/static/img/${res.data.application_favicon}`;
+      }
+    }
+  } catch (e) {
+    console.error('Branding load error:', e);
+  }
+}
+
+// ============================================================================
+// ============================================================================
+// UNIVERSAL TABLE ENGINE & EXCEL/CSV EXPORT UTILITY
+// ============================================================================
+function exportTableDataToExcel(filename, columns, data) {
+  if (!data || !data.length) {
+    alert('Tidak ada data untuk diekspor.');
+    return;
+  }
+
+  // Filter out action columns
+  const exportCols = columns.filter(c => !c.sticky && c.header !== 'Aksi');
+  
+  // Header row
+  const headers = exportCols.map(c => `"${(c.header || '').replace(/"/g, '""')}"`);
+  
+  // Data rows
+  const rows = data.map((item, idx) => {
+    return exportCols.map(col => {
+      let val = '';
+      if (typeof col.exportValue === 'function') {
+        val = col.exportValue(item, idx);
+      } else if (col.key && item[col.key] !== undefined) {
+        val = item[col.key];
+      } else if (typeof col.render === 'function') {
+        const rendered = col.render(item);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = rendered;
+        val = tempDiv.textContent || tempDiv.innerText || '';
+      }
+      val = (val === null || val === undefined) ? '' : String(val).trim();
+      return `"${val.replace(/"/g, '""')}"`;
+    }).join(',');
+  });
+
+  const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename || 'export'}_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function renderUniversalTable({
+  tableId,
+  columns,
+  data,
+  searchQuery = '',
+  searchFields = [],
+  sortKey = '',
+  sortDir = 'asc',
+  filterKey = '',
+  filterValue = '',
+  filterOptions = [],
+  currentPage = 1,
+  pageSize = 10,
+  onPageChangeName = 'onTablePageChange',
+  onSearchChangeName = 'onTableSearchChange',
+  onPageSizeChangeName = 'onTablePageSizeChange',
+  onSortChangeName = '',
+  onFilterChangeName = '',
+  exportFilename = '',
+  onExportName = '',
+  emptyMessage = 'Belum ada data.',
+}) {
+  // 1. Filter data by column filter if provided
+  let filtered = data;
+  if (filterKey && filterValue) {
+    filtered = filtered.filter(item => {
+      const val = typeof filterKey === 'function' ? filterKey(item) : item[filterKey];
+      return String(val) === String(filterValue);
+    });
+  }
+
+  // 2. Filter data by search query
+  if (searchQuery && searchQuery.trim()) {
+    const q = searchQuery.toLowerCase().trim();
+    filtered = filtered.filter(item => {
+      return searchFields.some(field => {
+        const val = typeof field === 'function' ? field(item) : item[field];
+        return val && String(val).toLowerCase().includes(q);
+      });
+    });
+  }
+
+  // 3. Sort data if sortKey is provided
+  if (sortKey) {
+    const colDef = columns.find(c => (c.sortKey || c.key || c.header) === sortKey);
+    filtered = [...filtered].sort((a, b) => {
+      let valA = colDef && colDef.sortValue ? colDef.sortValue(a) : (colDef?.key ? a[colDef.key] : a[sortKey]);
+      let valB = colDef && colDef.sortValue ? colDef.sortValue(b) : (colDef?.key ? b[colDef.key] : b[sortKey]);
+      if (valA === undefined || valA === null) valA = '';
+      if (valB === undefined || valB === null) valB = '';
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return sortDir === 'asc' ? valA - valB : valB - valA;
+      }
+      valA = String(valA).toLowerCase();
+      valB = String(valB).toLowerCase();
+      if (valA < valB) return sortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  // 4. Pagination calculation
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIdx = (safePage - 1) * pageSize;
+  const pageItems = filtered.slice(startIdx, startIdx + pageSize);
+
+  const startDisplay = total === 0 ? 0 : startIdx + 1;
+  const endDisplay = Math.min(startIdx + pageSize, total);
+
+  // If container already in DOM, perform live in-place update of tbody and pagination
+  const tbodyEl = document.getElementById(`${tableId}-tbody`);
+  const pagEl = document.getElementById(`${tableId}-pagination`);
+
+  const tbodyHtml = pageItems.length === 0 ? `
+    <tr>
+      <td colspan="${columns.length}" style="text-align: center; padding: 30px; color: var(--text-muted);">
+        <i class="fa-solid fa-folder-open" style="font-size: 1.8rem; margin-bottom: 8px; display: block; color: var(--text-dim);"></i>
+        ${emptyMessage}
+      </td>
+    </tr>
+  ` : pageItems.map(item => `
+    <tr style="border-bottom: 1px solid var(--border-subtle); transition: var(--transition-fast);">
+      ${columns.map(col => `
+        <td class="${col.sticky ? 'sticky-action' : ''}" style="padding: 12px 14px; vertical-align: middle;">
+          ${col.render ? col.render(item) : (item[col.key] || '-')}
+        </td>
+      `).join('')}
+    </tr>
+  `).join('');
+
+  const pagHtml = `
+    <div style="font-size: 0.85rem; color: var(--text-muted);">
+      Menampilkan <strong>${startDisplay}</strong> - <strong>${endDisplay}</strong> dari <strong>${total}</strong> data
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <button type="button" class="btn btn-sm btn-secondary" style="padding: 4px 10px;" ${safePage <= 1 ? 'disabled' : ''} onclick="${onPageChangeName}(${safePage - 1})">
+        <i class="fa-solid fa-chevron-left"></i> Prev
+      </button>
+      <span style="font-size: 0.85rem; font-weight: 700; padding: 0 8px; color: var(--text-heading);">
+        Halaman ${safePage} dari ${totalPages}
+      </span>
+      <button type="button" class="btn btn-sm btn-secondary" style="padding: 4px 10px;" ${safePage >= totalPages ? 'disabled' : ''} onclick="${onPageChangeName}(${safePage + 1})">
+        Next <i class="fa-solid fa-chevron-right"></i>
+      </button>
+    </div>
+  `;
+
+  if (tbodyEl && pagEl) {
+    tbodyEl.innerHTML = tbodyHtml;
+    pagEl.innerHTML = pagHtml;
+    return '';
+  }
+
+  // Full initial HTML markup
+  return `
+    <div id="${tableId}-container" class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
+      <div class="table-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <div style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">Tampilkan</span>
+            <select style="width: auto !important; min-width: 75px; display: inline-block; padding: 7px 10px; font-size: 0.85rem; border-radius: var(--radius-md); border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); cursor: pointer;" onchange="${onPageSizeChangeName}(parseInt(this.value, 10))">
+              <option value="10" ${pageSize === 10 ? 'selected' : ''}>10</option>
+              <option value="25" ${pageSize === 25 ? 'selected' : ''}>25</option>
+              <option value="50" ${pageSize === 50 ? 'selected' : ''}>50</option>
+              <option value="100" ${pageSize === 100 ? 'selected' : ''}>100</option>
+            </select>
+            <span style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">baris</span>
+          </div>
+
+          ${filterOptions && filterOptions.length > 0 && onFilterChangeName ? `
+            <div style="display: inline-flex; align-items: center; gap: 6px;">
+              <span style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;"><i class="fa-solid fa-filter"></i> Filter:</span>
+              <select style="width: auto !important; min-width: 170px; max-width: 250px; display: inline-block; padding: 7px 12px; font-size: 0.85rem; border-radius: var(--radius-md); border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); cursor: pointer;" onchange="${onFilterChangeName}(this.value)">
+                ${filterOptions.map(opt => `<option value="${opt.value}" ${filterValue === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+              </select>
+            </div>
+          ` : ''}
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          ${(exportFilename || onExportName) ? `
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="${onExportName || `exportTableDataToExcel('${exportFilename || tableId}', window['tableCols_${tableId}'], window['tableData_${tableId}'])`}" style="padding: 7px 14px; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--success-500); color: var(--success-600); background: transparent; border-radius: var(--radius-md); cursor: pointer;" title="Ekspor data tabel ke format Excel / CSV">
+              <i class="fa-solid fa-file-excel"></i> Export Excel
+            </button>
+          ` : ''}
+
+          <div style="position: relative; width: 100%; min-width: 240px; max-width: 280px;">
+            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.85rem;"></i>
+            <input type="text" id="${tableId}-search-input" placeholder="Cari data di tabel..." value="${searchQuery}" oninput="${onSearchChangeName}(this.value)" style="width: 100%; padding: 8px 12px 8px 34px; font-size: 0.875rem; border-radius: var(--radius-md); border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main);">
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive" style="border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow-x: auto; background: var(--bg-card);">
+        <table class="table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem;">
+          <thead>
+            <tr style="background: var(--table-header-bg); border-bottom: 1px solid var(--border-subtle);">
+              ${columns.map(col => {
+                const targetKey = col.sortKey || col.key || col.header;
+                const isSortable = col.sortable !== false && onSortChangeName;
+                const isCurrentSort = sortKey === targetKey;
+                return `
+                  <th class="${col.sticky ? 'sticky-action' : ''}" style="padding: 12px 14px; font-weight: 700; color: var(--text-muted); white-space: nowrap; ${col.width ? `width:${col.width};` : ''} ${isSortable ? 'cursor: pointer; user-select: none;' : ''}" ${isSortable ? `onclick="${onSortChangeName}('${targetKey}')" title="Klik untuk mengurutkan kolom"` : ''}>
+                    <div style="display: inline-flex; align-items: center; gap: 6px;">
+                      <span>${col.header}</span>
+                      ${isSortable ? `
+                        <span style="font-size: 0.75rem; color: ${isCurrentSort ? 'var(--primary-600)' : 'var(--text-dim)'}; font-weight: 800;">
+                          ${isCurrentSort ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+                        </span>
+                      ` : ''}
+                    </div>
+                  </th>
+                `;
+              }).join('')}
+            </tr>
+          </thead>
+          <tbody id="${tableId}-tbody">
+            ${tbodyHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <div id="${tableId}-pagination" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; flex-wrap: wrap; gap: 12px;">
+        ${pagHtml}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================================
+// DASHBOARD INITIALIZATION & HASH ROUTING
+// ============================================================================
+async function initDashboardApp() {
+  if (!state.token) {
+    window.location.href = '/login.html';
+    return;
+  }
+
+  // 1. Verify User Profile
+  try {
+    const profile = await apiRequest('/api/users/profile');
+    if (profile) {
+      state.user = profile;
+      localStorage.setItem('lomba_user_data', JSON.stringify(profile));
+    }
+  } catch (e) {
+    clearSession();
+    window.location.href = '/login.html';
+    return;
+  }
+
+  // 2. Load Master Tree, Settings, and Payment Accounts
+  try {
+    const [settingsRes, accountsRes, treeRes] = await Promise.all([
+      apiRequest('/api/settings'),
+      apiRequest('/api/payments/accounts'),
+      apiRequest('/api/competitions/tree'),
+    ]);
+    if (settingsRes.success) state.settings = settingsRes.data;
+    if (accountsRes.success) state.paymentAccounts = accountsRes.data;
+    if (treeRes.success) state.competitionTree = treeRes.data;
+  } catch (e) {
+    console.error('Initial data load error:', e);
+  }
+
+  // 3. Update User Header & Sidebar Labels
+  const user = state.user;
+  document.querySelectorAll('#sidebar-username, #topbar-username').forEach(el => el.innerText = user.name);
+  document.querySelectorAll('#sidebar-avatar').forEach(el => el.innerText = user.name.charAt(0).toUpperCase());
+  document.querySelectorAll('#sidebar-role-badge, #topbar-role-badge').forEach(el => {
+    el.innerText = user.role;
+    el.className = `role-badge-pill role-${user.role}`;
+  });
+
+  // 4. Build Sidebar Menu
+  buildRoleSidebar(user.role);
+
+  // 5. Setup CTA button on Topbar
+  const topbarCta = document.getElementById('topbar-cta-container');
+  if (topbarCta) {
+    if (user.role === 'PESERTA') {
+      topbarCta.innerHTML = '<a href="#daftar" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus"></i> Daftar Lomba</a>';
+    } else if (user.role === 'BENDAHARA' || user.role === 'SUPER_ADMIN') {
+      topbarCta.innerHTML = '<a href="#checkin-scanner" class="btn btn-sm btn-secondary"><i class="fa-solid fa-qrcode"></i> Scanner QR</a>';
+    }
+  }
+
+  // 6. Setup Router Listener
+  window.addEventListener('hashchange', handleDashboardRoute);
+  handleDashboardRoute();
+}
+
+function buildRoleSidebar(role) {
+  const menu = document.getElementById('sidebar-nav-menu');
+  if (!menu) return;
+
+  if (role === 'PESERTA') {
+    menu.innerHTML = `
+      <div class="nav-section-title">MENU PESERTA</div>
+      <a href="#overview" id="nav-overview" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-house"></i></span><span class="nav-label">Dashboard Saya</span></a>
+      <a href="#daftar" id="nav-daftar" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-rocket"></i></span><span class="nav-label">Daftar Lomba Baru</span></a>
+      <a href="/guide.html" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-book-open"></i></span><span class="nav-label">Panduan & Rekening</span></a>
+      <div class="nav-section-title">AKUN SAYA</div>
+      <a href="#change-password" id="nav-change-password" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-key"></i></span><span class="nav-label">Ubah Password</span></a>
+      <a href="javascript:void(0)" onclick="handleLogout()" class="sidebar-nav-item logout-item"><span class="nav-icon"><i class="fa-solid fa-door-open"></i></span><span class="nav-label">Keluar</span></a>
+    `;
+  } else if (role === 'BENDAHARA') {
+    menu.innerHTML = `
+      <div class="nav-section-title">MENU BENDAHARA</div>
+      <a href="#overview" id="nav-overview" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-chart-pie"></i></span><span class="nav-label">Dashboard</span></a>
+      <a href="#verifikasi-pembayaran" id="nav-verifikasi-pembayaran" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-credit-card"></i></span><span class="nav-label">Verifikasi Pembayaran</span></a>
+      <a href="#checkin-scanner" id="nav-checkin-scanner" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span><span class="nav-label">Check-In Scanner</span></a>
+      <div class="nav-section-title">AKUN SAYA</div>
+      <a href="#change-password" id="nav-change-password" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-key"></i></span><span class="nav-label">Ubah Password</span></a>
+      <a href="javascript:void(0)" onclick="handleLogout()" class="sidebar-nav-item logout-item"><span class="nav-icon"><i class="fa-solid fa-door-open"></i></span><span class="nav-label">Keluar</span></a>
+    `;
+  } else if (role === 'SUPER_ADMIN') {
+    menu.innerHTML = `
+      <div class="nav-section-title">MENU UTAMA</div>
+      <a href="#overview" id="nav-overview" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-chart-pie"></i></span><span class="nav-label">Dashboard</span></a>
+      <a href="#daftar-peserta" id="nav-daftar-peserta" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-clipboard-list"></i></span><span class="nav-label">Daftar Peserta</span></a>
+      <a href="#verifikasi-pembayaran" id="nav-verifikasi-pembayaran" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-credit-card"></i></span><span class="nav-label">Pembayaran</span></a>
+      <a href="#checkin-scanner" id="nav-checkin-scanner" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span><span class="nav-label">Check-In QR</span></a>
+
+      <div class="nav-section-title">MASTER LOMBA</div>
+      <a href="#master-kategori" id="nav-master-kategori" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-folder-tree"></i></span><span class="nav-label">Kategori & Jenjang</span></a>
+      <a href="#master-cabang" id="nav-master-cabang" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-bullseye"></i></span><span class="nav-label">Cabang Lomba & Biaya</span></a>
+
+      <div class="nav-section-title">MASTER SISTEM</div>
+      <a href="#users" id="nav-users" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-users-gear"></i></span><span class="nav-label">Pengguna</span></a>
+      <a href="#payment-accounts" id="nav-payment-accounts" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-building-columns"></i></span><span class="nav-label">Rekening Pembayaran</span></a>
+      <a href="#branding-settings" id="nav-branding-settings" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-sliders"></i></span><span class="nav-label">Identitas Aplikasi</span></a>
+
+      <div class="nav-section-title">LOG & AKUN</div>
+      <a href="#audit-logs" id="nav-audit-logs" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-scroll"></i></span><span class="nav-label">Audit Log</span></a>
+      <a href="#change-password" id="nav-change-password" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-key"></i></span><span class="nav-label">Ubah Password</span></a>
+
+      <div class="nav-section-title">PEMELIHARAAN SISTEM</div>
+      <a href="#reset-operasional" id="nav-reset-operasional" class="sidebar-nav-item danger-item" style="color: var(--danger-500);"><span class="nav-icon"><i class="fa-solid fa-triangle-exclamation"></i></span><span class="nav-label">Reset Data</span></a>
+    `;
+  }
+}
+
+function toggleSidebarDrawer(e) {
+  if (e && e.stopPropagation) e.stopPropagation();
+  const sidebar = document.getElementById('app_sidebar') || document.querySelector('.app-sidebar');
+  const backdrop = document.getElementById('sidebar_backdrop') || document.querySelector('.sidebar-backdrop');
+  if (sidebar) {
+    sidebar.classList.toggle('drawer-open');
+    sidebar.classList.toggle('show');
+  }
+  if (backdrop) {
+    backdrop.classList.toggle('active');
+    backdrop.classList.toggle('show');
+  }
+}
+
+function closeSidebarDrawer() {
+  const sidebar = document.getElementById('app_sidebar') || document.querySelector('.app-sidebar');
+  const backdrop = document.getElementById('sidebar_backdrop') || document.querySelector('.sidebar-backdrop');
+  if (sidebar) {
+    sidebar.classList.remove('drawer-open', 'show');
+  }
+  if (backdrop) {
+    backdrop.classList.remove('active', 'show');
+  }
+}
+
+function togglePublicMenu(e) {
+  if (e && e.stopPropagation) e.stopPropagation();
+  const menu = document.getElementById('public-nav-menu') || document.querySelector('.public-navbar .nav-menu');
+  if (menu) {
+    menu.classList.toggle('open');
+    menu.classList.toggle('show');
+  }
+}
+
+function closePublicMenu() {
+  const menu = document.getElementById('public-nav-menu') || document.querySelector('.public-navbar .nav-menu');
+  if (menu) {
+    menu.classList.remove('open', 'show');
+  }
+}
+
+function handleDashboardRoute() {
+  closeSidebarDrawer();
+  const hash = window.location.hash.replace('#', '') || 'overview';
+  const parts = hash.split('/');
+  const mainRoute = parts[0];
+  const param = parts[1] || null;
+
+  state.activeRoute = mainRoute;
+  state.routeParams = param;
+
+  // Highlight active sidebar item
+  document.querySelectorAll('.sidebar-nav-item').forEach(a => a.classList.remove('active'));
+  const activeLink = document.getElementById(`nav-${mainRoute}`);
+  if (activeLink) activeLink.classList.add('active');
+
+  const role = state.user.role;
+
+  if (role === 'PESERTA') {
+    if (mainRoute === 'daftar') renderPesertaRegistrationWizard();
+    else if (mainRoute === 'detail') renderPesertaRegistrationDetail(param);
+    else if (mainRoute === 'card') renderParticipantCardView(param);
+    else if (mainRoute === 'change-password') renderChangePasswordView();
+    else renderPesertaDashboard();
+  } else if (role === 'BENDAHARA') {
+    if (mainRoute === 'verifikasi-pembayaran') renderBendaharaPaymentsView();
+    else if (mainRoute === 'checkin-scanner') renderCheckInScannerView();
+    else if (mainRoute === 'detail') renderPesertaRegistrationDetail(param);
+    else if (mainRoute === 'card') renderParticipantCardView(param);
+    else if (mainRoute === 'change-password') renderChangePasswordView();
+    else renderBendaharaDashboard();
+  } else if (role === 'SUPER_ADMIN') {
+    if (mainRoute === 'daftar-peserta') renderAdminRegistrationsView();
+    else if (mainRoute === 'verifikasi-pembayaran') renderBendaharaPaymentsView();
+    else if (mainRoute === 'checkin-scanner') renderCheckInScannerView();
+    else if (mainRoute === 'master-kategori') renderAdminCategoriesView();
+    else if (mainRoute === 'master-cabang') renderAdminBranchesView();
+    else if (mainRoute === 'users') renderAdminUsersView();
+    else if (mainRoute === 'payment-accounts') renderAdminPaymentAccountsView();
+    else if (mainRoute === 'branding-settings') renderAdminBrandingView();
+    else if (mainRoute === 'audit-logs') renderAdminAuditLogsView();
+    else if (mainRoute === 'reset-operasional') renderAdminResetOperasionalView();
+    else if (mainRoute === 'detail') renderPesertaRegistrationDetail(param);
+    else if (mainRoute === 'card') renderParticipantCardView(param);
+    else if (mainRoute === 'change-password') renderChangePasswordView();
+    else renderAdminDashboard();
+  }
+}
+
+// ============================================================================
+// PESERTA MODULE (DASHBOARD + FULL-PAGE WIZARD + DETAIL + CARD PRINT FIX)
+// ============================================================================
+
+// Component Local State for Universal Tables
+const tableState = {
+  pesertaRegs: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
+  bendaharaPayments: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
+  adminRegistrations: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
+  adminUsers: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
+  adminAudit: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
+  adminBranches: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
+};
+
+async function renderPesertaDashboard() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data pendaftaran...</div>';
+
+  try {
+    const res = await apiRequest('/api/registrations/my');
+    tableState.pesertaRegs.data = res.success ? res.data : [];
+
+    const myRegs = tableState.pesertaRegs.data;
+    const approvedCount = myRegs.filter(r => r.status === 'APPROVED').length;
+    const waitingCount = myRegs.filter(r => r.status === 'WAITING_VERIFICATION').length;
+    const rejectedCount = myRegs.filter(r => r.status === 'PAYMENT_REJECTED').length;
+
+    container.innerHTML = `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 6px;">Dashboard Peserta</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Selamat datang, <strong>${state.user.name}</strong>. Kelola pendaftaran lomba dan akses kartu peserta resmi.</p>
+      </div>
+
+      <!-- Stats Grid -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 28px;">
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Total Pendaftaran</div>
+          <div style="font-size: 2.2rem; font-weight: 800; color: var(--text-heading); margin-top: 4px;">${myRegs.length}</div>
+        </div>
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Disetujui (Siap Cetak)</div>
+          <div style="font-size: 2.2rem; font-weight: 800; color: var(--success-600); margin-top: 4px;">${approvedCount}</div>
+        </div>
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Menunggu Verifikasi</div>
+          <div style="font-size: 2.2rem; font-weight: 800; color: var(--warning-600); margin-top: 4px;">${waitingCount}</div>
+        </div>
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Perlu Perbaikan Bukti</div>
+          <div style="font-size: 2.2rem; font-weight: 800; color: var(--danger-600); margin-top: 4px;">${rejectedCount}</div>
+        </div>
+      </div>
+
+      <!-- Quick Action Banner -->
+      <div class="card" style="background: var(--primary-50); border: 1px solid var(--primary-200); border-radius: var(--radius-lg); padding: 22px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+        <div>
+          <h3 style="font-size: 1.15rem; color: var(--primary-900); margin-bottom: 4px;">Daftar Cabang Lomba Lainnya</h3>
+          <p style="color: var(--primary-700); font-size: 0.875rem; margin: 0;">Pilih dari 22 cabang lomba Olimpiade, Robotik, Sport, Master Chef, atau Seni.</p>
+        </div>
+        <a href="#daftar" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Tambah Pendaftaran Lomba</a>
+      </div>
+
+      <!-- My Registrations Universal Table -->
+      <div id="peserta-regs-table-slot">
+        ${renderPesertaRegistrationsTable()}
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+function renderPesertaRegistrationsTable() {
+  const ts = tableState.pesertaRegs;
+  return renderUniversalTable({
+    tableId: 'peserta-regs-table',
+    columns: [
+      {
+        header: 'No. Registrasi',
+        key: 'registrationNumber',
+        render: r => `<code style="font-weight: 800; color: var(--primary-600);">${r.registrationNumber}</code>`,
+      },
+      {
+        header: 'Cabang & Jenjang',
+        sortValue: r => r.branch?.name,
+        render: r => `<strong>${r.branch.name}</strong><br><small style="color: var(--text-muted);">${r.branch.level.category.name} - ${r.branch.level.name}</small>`,
+      },
+      {
+        header: 'Tipe',
+        sortValue: r => r.branch?.participantType,
+        render: r => `<span class="badge ${r.branch.participantType === 'INDIVIDUAL' ? 'badge-info' : 'badge-primary'}">${r.branch.participantType === 'INDIVIDUAL' ? 'INDIVIDU' : 'TIM'}</span>`,
+      },
+      {
+        header: 'Peserta / Tim',
+        sortValue: r => (r.branch.participantType === 'INDIVIDUAL' ? r.individualParticipant?.fullName : r.team?.teamName) || '',
+        render: r => `<strong>${r.branch.participantType === 'INDIVIDUAL' ? (r.individualParticipant?.fullName || '-') : (r.team?.teamName || '-')}</strong><br><small style="color:var(--text-muted);">${(r.branch.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '-'}</small>`,
+      },
+      {
+        header: 'Status Pembayaran',
+        key: 'status',
+        render: r => getStatusBadge(r.status),
+      },
+      {
+        header: 'Status Check-In',
+        sortValue: r => r.checkIn ? 1 : 0,
+        render: r => getCheckInBadge(r.checkIn),
+      },
+      {
+        header: 'Aksi',
+        sticky: true,
+        sortable: false,
+        render: r => {
+          let buttons = `<a href="#detail/${r.id}" class="btn btn-sm btn-secondary" style="padding: 4px 10px;"><i class="fa-solid fa-circle-info"></i> Detail</a> `;
+          if (r.status === 'APPROVED') {
+            buttons += `<button type="button" class="btn btn-sm btn-success" style="padding: 4px 10px;" onclick="openParticipantCardModal('${r.id}')"><i class="fa-solid fa-id-card"></i> Kartu & QR</button>`;
+          }
+          return `<div style="display: flex; gap: 6px;">${buttons}</div>`;
+        },
+      },
+    ],
+    data: ts.data,
+    searchQuery: ts.search,
+    searchFields: [
+      'registrationNumber',
+      r => r.branch?.name,
+      r => r.individualParticipant?.fullName,
+      r => r.team?.teamName,
+      r => r.individualParticipant?.schoolName,
+      r => r.team?.schoolName,
+    ],
+    sortKey: ts.sortKey,
+    sortDir: ts.sortDir,
+    filterKey: 'status',
+    filterValue: ts.filterVal,
+    filterOptions: [
+      { label: 'Semua Status', value: '' },
+      { label: 'Disetujui (Approved)', value: 'APPROVED' },
+      { label: 'Menunggu Verifikasi', value: 'WAITING_VERIFICATION' },
+      { label: 'Perlu Perbaikan (Ditolak)', value: 'PAYMENT_REJECTED' },
+    ],
+    currentPage: ts.page,
+    pageSize: ts.pageSize,
+    onPageChangeName: 'onPesertaPageChange',
+    onSearchChangeName: 'onPesertaSearchChange',
+    onPageSizeChangeName: 'onPesertaPageSizeChange',
+    onSortChangeName: 'onPesertaSortChange',
+    onFilterChangeName: 'onPesertaFilterChange',
+    emptyMessage: 'Anda belum mendaftarkan diri pada cabang lomba mana pun.',
+  });
+}
+
+function updateUniversalTable(slotId, renderFn) {
+  const result = renderFn();
+  if (result) {
+    const slot = document.getElementById(slotId);
+    if (slot) slot.innerHTML = result;
+  }
+}
+
+function onPesertaPageChange(page) {
+  tableState.pesertaRegs.page = page;
+  updateUniversalTable('peserta-regs-table-slot', renderPesertaRegistrationsTable);
+}
+function onPesertaSearchChange(val) {
+  tableState.pesertaRegs.search = val;
+  tableState.pesertaRegs.page = 1;
+  updateUniversalTable('peserta-regs-table-slot', renderPesertaRegistrationsTable);
+}
+function onPesertaPageSizeChange(size) {
+  tableState.pesertaRegs.pageSize = size;
+  tableState.pesertaRegs.page = 1;
+  updateUniversalTable('peserta-regs-table-slot', renderPesertaRegistrationsTable);
+}
+function onPesertaSortChange(k) {
+  if (tableState.pesertaRegs.sortKey === k) {
+    tableState.pesertaRegs.sortDir = tableState.pesertaRegs.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    tableState.pesertaRegs.sortKey = k;
+    tableState.pesertaRegs.sortDir = 'asc';
+  }
+  updateUniversalTable('peserta-regs-table-slot', renderPesertaRegistrationsTable);
+}
+function onPesertaFilterChange(v) {
+  tableState.pesertaRegs.filterVal = v;
+  tableState.pesertaRegs.page = 1;
+  updateUniversalTable('peserta-regs-table-slot', renderPesertaRegistrationsTable);
+}
+
+// --- FULL-PAGE REGISTRATION WIZARD (NOT POPUP) ---
+function renderPesertaRegistrationWizard() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = `
+    <div style="max-width: 850px; margin: 0 auto;">
+      <div style="margin-bottom: 24px;">
+        <a href="#overview" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+          <i class="fa-solid fa-arrow-left"></i> Kembali ke Dashboard
+        </a>
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Formulir Pendaftaran Lomba</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Lengkapi data pendaftaran dan lampirkan bukti pembayaran dalam satu langkah mudah.</p>
+      </div>
+
+      <div id="wizard-alert" style="display: none; padding: 14px; border-radius: 8px; margin-bottom: 20px;"></div>
+
+      <form id="full-registration-form" onsubmit="handleFullRegistrationSubmit(event)">
+        
+        <!-- SECTION 1: PILIH CABANG LOMBA -->
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-sm);">
+          <h3 style="font-size: 1.2rem; color: var(--text-heading); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: var(--primary-600); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 800;">1</span>
+            Pilih Kategori & Cabang Lomba
+          </h3>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Kategori Lomba</label>
+            <select id="wiz-cat" class="form-select" onchange="onWizardCatSelect()" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+              <option value="">-- Pilih Kategori Lomba --</option>
+              ${state.competitionTree.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Jenjang Pendidikan</label>
+            <select id="wiz-lvl" class="form-select" onchange="onWizardLvlSelect()" disabled required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+              <option value="">-- Pilih Jenjang Terlebih Dahulu --</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Cabang Lomba</label>
+            <select id="wiz-branch" class="form-select" onchange="onWizardBranchSelect()" disabled required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+              <option value="">-- Pilih Cabang Lomba --</option>
+            </select>
+          </div>
+
+          <!-- Branch Details Banner -->
+          <div id="wiz-branch-info" style="display: none; padding: 16px; background: var(--primary-50); border: 1px solid var(--primary-200); border-radius: var(--radius-md); margin-top: 14px;"></div>
+        </div>
+
+        <!-- SECTION 2: DATA PESERTA / TIM -->
+        <div id="wiz-participant-section" class="card" style="display: none; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-sm);">
+          <h3 style="font-size: 1.2rem; color: var(--text-heading); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: var(--primary-600); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 800;">2</span>
+            Data Peserta / Tim
+          </h3>
+          <div id="wiz-participant-fields"></div>
+        </div>
+
+        <!-- SECTION 3: PEMBAYARAN & BUKTI TRANSFER (ON THE SAME PAGE) -->
+        <div id="wiz-payment-section" class="card" style="display: none; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-sm);">
+          <h3 style="font-size: 1.2rem; color: var(--text-heading); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: var(--primary-600); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 800;">3</span>
+            Pembayaran & Bukti Transfer
+          </h3>
+
+          <div style="background: var(--bg-body); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; margin-bottom: 20px;">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Biaya Pendaftaran: <strong style="color: var(--primary-600); font-size: 1.2rem; margin-left: 6px;">Rp 150.000</strong></div>
+            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">Silakan transfer ke salah satu rekening resmi panitia di bawah ini:</div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Rekening Bank Tujuan</label>
+            <select id="wiz-pay-account" class="form-select" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+              ${state.paymentAccounts.map(acc => `<option value="${acc.id}">${acc.bankName} - ${acc.accountNumber} (a.n. ${acc.accountHolder})</option>`).join('')}
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+            <div class="form-group">
+              <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Bank Pengirim</label>
+              <input type="text" id="wiz-pay-bank" class="form-control" placeholder="Contoh: BCA / Mandiri / BSI" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Nama Pemilik Rekening Pengirim</label>
+              <input type="text" id="wiz-pay-sender" class="form-control" placeholder="Nama sesuai buku tabungan" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Tanggal Transfer</label>
+            <input type="date" id="wiz-pay-date" class="form-control" value="${new Date().toISOString().split('T')[0]}" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">File Bukti Transfer (PNG, JPG, WEBP - Max 5MB)</label>
+            <input type="file" id="wiz-pay-file" class="form-control" accept="image/png, image/jpeg, image/webp" onchange="previewProofImage(this)" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          </div>
+
+          <!-- Image Preview Slot -->
+          <div id="wiz-img-preview-slot" style="display: none; margin-bottom: 16px; text-align: center; background: #000; border-radius: 8px; padding: 10px;">
+            <img id="wiz-preview-img" src="" alt="Preview Bukti" style="max-height: 200px; max-width: 100%; object-fit: contain;">
+          </div>
+        </div>
+
+        <button type="submit" id="wiz-submit-btn" class="btn btn-primary" style="width: 100%; padding: 14px; font-weight: 700; font-size: 1rem;" disabled>
+          <i class="fa-solid fa-check"></i> Simpan Pendaftaran & Unggah Bukti
+        </button>
+      </form>
+    </div>
+  `;
+}
+
+function onWizardCatSelect() {
+  const catId = document.getElementById('wiz-cat').value;
+  const lvlSelect = document.getElementById('wiz-lvl');
+  const branchSelect = document.getElementById('wiz-branch');
+  const partSec = document.getElementById('wiz-participant-section');
+  const paySec = document.getElementById('wiz-payment-section');
+  const infoBanner = document.getElementById('wiz-branch-info');
+  const submitBtn = document.getElementById('wiz-submit-btn');
+
+  lvlSelect.innerHTML = '<option value="">-- Pilih Jenjang --</option>';
+  branchSelect.innerHTML = '<option value="">-- Pilih Cabang Lomba --</option>';
+  branchSelect.disabled = true;
+  partSec.style.display = 'none';
+  paySec.style.display = 'none';
+  infoBanner.style.display = 'none';
+  submitBtn.disabled = true;
+
+  if (!catId) {
+    lvlSelect.disabled = true;
+    return;
+  }
+
+  const category = state.competitionTree.find(c => c.id === catId);
+  if (category) {
+    category.levels.forEach(lvl => {
+      lvlSelect.innerHTML += `<option value="${lvl.id}">${lvl.name}</option>`;
+    });
+    lvlSelect.disabled = false;
+  }
+}
+
+function onWizardLvlSelect() {
+  const catId = document.getElementById('wiz-cat').value;
+  const lvlId = document.getElementById('wiz-lvl').value;
+  const branchSelect = document.getElementById('wiz-branch');
+  const partSec = document.getElementById('wiz-participant-section');
+  const paySec = document.getElementById('wiz-payment-section');
+  const infoBanner = document.getElementById('wiz-branch-info');
+  const submitBtn = document.getElementById('wiz-submit-btn');
+
+  branchSelect.innerHTML = '<option value="">-- Pilih Cabang Lomba --</option>';
+  partSec.style.display = 'none';
+  paySec.style.display = 'none';
+  infoBanner.style.display = 'none';
+  submitBtn.disabled = true;
+
+  if (!lvlId) {
+    branchSelect.disabled = true;
+    return;
+  }
+
+  const category = state.competitionTree.find(c => c.id === catId);
+  const level = category?.levels.find(l => l.id === lvlId);
+
+  if (level) {
+    level.branches.forEach(br => {
+      branchSelect.innerHTML += `<option value="${br.id}">${br.name} (${br.participantType === 'INDIVIDUAL' ? 'Perorangan' : 'Beregu / Tim'})</option>`;
+    });
+    branchSelect.disabled = false;
+  }
+}
+
+function onWizardBranchSelect() {
+  const catId = document.getElementById('wiz-cat').value;
+  const lvlId = document.getElementById('wiz-lvl').value;
+  const branchId = document.getElementById('wiz-branch').value;
+  const partSec = document.getElementById('wiz-participant-section');
+  const partFields = document.getElementById('wiz-participant-fields');
+  const paySec = document.getElementById('wiz-payment-section');
+  const infoBanner = document.getElementById('wiz-branch-info');
+  const submitBtn = document.getElementById('wiz-submit-btn');
+
+  if (!branchId) {
+    partSec.style.display = 'none';
+    paySec.style.display = 'none';
+    infoBanner.style.display = 'none';
+    submitBtn.disabled = true;
+    return;
+  }
+
+  const category = state.competitionTree.find(c => c.id === catId);
+  const level = category?.levels.find(l => l.id === lvlId);
+  const branch = level?.branches.find(b => b.id === branchId);
+
+  if (!branch) return;
+
+  partSec.style.display = 'block';
+  paySec.style.display = 'block';
+  submitBtn.disabled = false;
+
+  infoBanner.style.display = 'block';
+  infoBanner.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div>
+        <span class="badge ${branch.participantType === 'INDIVIDUAL' ? 'badge-info' : 'badge-primary'}">${branch.participantType === 'INDIVIDUAL' ? 'Lomba Perorangan' : 'Lomba Beregu (Tim)'}</span>
+        <strong style="margin-left: 8px; font-size: 1rem; color: var(--text-heading);">${branch.name}</strong>
+        ${branch.participantType === 'TEAM' ? `<div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Batas Anggota Tim: <strong>${branch.minTeamMembers} - ${branch.maxTeamMembers} Orang</strong> (Termasuk Ketua Tim)</div>` : ''}
+      </div>
+      <div>
+        <span style="font-size: 0.8rem; color: var(--text-dim);">Biaya:</span>
+        <strong style="color: var(--primary-600); font-size: 1.15rem; margin-left: 4px;">Rp 150.000</strong>
+      </div>
+    </div>
+  `;
+
+  if (branch.participantType === 'INDIVIDUAL') {
+    partFields.innerHTML = `
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Nama Lengkap Peserta</label>
+        <input type="text" id="wiz-indiv-name" class="form-control" placeholder="Nama Lengkap Siswa/i" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+        <div class="form-group">
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Jenis Kelamin</label>
+          <select id="wiz-indiv-gender" class="form-select" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+            <option value="L">Laki-laki (L)</option>
+            <option value="P">Perempuan (P)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Kelas / Tingkat</label>
+          <input type="text" id="wiz-indiv-grade" class="form-control" placeholder="Contoh: Kelas 5 SD" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Asal Sekolah / Madrasah</label>
+        <input type="text" id="wiz-indiv-school" class="form-control" placeholder="Nama Lengkap Sekolah Asal" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Alamat Sekolah</label>
+        <textarea id="wiz-indiv-address" class="form-control" rows="2" placeholder="Alamat lengkap instansi sekolah" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);"></textarea>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+        <div class="form-group">
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Nama Guru Pembimbing</label>
+          <input type="text" id="wiz-indiv-mentor" class="form-control" placeholder="Nama Guru / Pembina" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">No WhatsApp Kontak</label>
+          <input type="text" id="wiz-indiv-wa" class="form-control" placeholder="08123456789" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+      </div>
+    `;
+  } else {
+    // TEAM FORM
+    partFields.innerHTML = `
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Nama Tim</label>
+        <input type="text" id="wiz-team-name" class="form-control" placeholder="Contoh: Robotik Alpha Squad" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Asal Sekolah / Madrasah</label>
+        <input type="text" id="wiz-team-school" class="form-control" placeholder="Nama Lengkap Sekolah Asal" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Alamat Sekolah</label>
+        <textarea id="wiz-team-address" class="form-control" rows="2" placeholder="Alamat lengkap instansi sekolah" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);"></textarea>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+        <div class="form-group">
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Nama Guru Pembimbing / Pelatih</label>
+          <input type="text" id="wiz-team-mentor" class="form-control" placeholder="Nama Guru Pembimbing" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">No WhatsApp Kontak Tim</label>
+          <input type="text" id="wiz-team-wa" class="form-control" placeholder="08123456789" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 700; margin-bottom: 6px; color: var(--primary-600);">Nama Ketua Tim (Personel 1)</label>
+        <input type="text" id="wiz-team-leader" class="form-control" placeholder="Nama Lengkap Ketua Tim" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+
+      <div style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <label class="form-label" style="font-weight: 700; margin-bottom: 0;">Anggota Tambahan Tim:</label>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="addWizTeamMemberRow(${branch.maxTeamMembers})">
+            <i class="fa-solid fa-user-plus"></i> Tambah Anggota
+          </button>
+        </div>
+        <div id="wiz-members-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
+      </div>
+    `;
+
+    // Initialize required min members
+    const initialMembers = Math.max(1, (branch.minTeamMembers || 2) - 1);
+    for (let i = 0; i < initialMembers; i++) {
+      addWizTeamMemberRow(branch.maxTeamMembers);
+    }
+  }
+}
+
+function addWizTeamMemberRow(maxMembers) {
+  const container = document.getElementById('wiz-members-container');
+  if (!container) return;
+
+  const currentCount = container.querySelectorAll('.wiz-member-item').length + 1; // +1 for leader
+  if (currentCount >= maxMembers) {
+    alert(`Batas maksimal tim untuk cabang ini adalah ${maxMembers} orang (termasuk Ketua Tim).`);
+    return;
+  }
+
+  const idx = container.querySelectorAll('.wiz-member-item').length + 1;
+  const row = document.createElement('div');
+  row.className = 'wiz-member-item';
+  row.style.cssText = 'background: var(--bg-body); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px;';
+  row.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-heading);">Anggota ${idx}</span>
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.wiz-member-item').remove()" style="padding: 2px 8px; font-size: 0.75rem;">
+        <i class="fa-solid fa-trash"></i> Hapus
+      </button>
+    </div>
+    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px;">
+      <input type="text" class="form-control mem-name" placeholder="Nama Lengkap Anggota" required style="padding: 8px 12px; font-size: 0.85rem; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-sm);">
+      <select class="form-select mem-gender" required style="padding: 8px 12px; font-size: 0.85rem; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-sm);">
+        <option value="L">L</option>
+        <option value="P">P</option>
+      </select>
+      <input type="text" class="form-control mem-grade" placeholder="Kelas" required style="padding: 8px 12px; font-size: 0.85rem; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-sm);">
+    </div>
+  `;
+  container.appendChild(row);
+}
+
+function previewProofImage(input) {
+  const slot = document.getElementById('wiz-img-preview-slot');
+  const img = document.getElementById('wiz-preview-img');
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      img.src = e.target.result;
+      slot.style.display = 'block';
+    };
+    reader.readAsDataURL(input.files[0]);
+  } else {
+    slot.style.display = 'none';
+  }
+}
+
+async function handleFullRegistrationSubmit(e) {
+  e.preventDefault();
+  const catId = document.getElementById('wiz-cat').value;
+  const lvlId = document.getElementById('wiz-lvl').value;
+  const branchId = document.getElementById('wiz-branch').value;
+  const fileInput = document.getElementById('wiz-pay-file');
+  const btn = document.getElementById('wiz-submit-btn');
+
+  const category = state.competitionTree.find(c => c.id === catId);
+  const level = category?.levels.find(l => l.id === lvlId);
+  const branch = level?.branches.find(b => b.id === branchId);
+
+  if (!branch) return;
+
+  if (!fileInput.files || fileInput.files.length === 0) {
+    alert('Wajib mengunggah file bukti transfer pembayaran.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan pendaftaran & bukti pembayaran...';
+
+  try {
+    // 1. Submit Registration
+    let regEndpoint = '';
+    let regPayload = {};
+
+    if (branch.participantType === 'INDIVIDUAL') {
+      regEndpoint = '/api/registrations/individual';
+      regPayload = {
+        branchId,
+        fullName: document.getElementById('wiz-indiv-name').value,
+        gender: document.getElementById('wiz-indiv-gender').value,
+        gradeClass: document.getElementById('wiz-indiv-grade').value,
+        schoolName: document.getElementById('wiz-indiv-school').value,
+        schoolAddress: document.getElementById('wiz-indiv-address').value,
+        mentorName: document.getElementById('wiz-indiv-mentor').value,
+        whatsappNumber: document.getElementById('wiz-indiv-wa').value,
+      };
+    } else {
+      regEndpoint = '/api/registrations/team';
+      const members = [];
+      document.querySelectorAll('.wiz-member-item').forEach(item => {
+        members.push({
+          memberName: item.querySelector('.mem-name').value,
+          gender: item.querySelector('.mem-gender').value,
+          gradeClass: item.querySelector('.mem-grade').value,
+        });
+      });
+
+      regPayload = {
+        branchId,
+        teamName: document.getElementById('wiz-team-name').value,
+        schoolName: document.getElementById('wiz-team-school').value,
+        schoolAddress: document.getElementById('wiz-team-address').value,
+        mentorName: document.getElementById('wiz-team-mentor').value,
+        whatsappNumber: document.getElementById('wiz-team-wa').value,
+        leaderName: document.getElementById('wiz-team-leader').value,
+        members,
+      };
+    }
+
+    const regRes = await apiRequest(regEndpoint, {
+      method: 'POST',
+      body: regPayload,
+    });
+
+    if (!regRes.success || !regRes.data) {
+      throw new Error(regRes.message || 'Gagal menyimpan pendaftaran.');
+    }
+
+    const regId = regRes.data.id;
+
+    // 2. Upload Payment Proof immediately
+    const formData = new FormData();
+    formData.append('registrationId', regId);
+    formData.append('paymentAccountId', document.getElementById('wiz-pay-account').value);
+    formData.append('senderBank', document.getElementById('wiz-pay-bank').value);
+    formData.append('senderAccountName', document.getElementById('wiz-pay-sender').value);
+    formData.append('paymentDate', document.getElementById('wiz-pay-date').value);
+    formData.append('payment_proof', fileInput.files[0]);
+
+    await apiRequest('/api/payments/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    // 3. Redirect to Ringkasan Pendaftaran
+    window.location.hash = `#detail/${regId}`;
+  } catch (err) {
+    showBannerAlert('wizard-alert', err.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Simpan Pendaftaran & Unggah Bukti';
+  }
+}
+
+// --- RINGKASAN & DETAIL PENDAFTARAN (FULL PAGE) ---
+async function renderPesertaRegistrationDetail(regId) {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat ringkasan pendaftaran...</div>';
+
+  try {
+    const res = await apiRequest(`/api/registrations/${regId}`);
+    if (!res.success || !res.data) throw new Error('Data pendaftaran tidak ditemukan.');
+
+    const reg = res.data;
+    const isIndiv = reg.branch.participantType === 'INDIVIDUAL';
+    const participantName = isIndiv ? reg.individualParticipant?.fullName : reg.team?.teamName;
+    const schoolName = isIndiv ? reg.individualParticipant?.schoolName : reg.team?.schoolName;
+    const latestPayment = reg.payments && reg.payments[0] ? reg.payments[0] : null;
+    const rejectionLog = latestPayment?.verificationLogs?.find(l => l.action === 'REJECTED');
+
+    container.innerHTML = `
+      <div style="max-width: 900px; margin: 0 auto;">
+        
+        <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+          <div>
+            <a href="#overview" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+              <i class="fa-solid fa-arrow-left"></i> Kembali ke Dashboard
+            </a>
+            <h2 style="font-size: 1.6rem; color: var(--text-heading); margin: 0;">Ringkasan Pendaftaran</h2>
+          </div>
+          <div>
+            ${reg.status === 'APPROVED' ? `
+              <button type="button" class="btn btn-success" onclick="openParticipantCardModal('${reg.id}')"><i class="fa-solid fa-id-card"></i> Lihat & Cetak Kartu Peserta</button>
+            ` : ''}
+          </div>
+        </div>
+
+        <div id="detail-alert" style="display: none; padding: 14px; border-radius: 8px; margin-bottom: 20px;"></div>
+
+        <!-- Check-in Status Banner -->
+        <div class="card" style="background: var(--bg-card); border: 2px solid ${reg.checkIn ? 'var(--success-500)' : 'var(--border-subtle)'}; border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Status Check-In Hari Lomba:</div>
+            <div style="margin-top: 4px;">${getCheckInBadge(reg.checkIn)}</div>
+          </div>
+          ${reg.checkIn ? `
+            <div style="font-size: 0.85rem; color: var(--text-muted); text-align: right;">
+              Petugas: <strong>${reg.checkIn.checkedInBy?.name || 'Panitia'}</strong>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Registration Main Overview Card -->
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-sm);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 16px;">
+            <div>
+              <span class="badge ${isIndiv ? 'badge-info' : 'badge-primary'}" style="margin-bottom: 6px;">${isIndiv ? 'LOMBA PERORANGAN' : 'LOMBA BEREGU / TIM'}</span>
+              <h3 style="font-size: 1.35rem; color: var(--text-heading); margin: 4px 0;">${participantName}</h3>
+              <div style="color: var(--text-muted); font-size: 0.9rem;">${schoolName}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Nomor Registrasi</div>
+              <code style="font-size: 1.25rem; font-weight: 800; color: var(--primary-600);">${reg.registrationNumber}</code>
+              <div style="margin-top: 4px;">${getStatusBadge(reg.status)}</div>
+            </div>
+          </div>
+
+          <!-- 2 Columns Details Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <div>
+              <h4 style="font-size: 0.95rem; color: var(--primary-600); margin-bottom: 12px; text-transform: uppercase; font-weight: 800;"><i class="fa-solid fa-trophy"></i> Informasi Lomba</h4>
+              <table style="width: 100%; font-size: 0.875rem;">
+                <tr><td style="color: var(--text-muted); padding: 4px 0; width: 120px;">Kategori:</td><td style="font-weight: 700; color: var(--text-heading);">${reg.branch.level.category.name}</td></tr>
+                <tr><td style="color: var(--text-muted); padding: 4px 0;">Jenjang:</td><td style="font-weight: 700; color: var(--text-heading);">${reg.branch.level.name}</td></tr>
+                <tr><td style="color: var(--text-muted); padding: 4px 0;">Cabang Lomba:</td><td style="font-weight: 700; color: var(--primary-600);">${reg.branch.name}</td></tr>
+                <tr><td style="color: var(--text-muted); padding: 4px 0;">Biaya:</td><td style="font-weight: 800; color: var(--accent-600);">${formatCurrency(reg.branch.registrationFee)}</td></tr>
+              </table>
+            </div>
+
+            <div>
+              <h4 style="font-size: 0.95rem; color: var(--primary-600); margin-bottom: 12px; text-transform: uppercase; font-weight: 800;"><i class="fa-solid fa-user"></i> Kontak & Pembimbing</h4>
+              <table style="width: 100%; font-size: 0.875rem;">
+                <tr><td style="color: var(--text-muted); padding: 4px 0; width: 120px;">Guru Pembimbing:</td><td style="font-weight: 700; color: var(--text-heading);">${isIndiv ? reg.individualParticipant?.mentorName : reg.team?.mentorName}</td></tr>
+                <tr><td style="color: var(--text-muted); padding: 4px 0;">No. WhatsApp:</td><td style="font-weight: 700; color: var(--text-heading);">${isIndiv ? reg.individualParticipant?.whatsappNumber : reg.team?.whatsappNumber}</td></tr>
+                <tr><td style="color: var(--text-muted); padding: 4px 0;">Waktu Daftar:</td><td style="color: var(--text-muted);">${formatDate(reg.createdAt)}</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <!-- Team Members List if Team -->
+          ${!isIndiv && reg.team ? `
+            <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+              <h4 style="font-size: 0.95rem; color: var(--text-heading); margin-bottom: 8px;">Daftar Personel Tim:</h4>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <span class="member-chip" style="border-color: var(--primary-400); background: var(--primary-50); color: var(--primary-800);"><i class="fa-solid fa-crown"></i> Ketua: <strong>${reg.team.leaderName}</strong></span>
+                ${(reg.team.members || []).map(m => `
+                  <span class="member-chip">${m.memberName} (${m.gender}, ${m.gradeClass})</span>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Payment Status & Proof Section -->
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-sm);">
+          <h3 style="font-size: 1.2rem; color: var(--text-heading); margin-bottom: 16px;"><i class="fa-solid fa-credit-card"></i> Status Pembayaran</h3>
+
+          ${reg.status === 'PAYMENT_REJECTED' ? `
+            <div class="alert alert-danger" style="margin-bottom: 20px;">
+              <h4 style="margin-bottom: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> Pembayaran Ditolak oleh Bendahara</h4>
+              <div>Alasan Penolakan: <strong>${rejectionLog?.rejectionReason || latestPayment?.notes || 'Bukti pembayaran tidak sesuai/tidak terbaca.'}</strong></div>
+            </div>
+
+            <!-- Inline Re-upload Form -->
+            <div style="background: var(--bg-body); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px;">
+              <h4 style="font-size: 1rem; color: var(--text-heading); margin-bottom: 12px;">Unggah Ulang Bukti Pembayaran</h4>
+              <form onsubmit="handleReuploadSubmit(event, '${reg.id}')">
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Pilih File Bukti Transfer Baru</label>
+                  <input type="file" id="reupload-file" class="form-control" accept="image/png, image/jpeg, image/webp" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+                </div>
+                <button type="submit" id="reupload-btn" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Kirim Bukti Baru</button>
+              </form>
+            </div>
+          ` : latestPayment ? `
+            <div style="display: grid; grid-template-columns: 1fr 200px; gap: 20px; align-items: start;">
+              <div>
+                <table style="width: 100%; font-size: 0.875rem;">
+                  <tr><td style="color: var(--text-muted); padding: 4px 0; width: 140px;">Status:</td><td>${getStatusBadge(reg.status)}</td></tr>
+                  <tr><td style="color: var(--text-muted); padding: 4px 0;">Nominal:</td><td style="font-weight: 700; color: var(--primary-600);">${formatCurrency(latestPayment.amount)}</td></tr>
+                  <tr><td style="color: var(--text-muted); padding: 4px 0;">Rekening Tujuan:</td><td>${latestPayment.paymentAccount?.bankName || 'Bank Panitia'} (${latestPayment.paymentAccount?.accountNumber || '-'})</td></tr>
+                  <tr><td style="color: var(--text-muted); padding: 4px 0;">Pengirim:</td><td>${latestPayment.senderBank || '-'} a.n. ${latestPayment.senderAccountName || '-'}</td></tr>
+                  <tr><td style="color: var(--text-muted); padding: 4px 0;">Tanggal Transfer:</td><td>${formatDate(latestPayment.paymentDate)}</td></tr>
+                </table>
+              </div>
+              <div style="text-align: center;">
+                <div style="font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px; font-weight: 700;">Bukti Transfer:</div>
+                <div style="background: #0f172a; border-radius: 8px; overflow: hidden; text-align: center; border: 1px solid var(--border-subtle); padding: 4px; max-height: 140px; display: flex; align-items: center; justify-content: center;">
+                  <img src="/api/payments/file/${encodeURIComponent(latestPayment.proofImagePath)}?token=${encodeURIComponent(state.token || localStorage.getItem('lomba_jwt_token') || '')}" alt="Bukti Transfer" style="max-width: 100%; max-height: 130px; border-radius: 4px; object-fit: contain;" onerror="this.style.display='none'; document.getElementById('det-proof-fb').style.display='block';">
+                  <div id="det-proof-fb" style="display: none; color: var(--text-muted); font-size: 0.8rem; padding: 10px;">
+                    <i class="fa-solid fa-file-image" style="font-size: 1.5rem; color: var(--primary-500); margin-bottom: 4px;"></i><br>Bukti terunggah
+                  </div>
+                </div>
+                <a href="/api/payments/file/${encodeURIComponent(latestPayment.proofImagePath)}?token=${encodeURIComponent(state.token || localStorage.getItem('lomba_jwt_token') || '')}" target="_blank" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--primary-600); margin-top: 6px; font-weight: 600; text-decoration: none;">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Lihat Bukti Penuh
+                </a>
+              </div>
+            </div>
+          ` : `
+            <p style="color: var(--text-muted);">Belum ada riwayat pembayaran.</p>
+          `}
+        </div>
+
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+async function handleReuploadSubmit(e, regId) {
+  e.preventDefault();
+  const fileInput = document.getElementById('reupload-file');
+  const btn = document.getElementById('reupload-btn');
+
+  if (!fileInput.files || !fileInput.files[0]) {
+    alert('Pilih file bukti transfer.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengunggah...';
+
+  try {
+    const formData = new FormData();
+    formData.append('registrationId', regId);
+    formData.append('payment_proof', fileInput.files[0]);
+
+    const res = await apiRequest('/api/payments/reupload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (res.success) {
+      alert('Bukti transfer baru berhasil dikirim dan sedang menunggu verifikasi panitia.');
+      renderPesertaRegistrationDetail(regId);
+    }
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Kirim Bukti Baru';
+  }
+}
+
+// --- OFFICIAL PARTICIPANT CARD VIEW (PRINT / CETAK FIX) ---
+async function renderParticipantCardView(regId) {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat Kartu Peserta...</div>';
+
+  try {
+    const res = await apiRequest(`/api/cards/${regId}`);
+    if (!res.success || !res.data) throw new Error('Kartu peserta tidak tersedia atau pendaftaran belum disetujui.');
+
+    const card = res.data;
+    const isTeam = card.participant_type === 'TEAM';
+
+    container.innerHTML = `
+      <div style="max-width: 600px; margin: 0 auto;">
+        
+        <div class="no-print" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <a href="#overview" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-arrow-left"></i> Kembali ke Dashboard
+          </a>
+          <button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak / Print Kartu</button>
+        </div>
+
+        <!-- Official Participant Card -->
+        <div class="card-preview-container">
+          <div class="id-card-official" id="official-card-print">
+            
+            <div class="card-header-banner" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <img src="${card.logo_url || '/static/img/logo_e7a8b6a95d.webp'}" alt="Logo" style="height: 44px; width: 44px; object-fit: contain; background: #ffffff; padding: 3px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.18);" onerror="this.style.display='none'">
+                <div class="event-brand">
+                  <h2 style="font-size: 1.15rem; margin: 0; color: #fff; line-height: 1.2;">${card.app_short_name || 'MASKUMAMBANG FEST #4'}</h2>
+                  <p style="margin: 2px 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.85);">${card.category_name} - Jenjang ${card.level_name}</p>
+                </div>
+              </div>
+              <span class="card-type-tag">${isTeam ? 'BEREGU (TIM)' : 'PERORANGAN'}</span>
+            </div>
+
+            <div class="card-body-content">
+              <div class="reg-number-strip">
+                <span class="reg-label">Nomor Registrasi:</span>
+                <span class="reg-code">${card.registration_number}</span>
+              </div>
+
+              <div class="card-main-grid">
+                <div>
+                  <div class="info-item">
+                    <div class="info-label">Nama ${isTeam ? 'Tim' : 'Peserta'}:</div>
+                    <div class="info-val highlight">${card.participant_name}</div>
+                  </div>
+                  <div class="info-item">
+                    <div class="info-label">Asal Sekolah:</div>
+                    <div class="info-val">${card.school_name}</div>
+                  </div>
+                  <div class="info-item">
+                    <div class="info-label">Cabang Lomba:</div>
+                    <div class="info-val" style="color: var(--primary-600);">${card.branch_name}</div>
+                  </div>
+                  ${isTeam ? `
+                    <div class="info-item">
+                      <div class="info-label">Ketua Tim:</div>
+                      <div class="info-val">${card.leader_name}</div>
+                    </div>
+                  ` : ''}
+                </div>
+
+                <div class="qr-frame">
+                  <img src="${card.qr_data_uri}" alt="QR Check-in">
+                  <div class="qr-caption">QR CHECK-IN</div>
+                </div>
+              </div>
+
+              ${isTeam && card.members && card.members.length > 0 ? `
+                <div class="card-members-section">
+                  <div class="info-label">Anggota Tim:</div>
+                  <div class="members-chips">
+                    ${card.members.map(m => `<span class="member-chip">${m.memberName}</span>`).join('')}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="card-footer-strip">
+              <span class="verified-seal"><i class="fa-solid fa-circle-check"></i> TERVERIFIKASI RESMI</span>
+              <span>Tunjukkan kartu saat check-in lomba</span>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `
+      <div class="alert alert-danger" style="max-width: 600px; margin: 40px auto; text-align: center;">
+        <i class="fa-solid fa-triangle-exclamation" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+        <h4 style="margin-bottom: 6px;">Kartu Peserta Belum Dapat Diakses</h4>
+        <p>${err.message}</p>
+        <a href="#overview" class="btn btn-sm btn-secondary" style="margin-top: 10px;">Kembali ke Dashboard</a>
+      </div>
+    `;
+  }
+}
+
+async function openParticipantCardModal(regId) {
+  openAppModal(`
+    <div style="text-align: center; padding: 40px;">
+      <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-600);"></i>
+      <p style="margin-top: 12px; color: var(--text-muted); font-size: 0.95rem;">Memuat data kartu peserta...</p>
+    </div>
+  `);
+
+  try {
+    const res = await apiRequest(`/api/cards/${regId}`);
+    if (!res.success || !res.data) throw new Error('Kartu peserta tidak tersedia atau pendaftaran belum disetujui.');
+
+    const card = res.data;
+    const isTeam = card.participant_type === 'TEAM';
+
+    openAppModal(`
+      <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
+        <h3 style="font-size: 1.15rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-id-card"></i> Kartu Peserta Resmi</h3>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-sm btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak Kartu</button>
+          <button type="button" onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+        </div>
+      </div>
+
+      <div class="card-preview-container" style="margin: 0 auto; max-width: 520px;">
+        <div class="id-card-official" id="official-card-print">
+          
+          <div class="card-header-banner" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <img src="${card.logo_url || '/static/img/logo_e7a8b6a95d.webp'}" alt="Logo" style="height: 42px; width: 42px; object-fit: contain; background: #ffffff; padding: 3px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.18);" onerror="this.style.display='none'">
+              <div class="event-brand">
+                <h2 style="font-size: 1.1rem; margin: 0; color: #fff; line-height: 1.2;">${card.app_short_name || 'MASKUMAMBANG FEST #4'}</h2>
+                <p style="margin: 2px 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.85);">${card.category_name} - Jenjang ${card.level_name}</p>
+              </div>
+            </div>
+            <span class="card-type-tag">${isTeam ? 'BEREGU (TIM)' : 'PERORANGAN'}</span>
+          </div>
+
+          <div class="card-body-content">
+            <div class="reg-number-strip">
+              <span class="reg-label">Nomor Registrasi:</span>
+              <span class="reg-code">${card.registration_number}</span>
+            </div>
+
+            <div class="card-main-grid">
+              <div>
+                <div class="info-item">
+                  <div class="info-label">Nama ${isTeam ? 'Tim' : 'Peserta'}:</div>
+                  <div class="info-val highlight">${card.participant_name}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Asal Sekolah:</div>
+                  <div class="info-val">${card.school_name}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Cabang Lomba:</div>
+                  <div class="info-val" style="color: var(--primary-600);">${card.branch_name}</div>
+                </div>
+                ${isTeam ? `
+                  <div class="info-item">
+                    <div class="info-label">Ketua Tim:</div>
+                    <div class="info-val">${card.leader_name}</div>
+                  </div>
+                ` : ''}
+              </div>
+
+              <div class="qr-frame">
+                <img src="${card.qr_data_uri}" alt="QR Check-in">
+                <div class="qr-caption">QR CHECK-IN</div>
+              </div>
+            </div>
+
+            ${isTeam && card.members && card.members.length > 0 ? `
+              <div class="card-members-section">
+                <div class="info-label">Anggota Tim:</div>
+                <div class="members-chips">
+                  ${card.members.map(m => `<span class="member-chip">${m.memberName}</span>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="card-footer-strip">
+            <span class="verified-seal"><i class="fa-solid fa-circle-check"></i> TERVERIFIKASI RESMI</span>
+            <span>Tunjukkan kartu saat check-in lomba</span>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 10px;">
+        <a href="#card/${card.registration_id}" onclick="closeAppModal()" style="font-size: 0.85rem; color: var(--primary-600); font-weight: 600; text-decoration: none;">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka Halaman Cetak Khusus
+        </a>
+        <button type="button" class="btn btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak / Download Kartu</button>
+      </div>
+    `);
+  } catch (err) {
+    openAppModal(`
+      <div style="text-align: center; padding: 24px;">
+        <i class="fa-solid fa-triangle-exclamation" style="font-size: 2.2rem; color: var(--warning-600); margin-bottom: 12px; display: block;"></i>
+        <h4 style="margin-bottom: 8px;">Kartu Belum Tersedia</h4>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">${err.message}</p>
+        <button class="btn btn-secondary" onclick="closeAppModal()" style="margin-top: 12px;">Tutup</button>
+      </div>
+    `);
+  }
+}
+
+function printParticipantCard() {
+  window.print();
+}
+
+// ============================================================================
+// BENDAHARA MODULE (VERIFIKASI + SCANNER CHECK-IN MOBILE VERTICAL LAYOUT)
+// ============================================================================
+async function renderBendaharaDashboard() {
+  renderBendaharaPaymentsView();
+}
+
+async function renderBendaharaPaymentsView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat daftar pembayaran...</div>';
+
+  try {
+    const res = await apiRequest('/api/payments/list');
+    tableState.bendaharaPayments.data = res.success ? res.payments : [];
+
+    container.innerHTML = `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Verifikasi Pembayaran Peserta</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Periksa bukti transfer dan tentukan persetujuan atau penolakan dengan alasan wajib.</p>
+      </div>
+
+      <div id="bendahara-payments-table-slot">
+        ${renderBendaharaPaymentsTable()}
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+function renderBendaharaPaymentsTable() {
+  const ts = tableState.bendaharaPayments;
+  return renderUniversalTable({
+    tableId: 'bendahara-payments-table',
+    columns: [
+      {
+        header: 'Tgl Bayar',
+        key: 'createdAt',
+        render: p => formatDate(p.createdAt),
+      },
+      {
+        header: 'No. Registrasi',
+        sortValue: p => p.registration?.registrationNumber || '',
+        render: p => `<code style="font-weight: 800; color: var(--primary-600);">${p.registration?.registrationNumber || '-'}</code>`,
+      },
+      {
+        header: 'Pendaftar / Tim',
+        sortValue: p => (p.registration?.individualParticipant?.fullName || p.registration?.team?.teamName || ''),
+        render: p => `<strong>${p.registration?.individualParticipant?.fullName || p.registration?.team?.teamName || '-'}</strong><br><small style="color:var(--text-muted);">${p.registration?.user?.email || '-'}</small>`,
+      },
+      {
+        header: 'Cabang Lomba',
+        sortValue: p => p.registration?.branch?.name || '',
+        render: p => p.registration?.branch?.name || '-',
+      },
+      {
+        header: 'Nominal & Rekening',
+        sortValue: p => Number(p.amount) || 0,
+        render: p => `<strong>${formatCurrency(p.amount)}</strong><br><small style="color:var(--text-muted);">${p.paymentAccount?.bankName || 'Bank'}</small>`,
+      },
+      {
+        header: 'Pengirim',
+        sortValue: p => p.senderAccountName || '',
+        render: p => `${p.senderBank || '-'} a.n. ${p.senderAccountName || '-'}`,
+      },
+      {
+        header: 'Status',
+        key: 'status',
+        render: p => getStatusBadge(p.status),
+      },
+      {
+        header: 'Aksi',
+        sticky: true,
+        sortable: false,
+        render: p => `
+          <button class="btn btn-sm btn-primary" style="padding: 4px 10px;" onclick="openPaymentVerifyModal('${p.id}', '${p.proofImagePath}', '${p.registration?.registrationNumber}', '${p.registration?.individualParticipant?.fullName || p.registration?.team?.teamName}', ${p.amount}, '${p.status}')">
+            <i class="fa-solid fa-eye"></i> Periksa Bukti
+          </button>
+        `,
+      },
+    ],
+    data: ts.data,
+    searchQuery: ts.search,
+    searchFields: [
+      p => p.registration?.registrationNumber,
+      p => p.registration?.individualParticipant?.fullName,
+      p => p.registration?.team?.teamName,
+      p => p.registration?.branch?.name,
+      'senderAccountName',
+    ],
+    sortKey: ts.sortKey,
+    sortDir: ts.sortDir,
+    filterKey: 'status',
+    filterValue: ts.filterVal,
+    filterOptions: [
+      { label: 'Semua Status Pembayaran', value: '' },
+      { label: 'Menunggu Verifikasi', value: 'WAITING_VERIFICATION' },
+      { label: 'Disetujui (Approved)', value: 'APPROVED' },
+      { label: 'Ditolak (Rejected)', value: 'PAYMENT_REJECTED' },
+    ],
+    currentPage: ts.page,
+    pageSize: ts.pageSize,
+    onPageChangeName: 'onBendaharaPageChange',
+    onSearchChangeName: 'onBendaharaSearchChange',
+    onPageSizeChangeName: 'onBendaharaPageSizeChange',
+    onSortChangeName: 'onBendaharaSortChange',
+    onFilterChangeName: 'onBendaharaFilterChange',
+    exportFilename: 'data_verifikasi_pembayaran',
+    onExportName: 'exportBendaharaPaymentsExcel',
+    emptyMessage: 'Belum ada data pembayaran masuk.',
+  });
+}
+
+function exportBendaharaPaymentsExcel() {
+  const data = tableState.bendaharaPayments.data || [];
+  const cols = [
+    { header: 'Tanggal Bayar', exportValue: p => formatDate(p.createdAt) },
+    { header: 'Nomor Registrasi', exportValue: p => p.registration?.registrationNumber || '-' },
+    { header: 'Nama Pendaftar / Tim', exportValue: p => p.registration?.individualParticipant?.fullName || p.registration?.team?.teamName || '-' },
+    { header: 'Email Akun', exportValue: p => p.registration?.user?.email || '-' },
+    { header: 'Cabang Lomba', exportValue: p => p.registration?.branch?.name || '-' },
+    { header: 'Nominal Transfer', exportValue: p => formatCurrency(p.amount) },
+    { header: 'Rekening Tujuan', exportValue: p => p.paymentAccount?.bankName || '-' },
+    { header: 'Bank Pengirim', exportValue: p => p.senderBank || '-' },
+    { header: 'Nama Pengirim', exportValue: p => p.senderAccountName || '-' },
+    { header: 'Status Verifikasi', key: 'status' },
+  ];
+  exportTableDataToExcel('data_verifikasi_pembayaran_peserta', cols, data);
+}
+
+function onBendaharaPageChange(p) { tableState.bendaharaPayments.page = p; updateUniversalTable('bendahara-payments-table-slot', renderBendaharaPaymentsTable); }
+function onBendaharaSearchChange(s) { tableState.bendaharaPayments.search = s; tableState.bendaharaPayments.page = 1; updateUniversalTable('bendahara-payments-table-slot', renderBendaharaPaymentsTable); }
+function onBendaharaPageSizeChange(z) { tableState.bendaharaPayments.pageSize = z; tableState.bendaharaPayments.page = 1; updateUniversalTable('bendahara-payments-table-slot', renderBendaharaPaymentsTable); }
+function onBendaharaSortChange(k) {
+  if (tableState.bendaharaPayments.sortKey === k) {
+    tableState.bendaharaPayments.sortDir = tableState.bendaharaPayments.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    tableState.bendaharaPayments.sortKey = k;
+    tableState.bendaharaPayments.sortDir = 'asc';
+  }
+  updateUniversalTable('bendahara-payments-table-slot', renderBendaharaPaymentsTable);
+}
+function onBendaharaFilterChange(v) {
+  tableState.bendaharaPayments.filterVal = v;
+  tableState.bendaharaPayments.page = 1;
+  updateUniversalTable('bendahara-payments-table-slot', renderBendaharaPaymentsTable);
+}
+
+function openPaymentVerifyModal(paymentId, filename, regNum, participantName, amount, status) {
+  openAppModal(`
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-file-invoice-dollar"></i> Verifikasi Pembayaran</h3>
+      <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+      <div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Nomor Registrasi:</div>
+        <code style="font-size: 1.1rem; font-weight: 800; color: var(--primary-600);">${regNum}</code>
+        <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-top: 10px;">Nama Peserta:</div>
+        <div style="font-weight: 700; font-size: 1rem;">${participantName}</div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-top: 10px;">Nominal:</div>
+        <div style="font-weight: 800; color: var(--accent-600); font-size: 1.15rem;">${formatCurrency(amount)}</div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-top: 10px;">Status:</div>
+        <div>${getStatusBadge(status)}</div>
+      </div>
+
+      <div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 6px;">Bukti Transfer:</div>
+        <div style="background: #0f172a; border-radius: 8px; overflow: hidden; text-align: center; border: 1px solid var(--border-subtle); min-height: 160px; max-height: 220px; display: flex; align-items: center; justify-content: center; padding: 6px;">
+          <img src="/api/payments/file/${encodeURIComponent(filename)}?token=${encodeURIComponent(state.token || localStorage.getItem('lomba_jwt_token') || '')}" alt="Bukti Transfer" style="max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 4px;" onerror="this.style.display='none'; document.getElementById('proof-fallback-link').style.display='block';">
+          <div id="proof-fallback-link" style="display: none; color: var(--text-muted); font-size: 0.85rem; padding: 20px;">
+            <i class="fa-solid fa-file-image" style="font-size: 2rem; color: var(--primary-500); margin-bottom: 8px;"></i><br>
+            File bukti transfer terunggah
+          </div>
+        </div>
+        <a href="/api/payments/file/${encodeURIComponent(filename)}?token=${encodeURIComponent(state.token || localStorage.getItem('lomba_jwt_token') || '')}" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--primary-600); margin-top: 8px; font-weight: 600; text-decoration: none;">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka Gambar di Tab Baru
+        </a>
+      </div>
+    </div>
+
+    <div id="verify-modal-alert" style="display: none; padding: 12px; border-radius: 8px; margin-bottom: 16px;"></div>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+      <button class="btn btn-outline-danger" onclick="promptRejectPayment('${paymentId}')"><i class="fa-solid fa-circle-xmark"></i> Tolak Pembayaran</button>
+      <button class="btn btn-success" onclick="executeApprovePayment('${paymentId}')"><i class="fa-solid fa-circle-check"></i> Setujui Pembayaran</button>
+    </div>
+  `);
+}
+
+async function executeApprovePayment(paymentId) {
+  try {
+    const res = await apiRequest(`/api/payments/${paymentId}/approve`, { method: 'POST' });
+    if (res.success) {
+      alert('Pembayaran berhasil disetujui!');
+      closeAppModal();
+      renderBendaharaPaymentsView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function promptRejectPayment(paymentId) {
+  const reason = prompt('Masukkan alasan penolakan pembayaran (WAJIB diisi):');
+  if (reason === null) return;
+  if (!reason.trim()) {
+    alert('Alasan penolakan WAJIB diisi.');
+    return;
+  }
+  executeRejectPayment(paymentId, reason.trim());
+}
+
+async function executeRejectPayment(paymentId, rejectionReason) {
+  try {
+    const res = await apiRequest(`/api/payments/${paymentId}/reject`, {
+      method: 'POST',
+      body: { rejectionReason },
+    });
+    if (res.success) {
+      alert('Pembayaran telah ditolak.');
+      closeAppModal();
+      renderBendaharaPaymentsView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// --- CHECK-IN SCANNER (DESKTOP SIDE-BY-SIDE / MOBILE TOP-DOWN) ---
+async function renderCheckInScannerView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = `
+    <div style="margin-bottom: 24px;">
+      <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Check-In Scanner Hari Lomba</h2>
+      <p style="color: var(--text-muted); font-size: 0.95rem;">Pindai QR Code pada kartu peserta resmi atau masukkan nomor registrasi secara manual.</p>
+    </div>
+
+    <div id="checkin-feed-alert" style="display: none; padding: 16px; border-radius: 8px; margin-bottom: 20px; font-size: 1rem;"></div>
+
+    <!-- Scanner & Live Log Layout -->
+    <div class="checkin-layout-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+      
+      <!-- SCANNER BOX (TOP ON MOBILE) -->
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+        <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 14px;"><i class="fa-solid fa-camera"></i> Kamera Pemindai QR</h3>
+        
+        <div id="html5-qr-reader" style="width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid var(--primary-500); margin-bottom: 16px;"></div>
+
+        <form onsubmit="handleManualCheckInSubmit(event)" style="display: flex; gap: 8px;">
+          <input type="text" id="manual-reg-input" class="form-control" placeholder="Nomor Registrasi (REG-IND-...)" required style="flex: 1; padding: 10px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Submit</button>
+        </form>
+      </div>
+
+      <!-- LIVE LOG FEED (BOTTOM ON MOBILE) -->
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="font-size: 1.15rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-satellite-dish"></i> Live Check-In Feed</h3>
+          <button class="btn btn-sm btn-secondary" onclick="loadLiveCheckInLogs()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+        </div>
+
+        <div id="live-checkin-table-slot">
+          <div style="text-align: center; padding: 30px; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Memuat live log...</div>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  startCameraScanner();
+  loadLiveCheckInLogs();
+}
+
+function startCameraScanner() {
+  if (state.scanner) {
+    try { state.scanner.clear(); } catch (e) {}
+  }
+
+  try {
+    state.scanner = new Html5QrcodeScanner('html5-qr-reader', {
+      fps: 10,
+      qrbox: { width: 220, height: 220 },
+      rememberLastUsedCamera: true,
+    });
+
+    state.scanner.render((decodedText) => {
+      executeCheckIn(decodedText, 'QR_SCAN');
+    }, () => {});
+  } catch (e) {
+    console.error('Scanner init error:', e);
+  }
+}
+
+async function handleManualCheckInSubmit(e) {
+  e.preventDefault();
+  const code = document.getElementById('manual-reg-input').value.trim();
+  if (!code) return;
+  await executeCheckIn(code, 'MANUAL_CODE');
+  document.getElementById('manual-reg-input').value = '';
+}
+
+async function executeCheckIn(token, method) {
+  const alertEl = document.getElementById('checkin-feed-alert');
+  if (!alertEl) return;
+
+  try {
+    const res = await apiRequest('/api/checkin/scan', {
+      method: 'POST',
+      body: { token, method },
+    });
+
+    if (res.success && res.data) {
+      alertEl.style.display = 'block';
+      alertEl.className = 'alert alert-success';
+      alertEl.innerHTML = `
+        <h4 style="margin-bottom: 4px;"><i class="fa-solid fa-circle-check"></i> CHECK-IN BERHASIL!</h4>
+        <div>Peserta: <strong>${res.data.participant_name}</strong> (${res.data.school_name})</div>
+        <div>Cabang: <strong>${res.data.branch_name}</strong> | Waktu: ${formatDate(res.data.check_in_time)}</div>
+      `;
+      loadLiveCheckInLogs();
+    } else if (res.already_checked_in) {
+      alertEl.style.display = 'block';
+      alertEl.className = 'alert alert-danger';
+      alertEl.innerHTML = `
+        <h4 style="margin-bottom: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> DUPLIKAT CHECK-IN DITOLAK!</h4>
+        <div>${res.message}</div>
+      `;
+    } else {
+      alertEl.style.display = 'block';
+      alertEl.className = 'alert alert-danger';
+      alertEl.innerHTML = `<div><i class="fa-solid fa-circle-xmark"></i> ${res.message}</div>`;
+    }
+  } catch (err) {
+    alertEl.style.display = 'block';
+    alertEl.className = 'alert alert-danger';
+    alertEl.innerHTML = `<div><i class="fa-solid fa-circle-xmark"></i> ${err.message}</div>`;
+  }
+}
+
+async function loadLiveCheckInLogs() {
+  const container = document.getElementById('live-checkin-table-slot');
+  if (!container) return;
+
+  try {
+    const res = await apiRequest('/api/checkin/live-log?limit=15');
+    if (res.success && res.data) {
+      if (res.data.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">Belum ada riwayat check-in hari ini.</p>';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+          <table class="table" style="width: 100%; font-size: 0.85rem;">
+            <thead>
+              <tr style="background: var(--table-header-bg);">
+                <th style="padding: 10px;">Waktu</th>
+                <th style="padding: 10px;">No. Registrasi</th>
+                <th style="padding: 10px;">Peserta / Tim</th>
+                <th style="padding: 10px;">Cabang</th>
+                <th style="padding: 10px;">Petugas</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${res.data.map(log => `
+                <tr style="border-bottom: 1px solid var(--border-subtle);">
+                  <td style="padding: 10px; white-space: nowrap;">${formatDate(log.check_in_time)}</td>
+                  <td style="padding: 10px;"><code style="font-weight: 800; color: var(--primary-600);">${log.registration_number}</code></td>
+                  <td style="padding: 10px; font-weight: 700;">${log.participant_name}</td>
+                  <td style="padding: 10px;">${log.branch_name}</td>
+                  <td style="padding: 10px; color: var(--text-muted);">${log.checked_in_by_name}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+  } catch (e) {
+    container.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+// ============================================================================
+// SUPER ADMIN MODULES (DAFTAR PESERTA + USERS + KATEGORI + CABANG + RESET)
+// ============================================================================
+async function renderAdminDashboard() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat dashboard analitik admin...</div>';
+
+  try {
+    const [usersRes, regRes, branchesRes] = await Promise.all([
+      apiRequest('/api/users?perPage=1'),
+      apiRequest('/api/registrations?perPage=500'),
+      apiRequest('/api/competitions/branches/all'),
+    ]);
+
+    const totalUsers = usersRes.pagination?.total || 0;
+    const allRegs = (regRes.success && Array.isArray(regRes.registrations)) ? regRes.registrations : [];
+    const allBranches = (branchesRes.success && Array.isArray(branchesRes.data)) ? branchesRes.data : [];
+
+    const totalRegs = regRes.pagination?.total || allRegs.length;
+    const approvedRegs = allRegs.filter(r => r.status === 'APPROVED');
+    const pendingRegs = allRegs.filter(r => r.status === 'WAITING_VERIFICATION');
+    const rejectedRegs = allRegs.filter(r => r.status === 'PAYMENT_REJECTED');
+
+    // Calculate confirmed funds from approved registrations
+    const totalConfirmedFunds = approvedRegs.reduce((sum, r) => {
+      const fee = Number(r.branch?.registrationFee) || 0;
+      return sum + fee;
+    }, 0);
+
+    // Build branch summary report
+    const branchStats = allBranches.map((br, idx) => {
+      const branchRegs = allRegs.filter(r => r.branchId === br.id);
+      const brApproved = branchRegs.filter(r => r.status === 'APPROVED');
+      const brPending = branchRegs.filter(r => r.status === 'WAITING_VERIFICATION');
+      const brFunds = brApproved.reduce((sum, r) => sum + (Number(br.registrationFee) || 0), 0);
+
+      return {
+        no: idx + 1,
+        id: br.id,
+        name: br.name,
+        categoryName: br.level?.category?.name || '-',
+        levelName: br.level?.name || '-',
+        participantType: br.participantType,
+        fee: Number(br.registrationFee) || 0,
+        totalCount: branchRegs.length,
+        approvedCount: brApproved.length,
+        pendingCount: brPending.length,
+        confirmedFunds: brFunds,
+        isActive: br.isActive,
+      };
+    });
+
+    // Sort by total participants descending
+    branchStats.sort((a, b) => b.totalCount - a.totalCount || a.name.localeCompare(b.name));
+    window.latestBranchStats = branchStats;
+
+    container.innerHTML = `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Dashboard Super Administrator</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Ringkasan metrik operasional, dana masuk terkonfirmasi, dan rekapitulasi pendaftar per cabang lomba.</p>
+      </div>
+
+      <!-- 4 Metric Cards -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 28px;">
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;"><i class="fa-solid fa-users"></i> Total Pengguna</div>
+          <div style="font-size: 2.2rem; font-weight: 800; color: var(--primary-600); margin-top: 4px;">${totalUsers}</div>
+          <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">Akun terdaftar di sistem</div>
+        </div>
+
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;"><i class="fa-solid fa-clipboard-list"></i> Total Pendaftaran</div>
+          <div style="font-size: 2.2rem; font-weight: 800; color: var(--accent-600); margin-top: 4px;">${totalRegs}</div>
+          <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">Seluruh cabang lomba</div>
+        </div>
+
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;"><i class="fa-solid fa-circle-check"></i> Status Pendaftaran</div>
+          <div style="font-size: 2rem; font-weight: 800; color: var(--success-600); margin-top: 4px;">${approvedRegs.length} <span style="font-size: 1rem; font-weight: 600; color: var(--text-muted);">Disetujui</span></div>
+          <div style="font-size: 0.8rem; color: var(--warning-600); margin-top: 4px; font-weight: 600;">${pendingRegs.length} menunggu verifikasi</div>
+        </div>
+
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;"><i class="fa-solid fa-money-bill-wave"></i> Uang Pendaftaran Terkonfirmasi</div>
+          <div style="font-size: 1.8rem; font-weight: 800; color: var(--success-600); margin-top: 4px;">${formatCurrency(totalConfirmedFunds)}</div>
+          <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">Dari ${approvedRegs.length} peserta disetujui</div>
+        </div>
+      </div>
+
+      <!-- Ringkasan Laporan Pendaftar per Cabang Lomba Table -->
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm); margin-bottom: 28px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
+          <div>
+            <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-chart-column"></i> Rekapitulasi Pendaftar per Cabang Lomba</h3>
+            <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 2px;">Jumlah pendaftar, status kelolosan administrasi, dan perolehan dana per cabang lomba.</p>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="exportAdminBranchStatsExcel()" style="border: 1px solid var(--success-500); color: var(--success-600); background: transparent; padding: 6px 12px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">
+              <i class="fa-solid fa-file-excel"></i> Export Rekap Excel
+            </button>
+            <a href="#daftar-peserta" class="btn btn-sm btn-primary"><i class="fa-solid fa-list-check"></i> Lihat Seluruh Peserta</a>
+          </div>
+        </div>
+
+        <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+          <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--border-subtle); text-align: left;">
+                <th style="padding: 12px 10px; color: var(--text-dim); font-weight: 700;">No</th>
+                <th style="padding: 12px 10px; color: var(--text-dim); font-weight: 700;">Cabang Lomba</th>
+                <th style="padding: 12px 10px; color: var(--text-dim); font-weight: 700;">Kategori & Jenjang</th>
+                <th style="padding: 12px 10px; color: var(--text-dim); font-weight: 700;">Tipe</th>
+                <th style="padding: 12px 10px; color: var(--text-dim); font-weight: 700;">Biaya</th>
+                <th style="padding: 12px 10px; color: var(--text-dim); font-weight: 700; text-align: center;">Total Pendaftar</th>
+                <th style="padding: 12px 10px; color: var(--text-dim); font-weight: 700; text-align: center;">Disetujui</th>
+                <th style="padding: 12px 10px; color: var(--text-dim); font-weight: 700; text-align: center;">Menunggu</th>
+                <th style="padding: 12px 10px; color: var(--text-dim); font-weight: 700; text-align: right;">Dana Terkonfirmasi</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${branchStats.map((b, i) => `
+                <tr style="border-bottom: 1px solid var(--border-subtle);">
+                  <td style="padding: 12px 10px; color: var(--text-muted);">${i + 1}</td>
+                  <td style="padding: 12px 10px;"><strong style="color: var(--text-heading);">${b.name}</strong></td>
+                  <td style="padding: 12px 10px;"><span class="member-chip" style="font-size: 0.75rem;">${b.categoryName} &rarr; ${b.levelName}</span></td>
+                  <td style="padding: 12px 10px;"><span class="badge ${b.participantType === 'INDIVIDUAL' ? 'badge-info' : 'badge-primary'}" style="font-size: 0.7rem;">${b.participantType}</span></td>
+                  <td style="padding: 12px 10px; color: var(--text-main);">${formatCurrency(b.fee)}</td>
+                  <td style="padding: 12px 10px; text-align: center;"><strong style="font-size: 1.05rem; color: var(--primary-600);">${b.totalCount}</strong></td>
+                  <td style="padding: 12px 10px; text-align: center;"><span class="badge badge-success" style="font-size: 0.75rem;">${b.approvedCount}</span></td>
+                  <td style="padding: 12px 10px; text-align: center;">${b.pendingCount > 0 ? `<span class="badge badge-warning" style="font-size: 0.75rem;">${b.pendingCount}</span>` : '<span style="color: var(--text-dim);">-</span>'}</td>
+                  <td style="padding: 12px 10px; text-align: right; font-weight: 700; color: var(--success-600);">${formatCurrency(b.confirmedFunds)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="border-top: 2px solid var(--border-subtle); background: var(--bg-body); font-weight: 800;">
+                <td colspan="5" style="padding: 14px 10px; text-align: right; text-transform: uppercase;">Total Seluruh Cabang:</td>
+                <td style="padding: 14px 10px; text-align: center; color: var(--primary-600); font-size: 1.1rem;">${totalRegs}</td>
+                <td style="padding: 14px 10px; text-align: center; color: var(--success-600);">${approvedRegs.length}</td>
+                <td style="padding: 14px 10px; text-align: center; color: var(--warning-600);">${pendingRegs.length}</td>
+                <td style="padding: 14px 10px; text-align: right; color: var(--success-600); font-size: 1.1rem;">${formatCurrency(totalConfirmedFunds)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Quick Admin Navigation -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px;">
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px;">
+          <h4 style="font-size: 1.1rem; color: var(--text-heading); margin-bottom: 6px;"><i class="fa-solid fa-users-gear"></i> Manajemen Pengguna</h4>
+          <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 14px;">Kelola hak akses Super Admin, Bendahara, dan Peserta.</p>
+          <a href="#users" class="btn btn-sm btn-primary">Buka Manajemen User</a>
+        </div>
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px;">
+          <h4 style="font-size: 1.1rem; color: var(--text-heading); margin-bottom: 6px;"><i class="fa-solid fa-trophy"></i> Master Kategori & Cabang</h4>
+          <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 14px;">Kelola 5 kategori, 9 jenjang, dan 22 cabang lomba.</p>
+          <a href="#master-cabang" class="btn btn-sm btn-secondary">Buka Master Lomba</a>
+        </div>
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px;">
+          <h4 style="font-size: 1.1rem; color: var(--text-heading); margin-bottom: 6px;"><i class="fa-solid fa-sliders"></i> Pengaturan Branding</h4>
+          <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 14px;">Ubah nama aplikasi, nama singkat, dan deskripsi acara.</p>
+          <a href="#branding-settings" class="btn btn-sm btn-secondary">Buka Pengaturan</a>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+// --- ADMIN DAFTAR PESERTA (ALL REGISTRATIONS) ---
+async function renderAdminRegistrationsView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat daftar seluruh peserta...</div>';
+
+  try {
+    const res = await apiRequest('/api/registrations?perPage=500');
+    tableState.adminRegistrations.data = res.success ? res.registrations : [];
+
+    container.innerHTML = `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Daftar Seluruh Peserta Lomba</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Data pendaftar resmi di seluruh 22 cabang lomba tingkat nasional.</p>
+      </div>
+
+      <div id="admin-registrations-table-slot">
+        ${renderAdminRegistrationsTable()}
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+function renderAdminRegistrationsTable() {
+  const ts = tableState.adminRegistrations;
+  return renderUniversalTable({
+    tableId: 'admin-registrations-table',
+    columns: [
+      {
+        header: 'No. Registrasi',
+        key: 'registrationNumber',
+        render: r => `<code style="font-weight: 800; color: var(--primary-600);">${r.registrationNumber}</code>`,
+      },
+      {
+        header: 'Nama Peserta / Tim',
+        sortValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.fullName : r.team?.teamName) || '',
+        render: r => `<strong>${r.branch.participantType === 'INDIVIDUAL' ? (r.individualParticipant?.fullName || '-') : (r.team?.teamName || '-')}</strong>`,
+      },
+      {
+        header: 'Sekolah',
+        sortValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '',
+        render: r => (r.branch.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '-',
+      },
+      {
+        header: 'Kategori & Jenjang',
+        sortValue: r => `${r.branch?.level?.category?.name} ${r.branch?.level?.name}`,
+        render: r => `<span class="member-chip">${r.branch.level.category.name} - ${r.branch.level.name}</span>`,
+      },
+      {
+        header: 'Cabang',
+        sortValue: r => r.branch?.name || '',
+        render: r => `<strong>${r.branch.name}</strong>`,
+      },
+      {
+        header: 'Status Pembayaran',
+        key: 'status',
+        render: r => getStatusBadge(r.status),
+      },
+      {
+        header: 'Status Check-In',
+        sortValue: r => r.checkIn ? 1 : 0,
+        render: r => getCheckInBadge(r.checkIn),
+      },
+      {
+        header: 'Aksi',
+        sticky: true,
+        sortable: false,
+        render: r => {
+          let btns = `<a href="#detail/${r.id}" class="btn btn-sm btn-secondary" style="padding: 4px 10px;"><i class="fa-solid fa-eye"></i> Detail</a> `;
+          if (r.status === 'APPROVED') {
+            btns += `<button type="button" class="btn btn-sm btn-success" style="padding: 4px 10px;" onclick="openParticipantCardModal('${r.id}')" title="Lihat & Cetak Kartu"><i class="fa-solid fa-id-card"></i> Kartu</button>`;
+          }
+          return `<div style="display: flex; gap: 6px;">${btns}</div>`;
+        },
+      },
+    ],
+    data: ts.data,
+    searchQuery: ts.search,
+    searchFields: [
+      'registrationNumber',
+      r => r.branch?.name,
+      r => r.individualParticipant?.fullName,
+      r => r.team?.teamName,
+      r => r.individualParticipant?.schoolName,
+      r => r.team?.schoolName,
+    ],
+    sortKey: ts.sortKey,
+    sortDir: ts.sortDir,
+    filterKey: 'status',
+    filterValue: ts.filterVal,
+    filterOptions: [
+      { label: 'Semua Status', value: '' },
+      { label: 'Disetujui (Approved)', value: 'APPROVED' },
+      { label: 'Menunggu Verifikasi', value: 'WAITING_VERIFICATION' },
+      { label: 'Ditolak (Rejected)', value: 'PAYMENT_REJECTED' },
+    ],
+    currentPage: ts.page,
+    pageSize: ts.pageSize,
+    onPageChangeName: 'onAdminRegPageChange',
+    onSearchChangeName: 'onAdminRegSearchChange',
+    onPageSizeChangeName: 'onAdminRegPageSizeChange',
+    onSortChangeName: 'onAdminRegSortChange',
+    onFilterChangeName: 'onAdminRegFilterChange',
+    exportFilename: 'data_seluruh_peserta_lomba',
+    onExportName: 'exportAdminRegistrationsExcel',
+    emptyMessage: 'Belum ada pendaftaran masuk.',
+  });
+}
+
+function exportAdminRegistrationsExcel() {
+  const data = tableState.adminRegistrations.data || [];
+  const cols = [
+    { header: 'No. Registrasi', key: 'registrationNumber' },
+    { header: 'Nama Peserta / Tim', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.fullName : r.team?.teamName) || '-' },
+    { header: 'Asal Sekolah', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '-' },
+    { header: 'Kategori Lomba', exportValue: r => r.branch?.level?.category?.name || '-' },
+    { header: 'Jenjang', exportValue: r => r.branch?.level?.name || '-' },
+    { header: 'Cabang Lomba', exportValue: r => r.branch?.name || '-' },
+    { header: 'Tipe Kepesertaan', exportValue: r => r.branch?.participantType || '-' },
+    { header: 'Biaya Pendaftaran', exportValue: r => formatCurrency(r.branch?.registrationFee || 0) },
+    { header: 'Status Pembayaran', key: 'status' },
+    { header: 'Status Check-In', exportValue: r => r.checkIn ? 'SUDAH CHECK-IN' : 'BELUM CHECK-IN' },
+    { header: 'Tanggal Pendaftaran', exportValue: r => formatDate(r.createdAt) },
+  ];
+  exportTableDataToExcel('data_seluruh_peserta_lomba', cols, data);
+}
+
+function onAdminRegPageChange(p) { tableState.adminRegistrations.page = p; updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable); }
+function onAdminRegSearchChange(s) { tableState.adminRegistrations.search = s; tableState.adminRegistrations.page = 1; updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable); }
+function onAdminRegPageSizeChange(z) { tableState.adminRegistrations.pageSize = z; tableState.adminRegistrations.page = 1; updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable); }
+function onAdminRegSortChange(k) {
+  if (tableState.adminRegistrations.sortKey === k) {
+    tableState.adminRegistrations.sortDir = tableState.adminRegistrations.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    tableState.adminRegistrations.sortKey = k;
+    tableState.adminRegistrations.sortDir = 'asc';
+  }
+  updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
+}
+function onAdminRegFilterChange(v) {
+  tableState.adminRegistrations.filterVal = v;
+  tableState.adminRegistrations.page = 1;
+  updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
+}
+
+// --- ADMIN USER MANAGEMENT (UNIVERSAL TABLE + STICKY ACTIONS + RESET PASS) ---
+async function renderAdminUsersView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data user...</div>';
+
+  try {
+    const res = await apiRequest('/api/users?perPage=500');
+    tableState.adminUsers.data = res.success ? res.users : [];
+
+    container.innerHTML = `
+      <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Manajemen Pengguna</h2>
+          <p style="color: var(--text-muted); font-size: 0.95rem;">Kelola hak akses, status aktif/nonaktif, dan reset password pengguna.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openCreateUserModal()"><i class="fa-solid fa-user-plus"></i> Tambah Pengguna</button>
+      </div>
+
+      <div id="admin-users-table-slot">
+        ${renderAdminUsersTable()}
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+function renderAdminUsersTable() {
+  const ts = tableState.adminUsers;
+  return renderUniversalTable({
+    tableId: 'admin-users-table',
+    columns: [
+      { header: 'Nama Lengkap', key: 'name', render: u => `<strong>${u.name}</strong>` },
+      { header: 'Email', key: 'email' },
+      { header: 'No. WhatsApp', sortValue: u => u.phoneNumber || '', render: u => u.phoneNumber || '-' },
+      { header: 'Role', key: 'role', render: u => `<span class="role-badge-pill role-${u.role}">${u.role}</span>` },
+      { header: 'Status', sortValue: u => u.isActive ? 1 : 0, render: u => `<span class="badge ${u.isActive ? 'badge-success' : 'badge-danger'}">${u.isActive ? 'AKTIF' : 'NONAKTIF'}</span>` },
+      { header: 'Tgl Daftar', key: 'createdAt', render: u => formatDate(u.createdAt) },
+      {
+        header: 'Aksi',
+        sticky: true,
+        sortable: false,
+        render: u => `
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-sm btn-secondary" style="padding: 4px 8px;" title="Toggle Status" onclick="executeToggleUserStatus('${u.id}')">
+              <i class="fa-solid ${u.isActive ? 'fa-user-slash' : 'fa-user-check'}"></i>
+            </button>
+            <button class="btn btn-sm btn-secondary" style="padding: 4px 8px;" title="Ubah Role" onclick="openChangeRoleModal('${u.id}', '${u.name}', '${u.role}')">
+              <i class="fa-solid fa-user-tag"></i>
+            </button>
+            <button class="btn btn-sm btn-warning" style="padding: 4px 8px;" title="Reset Password" onclick="openResetPasswordModal('${u.id}', '${u.name}', '${u.email}')">
+              <i class="fa-solid fa-key"></i>
+            </button>
+          </div>
+        `,
+      },
+    ],
+    data: ts.data,
+    searchQuery: ts.search,
+    searchFields: ['name', 'email', 'phoneNumber', 'role'],
+    sortKey: ts.sortKey,
+    sortDir: ts.sortDir,
+    filterKey: 'role',
+    filterValue: ts.filterVal,
+    filterOptions: [
+      { label: 'Semua Role Pengguna', value: '' },
+      { label: 'Super Admin', value: 'SUPER_ADMIN' },
+      { label: 'Bendahara', value: 'BENDAHARA' },
+      { label: 'Peserta', value: 'PESERTA' },
+    ],
+    currentPage: ts.page,
+    pageSize: ts.pageSize,
+    onPageChangeName: 'onAdminUserPageChange',
+    onSearchChangeName: 'onAdminUserSearchChange',
+    onPageSizeChangeName: 'onAdminUserPageSizeChange',
+    onSortChangeName: 'onAdminUserSortChange',
+    onFilterChangeName: 'onAdminUserFilterChange',
+    exportFilename: 'data_pengguna_sistem',
+    onExportName: 'exportAdminUsersExcel',
+    emptyMessage: 'Pengguna tidak ditemukan.',
+  });
+}
+
+function exportAdminUsersExcel() {
+  const data = tableState.adminUsers.data || [];
+  const cols = [
+    { header: 'Nama Lengkap', key: 'name' },
+    { header: 'Email Akun', key: 'email' },
+    { header: 'No. WhatsApp', exportValue: u => u.phoneNumber || '-' },
+    { header: 'Role Pengguna', key: 'role' },
+    { header: 'Status Akun', exportValue: u => u.isActive ? 'AKTIF' : 'NONAKTIF' },
+    { header: 'Tanggal Dibuat', exportValue: u => formatDate(u.createdAt) },
+  ];
+  exportTableDataToExcel('data_pengguna_sistem', cols, data);
+}
+
+function onAdminUserPageChange(p) { tableState.adminUsers.page = p; updateUniversalTable('admin-users-table-slot', renderAdminUsersTable); }
+function onAdminUserSearchChange(s) { tableState.adminUsers.search = s; tableState.adminUsers.page = 1; updateUniversalTable('admin-users-table-slot', renderAdminUsersTable); }
+function onAdminUserPageSizeChange(z) { tableState.adminUsers.pageSize = z; tableState.adminUsers.page = 1; updateUniversalTable('admin-users-table-slot', renderAdminUsersTable); }
+function onAdminUserSortChange(k) {
+  if (tableState.adminUsers.sortKey === k) {
+    tableState.adminUsers.sortDir = tableState.adminUsers.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    tableState.adminUsers.sortKey = k;
+    tableState.adminUsers.sortDir = 'asc';
+  }
+  updateUniversalTable('admin-users-table-slot', renderAdminUsersTable);
+}
+function onAdminUserFilterChange(v) {
+  tableState.adminUsers.filterVal = v;
+  tableState.adminUsers.page = 1;
+  updateUniversalTable('admin-users-table-slot', renderAdminUsersTable);
+}
+
+function openCreateUserModal() {
+  openAppModal(`
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-user-plus"></i> Tambah Pengguna Baru</h3>
+      <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+    </div>
+    <form onsubmit="submitCreateUser(event)">
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Lengkap</label>
+        <input type="text" id="usr-name-input" class="form-control" placeholder="Nama Lengkap" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Email</label>
+        <input type="email" id="usr-email-input" class="form-control" placeholder="nama@email.com" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nomor WhatsApp</label>
+        <input type="text" id="usr-phone-input" class="form-control" placeholder="08123456789" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Password Awal (Min. 6 Karakter)</label>
+        <input type="password" id="usr-pass-input" class="form-control" placeholder="••••••••" required minlength="6" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 18px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Role Akses</label>
+        <select id="usr-role-input" class="form-select" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          <option value="PESERTA">PESERTA</option>
+          <option value="BENDAHARA">BENDAHARA</option>
+          <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Pengguna Baru</button>
+    </form>
+  `);
+}
+
+async function submitCreateUser(e) {
+  e.preventDefault();
+  try {
+    const res = await apiRequest('/api/users', {
+      method: 'POST',
+      body: {
+        name: document.getElementById('usr-name-input').value,
+        email: document.getElementById('usr-email-input').value,
+        phoneNumber: document.getElementById('usr-phone-input').value,
+        password: document.getElementById('usr-pass-input').value,
+        role: document.getElementById('usr-role-input').value,
+      },
+    });
+    if (res.success) {
+      alert(res.message);
+      closeAppModal();
+      renderAdminUsersView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function executeToggleUserStatus(userId) {
+  try {
+    const res = await apiRequest(`/api/users/${userId}/toggle-status`, { method: 'PATCH' });
+    if (res.success) {
+      alert(res.message);
+      renderAdminUsersView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function openChangeRoleModal(userId, name, currentRole) {
+  openAppModal(`
+    <h3 style="font-size: 1.2rem; color: var(--text-heading); margin-bottom: 12px;"><i class="fa-solid fa-user-tag"></i> Ubah Role Pengguna</h3>
+    <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 16px;">Pengguna: <strong>${name}</strong></p>
+    <div class="form-group" style="margin-bottom: 16px;">
+      <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Pilih Role Baru</label>
+      <select id="modal-new-role" class="form-select" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        <option value="PESERTA" ${currentRole === 'PESERTA' ? 'selected' : ''}>PESERTA</option>
+        <option value="BENDAHARA" ${currentRole === 'BENDAHARA' ? 'selected' : ''}>BENDAHARA</option>
+        <option value="SUPER_ADMIN" ${currentRole === 'SUPER_ADMIN' ? 'selected' : ''}>SUPER_ADMIN</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" style="width: 100%;" onclick="submitChangeRole('${userId}')">Simpan Perubahan Role</button>
+  `);
+}
+
+async function submitChangeRole(userId) {
+  const role = document.getElementById('modal-new-role').value;
+  try {
+    const res = await apiRequest(`/api/users/${userId}/role`, { method: 'PATCH', body: { role } });
+    if (res.success) {
+      alert(res.message);
+      closeAppModal();
+      renderAdminUsersView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function openResetPasswordModal(userId, name, email) {
+  openAppModal(`
+    <h3 style="font-size: 1.2rem; color: var(--text-heading); margin-bottom: 12px;"><i class="fa-solid fa-key"></i> Reset Password Pengguna</h3>
+    <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 16px;">Akun: <strong>${name} (${email})</strong></p>
+    <div class="form-group" style="margin-bottom: 16px;">
+      <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Password Baru (Min. 6 Karakter)</label>
+      <input type="password" id="modal-reset-pass" class="form-control" placeholder="••••••••" required minlength="6" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+    </div>
+    <button class="btn btn-warning" style="width: 100%;" onclick="submitAdminResetPass('${userId}')">Tetapkan Password Baru</button>
+  `);
+}
+
+async function submitAdminResetPass(userId) {
+  const newPassword = document.getElementById('modal-reset-pass').value;
+  if (!newPassword || newPassword.length < 6) {
+    alert('Password minimal 6 karakter.');
+    return;
+  }
+  try {
+    const res = await apiRequest(`/api/users/${userId}/reset-password`, { method: 'POST', body: { newPassword } });
+    if (res.success) {
+      alert(res.message);
+      closeAppModal();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// --- MASTER KATEGORI & JENJANG ---
+async function renderAdminCategoriesView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat master kategori...</div>';
+
+  try {
+    const res = await apiRequest('/api/competitions/categories');
+    const categories = res.success ? res.data : [];
+
+    container.innerHTML = `
+      <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Master Kategori & Jenjang</h2>
+          <p style="color: var(--text-muted); font-size: 0.95rem;">Kelola kategori lomba utama dan jenjang pendidikan terkait.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openCreateCategoryModal()"><i class="fa-solid fa-plus"></i> Tambah Kategori</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+        ${categories.map(cat => `
+          <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <h3 style="font-size: 1.2rem; color: var(--text-heading); margin: 0;">${cat.name}</h3>
+                <span class="badge ${cat.isActive ? 'badge-success' : 'badge-danger'}">${cat.isActive ? 'AKTIF' : 'NONAKTIF'}</span>
+              </div>
+              <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 14px;">${cat.description || '-'}</p>
+              
+              <div style="background: var(--bg-body); border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+                <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Jenjang Terdaftar:</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  ${(cat.levels || []).length === 0 ? '<span style="font-size: 0.8rem; color: var(--text-muted);">Belum ada jenjang</span>' : (cat.levels || []).map(l => `
+                    <span class="member-chip" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 20px; font-size: 0.8rem;">
+                      <strong>${l.name}</strong> (${l.branches?.length || 0} cabang)
+                      <i class="fa-solid fa-pen" style="cursor: pointer; opacity: 0.7; font-size: 0.75rem;" title="Edit Jenjang" onclick="openEditLevelModal('${l.id}', '${l.name.replace(/'/g, "\\'")}', '${l.slug}')"></i>
+                      <i class="fa-solid fa-trash-can" style="cursor: pointer; opacity: 0.7; font-size: 0.75rem; color: var(--danger-500);" title="Hapus Jenjang" onclick="executeDeleteLevel('${l.id}', '${l.name.replace(/'/g, "\\'")}')"></i>
+                    </span>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
+              <button class="btn btn-sm btn-secondary" onclick="openCreateLevelModal('${cat.id}', '${cat.name.replace(/'/g, "\\'")}')"><i class="fa-solid fa-plus"></i> Tambah Jenjang</button>
+              <button class="btn btn-sm btn-secondary" onclick="openEditCategoryModal('${cat.id}', '${cat.name.replace(/'/g, "\\'")}', '${cat.slug}', '${(cat.description || '').replace(/'/g, "\\'")}')"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
+              <button class="btn btn-sm ${cat.isActive ? 'btn-outline-danger' : 'btn-outline-success'}" onclick="toggleCatStatus('${cat.id}')">${cat.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
+              <button class="btn btn-sm btn-danger" style="padding: 4px 8px;" title="Hapus Kategori" onclick="executeDeleteCategory('${cat.id}', '${cat.name.replace(/'/g, "\\'")}')"><i class="fa-solid fa-trash-can"></i></button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+function openCreateCategoryModal() {
+  openAppModal(`
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-plus"></i> Tambah Kategori Lomba</h3>
+      <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+    </div>
+    <form onsubmit="submitCreateCategory(event)">
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Kategori</label>
+        <input type="text" id="cat-name-input" class="form-control" placeholder="Contoh: Seni & Budaya" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Slug (URL Friendly)</label>
+        <input type="text" id="cat-slug-input" class="form-control" placeholder="Contoh: seni-budaya" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Deskripsi</label>
+        <textarea id="cat-desc-input" class="form-control" rows="2" placeholder="Deskripsi kategori lomba" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);"></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Kategori</button>
+    </form>
+  `);
+}
+
+async function submitCreateCategory(e) {
+  e.preventDefault();
+  try {
+    const res = await apiRequest('/api/competitions/categories', {
+      method: 'POST',
+      body: {
+        name: document.getElementById('cat-name-input').value,
+        slug: document.getElementById('cat-slug-input').value,
+        description: document.getElementById('cat-desc-input').value,
+      },
+    });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      closeAppModal();
+      renderAdminCategoriesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function openEditCategoryModal(catId, name, slug, description) {
+  openAppModal(`
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-pen-to-square"></i> Edit Kategori Lomba</h3>
+      <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+    </div>
+    <form onsubmit="submitEditCategory(event, '${catId}')">
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Kategori</label>
+        <input type="text" id="edit-cat-name-input" class="form-control" value="${name}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Slug</label>
+        <input type="text" id="edit-cat-slug-input" class="form-control" value="${slug}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Deskripsi</label>
+        <textarea id="edit-cat-desc-input" class="form-control" rows="2" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">${description}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Perubahan Kategori</button>
+    </form>
+  `);
+}
+
+async function submitEditCategory(e, catId) {
+  e.preventDefault();
+  try {
+    const res = await apiRequest(`/api/competitions/categories/${catId}`, {
+      method: 'PATCH',
+      body: {
+        name: document.getElementById('edit-cat-name-input').value,
+        slug: document.getElementById('edit-cat-slug-input').value,
+        description: document.getElementById('edit-cat-desc-input').value,
+      },
+    });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      closeAppModal();
+      renderAdminCategoriesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function executeDeleteCategory(catId, name) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus kategori "${name}"?`)) return;
+  try {
+    const res = await apiRequest(`/api/competitions/categories/${catId}`, { method: 'DELETE' });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      renderAdminCategoriesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function openCreateLevelModal(categoryId, categoryName) {
+  openAppModal(`
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-plus"></i> Tambah Jenjang (${categoryName})</h3>
+      <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+    </div>
+    <form onsubmit="submitCreateLevel(event, '${categoryId}')">
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Pilih Jenjang Standar</label>
+        <select id="lvl-preset-select" class="form-select" onchange="onJenjangPresetChange(this)" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          <option value="">-- Pilih dari Daftar Jenjang Populer --</option>
+          <option value="TK / RA" data-slug="tk-ra">TK / RA</option>
+          <option value="SD / MI" data-slug="sd-mi">SD / MI</option>
+          <option value="SMP / MTs" data-slug="smp-mts">SMP / MTs</option>
+          <option value="SMA / MA" data-slug="sma-ma">SMA / MA</option>
+          <option value="SMA / MA / SMK" data-slug="sma-ma-smk">SMA / MA / SMK</option>
+          <option value="Perguruan Tinggi / Mahasiswa" data-slug="perguruan-tinggi">Perguruan Tinggi / Mahasiswa</option>
+          <option value="Umum" data-slug="umum">Umum</option>
+          <option value="Kategori A (Kelas 1 - 3 SD)" data-slug="kategori-a-sd">Kategori A (Kelas 1 - 3 SD)</option>
+          <option value="Kategori B (Kelas 4 - 6 SD)" data-slug="kategori-b-sd">Kategori B (Kelas 4 - 6 SD)</option>
+          <option value="Kategori C (SMP/MTs)" data-slug="kategori-c-smp">Kategori C (SMP/MTs)</option>
+          <option value="Kategori D (SMA/MA)" data-slug="kategori-d-sma">Kategori D (SMA/MA)</option>
+          <option value="__CUSTOM__">Lainnya / Ketik Manual Sendiri</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Jenjang</label>
+        <input type="text" id="lvl-name-input" class="form-control" placeholder="Contoh: SMA/MA" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);" oninput="document.getElementById('lvl-slug-input').value = this.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');">
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Slug (URL Friendly)</label>
+        <input type="text" id="lvl-slug-input" class="form-control" placeholder="Contoh: sma-ma" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Jenjang</button>
+    </form>
+  `);
+}
+
+function onJenjangPresetChange(selectEl) {
+  const val = selectEl.value;
+  const nameInput = document.getElementById('lvl-name-input');
+  const slugInput = document.getElementById('lvl-slug-input');
+  if (val && val !== '__CUSTOM__') {
+    const selectedOpt = selectEl.options[selectEl.selectedIndex];
+    const slug = selectedOpt.getAttribute('data-slug') || val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    nameInput.value = val;
+    slugInput.value = slug;
+  } else if (val === '__CUSTOM__') {
+    nameInput.value = '';
+    slugInput.value = '';
+    nameInput.focus();
+  }
+}
+
+async function submitCreateLevel(e, categoryId) {
+  e.preventDefault();
+  try {
+    const res = await apiRequest('/api/competitions/levels', {
+      method: 'POST',
+      body: {
+        categoryId,
+        name: document.getElementById('lvl-name-input').value,
+        slug: document.getElementById('lvl-slug-input').value,
+      },
+    });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      closeAppModal();
+      renderAdminCategoriesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function openEditLevelModal(lvlId, name, slug) {
+  openAppModal(`
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-pen-to-square"></i> Edit Jenjang</h3>
+      <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+    </div>
+    <form onsubmit="submitEditLevel(event, '${lvlId}')">
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Jenjang</label>
+        <input type="text" id="edit-lvl-name-input" class="form-control" value="${name}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Slug</label>
+        <input type="text" id="edit-lvl-slug-input" class="form-control" value="${slug}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Perubahan Jenjang</button>
+    </form>
+  `);
+}
+
+async function submitEditLevel(e, lvlId) {
+  e.preventDefault();
+  try {
+    const res = await apiRequest(`/api/competitions/levels/${lvlId}`, {
+      method: 'PATCH',
+      body: {
+        name: document.getElementById('edit-lvl-name-input').value,
+        slug: document.getElementById('edit-lvl-slug-input').value,
+      },
+    });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      closeAppModal();
+      renderAdminCategoriesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function executeDeleteLevel(lvlId, name) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus jenjang "${name}"?`)) return;
+  try {
+    const res = await apiRequest(`/api/competitions/levels/${lvlId}`, { method: 'DELETE' });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      renderAdminCategoriesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function toggleCatStatus(catId) {
+  try {
+    const res = await apiRequest(`/api/competitions/categories/${catId}/toggle`, { method: 'PATCH' });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      renderAdminCategoriesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// --- MASTER CABANG LOMBA & BIAYA ---
+async function renderAdminBranchesView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat cabang lomba...</div>';
+
+  try {
+    const res = await apiRequest('/api/competitions/branches/all');
+    const branches = (res.success && res.data) ? res.data.map(b => ({
+      ...b,
+      categoryName: b.level?.category?.name || '-',
+      levelName: b.level?.name || '-',
+    })) : [];
+
+    tableState.adminBranches.data = branches;
+
+    container.innerHTML = `
+      <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Master Cabang Lomba & Biaya</h2>
+          <p style="color: var(--text-muted); font-size: 0.95rem;">Kelola seluruh 22 cabang lomba, tipe kepesertaan, biaya pendaftaran, dan kuota tim.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openCreateBranchModal()"><i class="fa-solid fa-plus"></i> Tambah Cabang Lomba</button>
+      </div>
+
+      <div id="admin-branches-table-slot">
+        ${renderAdminBranchesTable()}
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+function renderAdminBranchesTable() {
+  const ts = tableState.adminBranches;
+  return renderUniversalTable({
+    tableId: 'admin-branches-table',
+    columns: [
+      { header: 'Kategori', key: 'categoryName' },
+      { header: 'Jenjang', key: 'levelName' },
+      { header: 'Nama Cabang', key: 'name', render: b => `<strong>${b.name}</strong>` },
+      { header: 'Tipe', key: 'participantType', render: b => `<span class="badge ${b.participantType === 'INDIVIDUAL' ? 'badge-info' : 'badge-primary'}">${b.participantType}</span>` },
+      { header: 'Biaya', sortValue: b => Number(b.registrationFee) || 0, render: b => `<strong>${formatCurrency(b.registrationFee)}</strong>` },
+      { header: 'Kuota Anggota Tim', sortValue: b => b.maxTeamMembers || 1, render: b => b.participantType === 'TEAM' ? `${b.minTeamMembers} - ${b.maxTeamMembers} Orang` : '1 Orang (Individu)' },
+      { header: 'Status', sortValue: b => b.isActive ? 1 : 0, render: b => `<span class="badge ${b.isActive ? 'badge-success' : 'badge-danger'}">${b.isActive ? 'AKTIF' : 'NONAKTIF'}</span>` },
+      {
+        header: 'Aksi',
+        sticky: true,
+        sortable: false,
+        render: b => `
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-sm btn-secondary" style="padding: 4px 8px;" title="Edit Cabang" onclick="openEditBranchModal('${b.id}', '${b.name.replace(/'/g, "\\'")}', ${b.registrationFee}, '${b.participantType}', ${b.minTeamMembers || 1}, ${b.maxTeamMembers || 1}, '${(b.description || '').replace(/'/g, "\\'")}')">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </button>
+            <button class="btn btn-sm btn-secondary" style="padding: 4px 8px;" title="Toggle Status" onclick="toggleBranchStatus('${b.id}')">
+              ${b.isActive ? '<i class="fa-solid fa-ban"></i>' : '<i class="fa-solid fa-check"></i>'}
+            </button>
+            <button class="btn btn-sm btn-danger" style="padding: 4px 8px;" title="Hapus Cabang" onclick="executeDeleteBranch('${b.id}', '${b.name.replace(/'/g, "\\'")}')">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        `,
+      },
+    ],
+    data: ts.data,
+    searchQuery: ts.search,
+    searchFields: ['name', 'categoryName', 'levelName', 'participantType'],
+    sortKey: ts.sortKey,
+    sortDir: ts.sortDir,
+    filterKey: 'participantType',
+    filterValue: ts.filterVal,
+    filterOptions: [
+      { label: 'Semua Tipe Kepesertaan', value: '' },
+      { label: 'Perorangan (INDIVIDUAL)', value: 'INDIVIDUAL' },
+      { label: 'Beregu (TEAM)', value: 'TEAM' },
+    ],
+    currentPage: ts.page,
+    pageSize: ts.pageSize,
+    onPageChangeName: 'onAdminBranchPageChange',
+    onSearchChangeName: 'onAdminBranchSearchChange',
+    onPageSizeChangeName: 'onAdminBranchPageSizeChange',
+    onSortChangeName: 'onAdminBranchSortChange',
+    onFilterChangeName: 'onAdminBranchFilterChange',
+    exportFilename: 'master_cabang_lomba_biaya',
+    onExportName: 'exportAdminBranchesExcel',
+    emptyMessage: 'Cabang lomba tidak ditemukan.',
+  });
+}
+
+function exportAdminBranchesExcel() {
+  const data = tableState.adminBranches.data || [];
+  const cols = [
+    { header: 'Kategori', key: 'categoryName' },
+    { header: 'Jenjang', key: 'levelName' },
+    { header: 'Nama Cabang Lomba', key: 'name' },
+    { header: 'Tipe Kepesertaan', key: 'participantType' },
+    { header: 'Biaya Pendaftaran', exportValue: b => formatCurrency(b.registrationFee) },
+    { header: 'Min Anggota Tim', exportValue: b => b.participantType === 'TEAM' ? b.minTeamMembers : 1 },
+    { header: 'Max Anggota Tim', exportValue: b => b.participantType === 'TEAM' ? b.maxTeamMembers : 1 },
+    { header: 'Status Cabang', exportValue: b => b.isActive ? 'AKTIF' : 'NONAKTIF' },
+  ];
+  exportTableDataToExcel('master_cabang_lomba_biaya', cols, data);
+}
+
+function onAdminBranchPageChange(p) { tableState.adminBranches.page = p; updateUniversalTable('admin-branches-table-slot', renderAdminBranchesTable); }
+function onAdminBranchSearchChange(s) { tableState.adminBranches.search = s; tableState.adminBranches.page = 1; updateUniversalTable('admin-branches-table-slot', renderAdminBranchesTable); }
+function onAdminBranchPageSizeChange(z) { tableState.adminBranches.pageSize = z; tableState.adminBranches.page = 1; updateUniversalTable('admin-branches-table-slot', renderAdminBranchesTable); }
+function onAdminBranchSortChange(k) {
+  if (tableState.adminBranches.sortKey === k) {
+    tableState.adminBranches.sortDir = tableState.adminBranches.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    tableState.adminBranches.sortKey = k;
+    tableState.adminBranches.sortDir = 'asc';
+  }
+  updateUniversalTable('admin-branches-table-slot', renderAdminBranchesTable);
+}
+function onAdminBranchFilterChange(v) {
+  tableState.adminBranches.filterVal = v;
+  tableState.adminBranches.page = 1;
+  updateUniversalTable('admin-branches-table-slot', renderAdminBranchesTable);
+}
+
+async function openCreateBranchModal() {
+  const levelsRes = await apiRequest('/api/competitions/levels/all');
+  const levels = (levelsRes && levelsRes.success && Array.isArray(levelsRes.data)) ? levelsRes.data : [];
+
+  const levelOptions = levels.map(l => `<option value="${l.id}">${l.category?.name || 'Kategori'} &rarr; ${l.name}</option>`);
+
+  openAppModal(`
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-plus"></i> Tambah Cabang Lomba</h3>
+      <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+    </div>
+    <form onsubmit="submitCreateBranch(event)">
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Pilih Jenjang</label>
+        <select id="br-level-select" class="form-select" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          ${levelOptions.join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Cabang Lomba</label>
+        <input type="text" id="br-name-input" class="form-control" placeholder="Contoh: Tahfidz Al-Qur'an 5 Juz" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Tipe Kepesertaan</label>
+          <select id="br-type-select" class="form-select" onchange="toggleBranchTeamFields(this.value)" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+            <option value="INDIVIDUAL">INDIVIDUAL (Perorangan)</option>
+            <option value="TEAM">TEAM (Beregu)</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Biaya Pendaftaran (Rp)</label>
+          <input type="number" id="br-fee-input" class="form-control" value="150000" min="0" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+      </div>
+      <div id="br-team-quota-box" style="display: none; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Min. Anggota Tim</label>
+          <input type="number" id="br-min-input" class="form-control" value="2" min="1" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Max. Anggota Tim</label>
+          <input type="number" id="br-max-input" class="form-control" value="5" min="1" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Deskripsi</label>
+        <textarea id="br-desc-input" class="form-control" rows="2" placeholder="Petunjuk atau deskripsi cabang lomba" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);"></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Cabang Lomba</button>
+    </form>
+  `);
+}
+
+function toggleBranchTeamFields(type) {
+  const box = document.getElementById('br-team-quota-box');
+  if (box) box.style.display = type === 'TEAM' ? 'grid' : 'none';
+}
+
+async function submitCreateBranch(e) {
+  e.preventDefault();
+  const type = document.getElementById('br-type-select').value;
+  try {
+    const res = await apiRequest('/api/competitions/branches', {
+      method: 'POST',
+      body: {
+        levelId: document.getElementById('br-level-select').value,
+        name: document.getElementById('br-name-input').value,
+        participantType: type,
+        registrationFee: parseFloat(document.getElementById('br-fee-input').value),
+        minTeamMembers: type === 'TEAM' ? parseInt(document.getElementById('br-min-input').value, 10) : 1,
+        maxTeamMembers: type === 'TEAM' ? parseInt(document.getElementById('br-max-input').value, 10) : 1,
+        description: document.getElementById('br-desc-input').value,
+      },
+    });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      closeAppModal();
+      renderAdminBranchesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function openEditBranchModal(branchId, name, fee, type, minM, maxM, desc) {
+  openAppModal(`
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-pen-to-square"></i> Edit Cabang Lomba</h3>
+      <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+    </div>
+    <form onsubmit="submitEditBranch(event, '${branchId}')">
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Cabang Lomba</label>
+        <input type="text" id="edit-br-name" class="form-control" value="${name}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Tipe Kepesertaan</label>
+          <select id="edit-br-type" class="form-select" onchange="const b = document.getElementById('edit-br-team-box'); if(b) b.style.display=this.value==='TEAM'?'grid':'none';" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+            <option value="INDIVIDUAL" ${type === 'INDIVIDUAL' ? 'selected' : ''}>INDIVIDUAL</option>
+            <option value="TEAM" ${type === 'TEAM' ? 'selected' : ''}>TEAM</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Biaya Pendaftaran (Rp)</label>
+          <input type="number" id="edit-br-fee" class="form-control" value="${fee}" min="0" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+      </div>
+      <div id="edit-br-team-box" style="display: ${type === 'TEAM' ? 'grid' : 'none'}; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Min. Anggota Tim</label>
+          <input type="number" id="edit-br-min" class="form-control" value="${minM || 2}" min="1" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Max. Anggota Tim</label>
+          <input type="number" id="edit-br-max" class="form-control" value="${maxM || 5}" min="1" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Deskripsi</label>
+        <textarea id="edit-br-desc" class="form-control" rows="2" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">${desc}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Perubahan Cabang</button>
+    </form>
+  `);
+}
+
+async function submitEditBranch(e, branchId) {
+  e.preventDefault();
+  const type = document.getElementById('edit-br-type').value;
+  try {
+    const res = await apiRequest(`/api/competitions/branches/${branchId}`, {
+      method: 'PATCH',
+      body: {
+        name: document.getElementById('edit-br-name').value,
+        participantType: type,
+        registrationFee: parseFloat(document.getElementById('edit-br-fee').value),
+        minTeamMembers: type === 'TEAM' ? parseInt(document.getElementById('edit-br-min').value, 10) : 1,
+        maxTeamMembers: type === 'TEAM' ? parseInt(document.getElementById('edit-br-max').value, 10) : 1,
+        description: document.getElementById('edit-br-desc').value,
+      },
+    });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      closeAppModal();
+      renderAdminBranchesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function executeDeleteBranch(branchId, name) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus cabang "${name}"?`)) return;
+  try {
+    const res = await apiRequest(`/api/competitions/branches/${branchId}`, { method: 'DELETE' });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      renderAdminBranchesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function toggleBranchStatus(branchId) {
+  try {
+    const res = await apiRequest(`/api/competitions/branches/${branchId}/toggle`, { method: 'PATCH' });
+    if (res.success) {
+      alert(res.message);
+      state.competitionTree = [];
+      renderAdminBranchesView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// --- MASTER REKENING PEMBAYARAN ---
+async function renderAdminPaymentAccountsView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat rekening bank...</div>';
+
+  try {
+    const res = await apiRequest('/api/payments/accounts/all');
+    const accounts = res.success ? res.data : [];
+
+    container.innerHTML = `
+      <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Rekening Pembayaran Resmi</h2>
+          <p style="color: var(--text-muted); font-size: 0.95rem;">Kelola daftar rekening bank panitia untuk penerimaan transfer biaya pendaftaran.</p>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn btn-outline-success" onclick="exportAdminPaymentAccountsExcel()" style="border: 1px solid var(--success-500); color: var(--success-600); background: transparent; padding: 8px 14px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">
+            <i class="fa-solid fa-file-excel"></i> Export Excel
+          </button>
+          <button class="btn btn-primary" onclick="openCreateAccountModal()"><i class="fa-solid fa-plus"></i> Tambah Rekening Bank</button>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+        ${accounts.map(acc => `
+          <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span class="badge badge-primary" style="font-weight: 700;">${acc.bankName}</span>
+                <span class="badge ${acc.isActive ? 'badge-success' : 'badge-danger'}">${acc.isActive ? 'AKTIF' : 'NONAKTIF'}</span>
+              </div>
+              <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Nomor Rekening:</div>
+              <div style="font-size: 1.3rem; font-weight: 800; color: var(--primary-600); font-family: monospace; letter-spacing: 0.05em; margin: 4px 0 8px;">
+                ${acc.accountNumber}
+              </div>
+              <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Atas Nama:</div>
+              <div style="font-weight: 700; color: var(--text-heading); margin-bottom: 16px;">${acc.accountHolder}</div>
+            </div>
+
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
+              <button class="btn btn-sm btn-secondary" style="flex: 1;" onclick="openEditAccountModal('${acc.id}', '${acc.bankName.replace(/'/g, "\\'")}', '${acc.accountNumber.replace(/'/g, "\\'")}', '${acc.accountHolder.replace(/'/g, "\\'")}')">
+                <i class="fa-solid fa-pen-to-square"></i> Edit
+              </button>
+              <button class="btn btn-sm ${acc.isActive ? 'btn-outline-danger' : 'btn-outline-success'}" style="flex: 1;" onclick="toggleAccountStatus('${acc.id}')">
+                ${acc.isActive ? '<i class="fa-solid fa-ban"></i> Nonaktif' : '<i class="fa-solid fa-check"></i> Aktifkan'}
+              </button>
+              <button class="btn btn-sm btn-danger" style="padding: 4px 10px;" title="Hapus Rekening" onclick="executeDeleteAccount('${acc.id}', '${acc.bankName.replace(/'/g, "\\'")}')">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+async function exportAdminPaymentAccountsExcel() {
+  try {
+    const res = await apiRequest('/api/payments/accounts/all');
+    const data = (res.success && res.data) ? res.data : [];
+    const cols = [
+      { header: 'Nama Bank / Metode Pembayaran', key: 'bankName' },
+      { header: 'Nomor Rekening', key: 'accountNumber' },
+      { header: 'Atas Nama (Pemilik)', key: 'accountHolder' },
+      { header: 'Status Rekening', exportValue: a => a.isActive ? 'AKTIF' : 'NONAKTIF' },
+    ];
+    exportTableDataToExcel('data_rekening_pembayaran_resmi', cols, data);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function exportAdminBranchStatsExcel() {
+  const data = window.latestBranchStats || [];
+  const cols = [
+    { header: 'No', exportValue: (b, idx) => idx + 1 },
+    { header: 'Cabang Lomba', key: 'name' },
+    { header: 'Kategori', key: 'categoryName' },
+    { header: 'Jenjang', key: 'levelName' },
+    { header: 'Tipe', key: 'participantType' },
+    { header: 'Biaya Pendaftaran', exportValue: b => formatCurrency(b.fee) },
+    { header: 'Total Pendaftar', key: 'totalCount' },
+    { header: 'Disetujui', key: 'approvedCount' },
+    { header: 'Menunggu Verifikasi', key: 'pendingCount' },
+    { header: 'Total Dana Terkonfirmasi', exportValue: b => formatCurrency(b.confirmedFunds) },
+  ];
+  exportTableDataToExcel('rekapitulasi_pendaftar_cabang_lomba', cols, data);
+}
+
+function openCreateAccountModal() {
+  openAppModal(`
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-plus"></i> Tambah Rekening Bank</h3>
+      <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+    </div>
+    <form onsubmit="submitCreateAccount(event)">
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Bank</label>
+        <input type="text" id="acc-bank-input" class="form-control" placeholder="Contoh: Bank Central Asia (BCA)" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nomor Rekening</label>
+        <input type="text" id="acc-num-input" class="form-control" placeholder="Nomor rekening" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Pemilik Rekening</label>
+        <input type="text" id="acc-holder-input" class="form-control" placeholder="Contoh: Panitia Lomba Nasional 2026" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Rekening Bank</button>
+    </form>
+  `);
+}
+
+async function submitCreateAccount(e) {
+  e.preventDefault();
+  try {
+    const res = await apiRequest('/api/payments/accounts', {
+      method: 'POST',
+      body: {
+        bankName: document.getElementById('acc-bank-input').value,
+        accountNumber: document.getElementById('acc-num-input').value,
+        accountHolder: document.getElementById('acc-holder-input').value,
+      },
+    });
+    if (res.success) {
+      alert(res.message);
+      closeAppModal();
+      renderAdminPaymentAccountsView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function openEditAccountModal(id, bankName, accountNumber, accountHolder) {
+  openAppModal(`
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-pen-to-square"></i> Edit Rekening Bank</h3>
+      <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+    </div>
+    <form onsubmit="submitEditAccount(event, '${id}')">
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Bank</label>
+        <input type="text" id="edit-acc-bank" class="form-control" value="${bankName}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nomor Rekening</label>
+        <input type="text" id="edit-acc-num" class="form-control" value="${accountNumber}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Pemilik Rekening</label>
+        <input type="text" id="edit-acc-holder" class="form-control" value="${accountHolder}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Perubahan Rekening</button>
+    </form>
+  `);
+}
+
+async function submitEditAccount(e, id) {
+  e.preventDefault();
+  try {
+    const res = await apiRequest(`/api/payments/accounts/${id}`, {
+      method: 'PATCH',
+      body: {
+        bankName: document.getElementById('edit-acc-bank').value,
+        accountNumber: document.getElementById('edit-acc-num').value,
+        accountHolder: document.getElementById('edit-acc-holder').value,
+      },
+    });
+    if (res.success) {
+      alert(res.message);
+      closeAppModal();
+      renderAdminPaymentAccountsView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function executeDeleteAccount(id, bankName) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus rekening ${bankName}?`)) return;
+  try {
+    const res = await apiRequest(`/api/payments/accounts/${id}`, { method: 'DELETE' });
+    if (res.success) {
+      alert(res.message);
+      renderAdminPaymentAccountsView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function toggleAccountStatus(accId) {
+  try {
+    const res = await apiRequest(`/api/payments/accounts/${accId}/toggle`, { method: 'PATCH' });
+    if (res.success) {
+      alert(res.message);
+      renderAdminPaymentAccountsView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// --- PENGATURAN BRANDING & IDENTITAS APLIKASI ---
+async function renderAdminBrandingView() {
+  const container = document.getElementById('main-view-slot');
+  const s = state.settings || {};
+
+  const logoUrl = s.application_logo ? `/static/img/${s.application_logo}` : '/static/img/logo_e7a8b6a95d.webp';
+  const faviconUrl = s.application_favicon ? `/static/img/${s.application_favicon}` : '/static/img/favicon_87007b6344.webp';
+
+  container.innerHTML = `
+    <div style="max-width: 760px; margin: 0 auto;">
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Identitas Aplikasi & Branding</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Perubahan ini diterapkan secara otomatis ke landing page, kartu peserta, dan dashboard.</p>
+      </div>
+
+      <div id="branding-save-alert" style="display: none; padding: 12px; border-radius: 8px; margin-bottom: 20px;"></div>
+
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 26px; box-shadow: var(--shadow-sm);">
+        <form onsubmit="handleBrandingSave(event)">
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Nama Aplikasi Lengkap</label>
+            <input type="text" id="brand-app-name" class="form-control" value="${s.application_name || 'MASKUMAMBANG FEST #4'}" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Nama Singkat / Brand Tag</label>
+            <input type="text" id="brand-short-name" class="form-control" value="${s.application_short_name || 'MASKUMAMBANG FEST #4'}" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          </div>
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Deskripsi Acara</label>
+            <textarea id="brand-desc" class="form-control" rows="3" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">${s.application_description || 'Ajang Kompetisi Tingkat Nasional Paling Bergengsi Tahun 2026.'}</textarea>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+            <div>
+              <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 8px; color: var(--text-main);"><i class="fa-solid fa-image"></i> Logo Aplikasi</label>
+              <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 10px;">
+                <div style="width: 56px; height: 56px; border-radius: 12px; background: var(--bg-body); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                  <img id="logo-preview-img" src="${logoUrl}" alt="Logo Preview" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                </div>
+                <input type="file" id="brand-logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="font-size: 0.8rem;" onchange="previewBrandingFile(this, 'logo-preview-img')">
+              </div>
+              <small style="color: var(--text-muted); font-size: 0.75rem;">PNG, JPG, WEBP, atau SVG (Maks. 2MB)</small>
+            </div>
+
+            <div>
+              <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 8px; color: var(--text-main);"><i class="fa-solid fa-icons"></i> Favicon</label>
+              <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 10px;">
+                <div style="width: 56px; height: 56px; border-radius: 12px; background: var(--bg-body); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                  <img id="favicon-preview-img" src="${faviconUrl}" alt="Favicon Preview" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                </div>
+                <input type="file" id="brand-favicon-file" accept="image/png,image/jpeg,image/webp,image/x-icon,image/svg+xml" style="font-size: 0.8rem;" onchange="previewBrandingFile(this, 'favicon-preview-img')">
+              </div>
+              <small style="color: var(--text-muted); font-size: 0.75rem;">ICO, PNG, atau WEBP</small>
+            </div>
+          </div>
+
+          <button type="submit" id="brand-save-btn" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">
+            <i class="fa-solid fa-check"></i> Simpan Pengaturan Branding
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function previewBrandingFile(input, previewImgId) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = document.getElementById(previewImgId);
+      if (img) img.src = e.target.result;
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+async function handleBrandingSave(e) {
+  e.preventDefault();
+  const btn = document.getElementById('brand-save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...';
+
+  try {
+    // 1. Upload Logo if selected
+    const logoInput = document.getElementById('brand-logo-file');
+    if (logoInput && logoInput.files && logoInput.files[0]) {
+      const logoData = new FormData();
+      logoData.append('logo', logoInput.files[0]);
+      await apiRequest('/api/settings/logo', { method: 'POST', body: logoData });
+    }
+
+    // 2. Upload Favicon if selected
+    const favInput = document.getElementById('brand-favicon-file');
+    if (favInput && favInput.files && favInput.files[0]) {
+      const favData = new FormData();
+      favData.append('favicon', favInput.files[0]);
+      await apiRequest('/api/settings/favicon', { method: 'POST', body: favData });
+    }
+
+    // 3. Save text settings
+    const res = await apiRequest('/api/settings', {
+      method: 'POST',
+      body: {
+        application_name: document.getElementById('brand-app-name').value,
+        application_short_name: document.getElementById('brand-short-name').value,
+        application_description: document.getElementById('brand-desc').value,
+      },
+    });
+
+    if (res.success) {
+      state.settings = res.data;
+      showBannerAlert('branding-save-alert', 'Pengaturan branding & logo berhasil diperbarui.', 'success');
+      await loadBrandingInfo();
+    }
+  } catch (err) {
+    showBannerAlert('branding-save-alert', err.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Simpan Pengaturan Branding';
+  }
+}
+
+// --- AUDIT LOGS (UNIVERSAL TABLE) ---
+async function renderAdminAuditLogsView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat log audit...</div>';
+
+  try {
+    const res = await apiRequest('/api/audit/logs?perPage=500');
+    tableState.adminAudit.data = res.success ? res.logs : [];
+
+    container.innerHTML = `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Log Audit Keamanan Sistem</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Pencatatan riwayat aktivitas penting dan administratif sistem.</p>
+      </div>
+
+      <div id="admin-audit-table-slot">
+        ${renderAdminAuditTable()}
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+function renderAdminAuditTable() {
+  const ts = tableState.adminAudit;
+  return renderUniversalTable({
+    tableId: 'admin-audit-table',
+    columns: [
+      { header: 'Waktu', key: 'createdAt', render: l => formatDate(l.createdAt) },
+      { header: 'Aksi', key: 'action', render: l => `<span class="badge badge-primary">${l.action}</span>` },
+      { header: 'Pelaksana', sortValue: l => l.user?.name || 'Sistem', render: l => l.user ? `<strong>${l.user.name}</strong> (${l.user.role})` : 'Sistem' },
+      { header: 'Tabel Target', key: 'targetTable', render: l => `<code>${l.targetTable}</code>` },
+      { header: 'Rincian', key: 'details', render: l => l.details || '-' },
+    ],
+    data: ts.data,
+    searchQuery: ts.search,
+    searchFields: ['action', 'targetTable', 'details', l => l.user?.name, l => l.user?.email],
+    sortKey: ts.sortKey,
+    sortDir: ts.sortDir,
+    currentPage: ts.page,
+    pageSize: ts.pageSize,
+    onPageChangeName: 'onAdminAuditPageChange',
+    onSearchChangeName: 'onAdminAuditSearchChange',
+    onPageSizeChangeName: 'onAdminAuditPageSizeChange',
+    onSortChangeName: 'onAdminAuditSortChange',
+    exportFilename: 'log_audit_keamanan_sistem',
+    onExportName: 'exportAdminAuditExcel',
+    emptyMessage: 'Belum ada log audit.',
+  });
+}
+
+function exportAdminAuditExcel() {
+  const data = tableState.adminAudit.data || [];
+  const cols = [
+    { header: 'Waktu Aktivitas', exportValue: l => formatDate(l.createdAt) },
+    { header: 'Aksi Keamanan', key: 'action' },
+    { header: 'Nama Pelaksana', exportValue: l => l.user?.name || 'Sistem' },
+    { header: 'Email Pelaksana', exportValue: l => l.user?.email || '-' },
+    { header: 'Role Pelaksana', exportValue: l => l.user?.role || '-' },
+    { header: 'Tabel Target', key: 'targetTable' },
+    { header: 'Rincian Aktivitas', key: 'details' },
+  ];
+  exportTableDataToExcel('log_audit_keamanan_sistem', cols, data);
+}
+
+function onAdminAuditPageChange(p) { tableState.adminAudit.page = p; updateUniversalTable('admin-audit-table-slot', renderAdminAuditTable); }
+function onAdminAuditSearchChange(s) { tableState.adminAudit.search = s; tableState.adminAudit.page = 1; updateUniversalTable('admin-audit-table-slot', renderAdminAuditTable); }
+function onAdminAuditPageSizeChange(z) { tableState.adminAudit.pageSize = z; tableState.adminAudit.page = 1; updateUniversalTable('admin-audit-table-slot', renderAdminAuditTable); }
+function onAdminAuditSortChange(k) {
+  if (tableState.adminAudit.sortKey === k) {
+    tableState.adminAudit.sortDir = tableState.adminAudit.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    tableState.adminAudit.sortKey = k;
+    tableState.adminAudit.sortDir = 'asc';
+  }
+  updateUniversalTable('admin-audit-table-slot', renderAdminAuditTable);
+}
+
+// --- RESET DATA OPERASIONAL (DANGER ZONE WITH RESET124) ---
+function renderAdminResetOperasionalView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = `
+    <div style="max-width: 650px; margin: 0 auto;">
+      <div class="card" style="background: var(--bg-card); border: 2px solid var(--danger-500); border-radius: var(--radius-xl); padding: 30px; box-shadow: var(--shadow-lg);">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <i class="fa-solid fa-triangle-exclamation" style="font-size: 3.5rem; color: var(--danger-500); margin-bottom: 12px;"></i>
+          <h2 style="font-size: 1.5rem; color: var(--danger-600); margin-bottom: 8px;">Danger Zone: Reset Data Operasional</h2>
+          <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6;">
+            Fitur ini digunakan untuk <strong>membersihkan seluruh data transaksi testing</strong> (Pendaftaran, Anggota Tim, Pembayaran, dan Riwayat Check-in) sebelum event lomba resmi dimulai.
+          </p>
+        </div>
+
+        <div class="alert alert-warning" style="margin-bottom: 24px; font-size: 0.875rem; line-height: 1.6;">
+          <strong>Garansi Keamanan Master Data:</strong>
+          <ul style="margin-left: 20px; margin-top: 6px;">
+            <li>Data Master Lomba (Kategori, Jenjang, Cabang, Biaya) <strong>100% AMAN</strong>.</li>
+            <li>Rekening Bank Panitia & Pengaturan Branding <strong>100% AMAN</strong>.</li>
+            <li>Akun Super Admin & Bendahara <strong>TETAP AMAN</strong>.</li>
+          </ul>
+        </div>
+
+        <div id="reset-page-alert" style="display: none; padding: 14px; border-radius: 8px; margin-bottom: 18px;"></div>
+
+        <form onsubmit="handleOperationalResetSubmit(event)">
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 700; margin-bottom: 6px; color: var(--danger-600);">
+              Ketik Kode Konfirmasi Rahasia Super Admin:
+            </label>
+            <input type="password" id="reset-code-field" class="form-control" placeholder="••••••••" required style="width: 100%; padding: 12px 14px; border: 2px solid var(--danger-500); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          </div>
+
+          <button type="submit" id="reset-exec-btn" class="btn btn-danger" style="width: 100%; padding: 14px; font-weight: 800; font-size: 1rem;">
+            <i class="fa-solid fa-trash-can"></i> Eksekusi Pembersihan Data Operasional
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function handleOperationalResetSubmit(e) {
+  e.preventDefault();
+  const code = document.getElementById('reset-code-field').value.trim();
+  const btn = document.getElementById('reset-exec-btn');
+
+  if (!confirm('PERINGATAN TERAKHIR: Apakah Anda yakin ingin membersihkan seluruh data registrasi & pembayaran transaksi?')) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengeksekusi pembersihan...';
+
+  try {
+    const res = await apiRequest('/api/settings/reset-operational-data', {
+      method: 'POST',
+      body: { confirmationCode: code },
+    });
+
+    if (res.success) {
+      showBannerAlert('reset-page-alert', res.message, 'success');
+      document.getElementById('reset-code-field').value = '';
+    }
+  } catch (err) {
+    showBannerAlert('reset-page-alert', err.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Eksekusi Pembersihan Data Operasional';
+  }
+}
+
+// --- COMMON CHANGE PASSWORD VIEW ---
+function renderChangePasswordView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = `
+    <div style="max-width: 480px; margin: 0 auto;">
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Ubah Kata Sandi Akun</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Perbarui kata sandi untuk mengamankan akses akun Anda.</p>
+      </div>
+
+      <div id="change-pass-alert" style="display: none; padding: 14px; border-radius: 8px; margin-bottom: 20px;"></div>
+
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+        <form onsubmit="handlePasswordChangeSubmit(event)">
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Kata Sandi Saat Ini</label>
+            <input type="password" id="cp-current" class="form-control" placeholder="••••••••" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Kata Sandi Baru (Min. 6 Karakter)</label>
+            <input type="password" id="cp-new" class="form-control" placeholder="••••••••" required minlength="6" style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          </div>
+          <div class="form-group" style="margin-bottom: 22px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Konfirmasi Kata Sandi Baru</label>
+            <input type="password" id="cp-confirm" class="form-control" placeholder="••••••••" required minlength="6" style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          </div>
+
+          <button type="submit" id="cp-submit-btn" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">
+            <i class="fa-solid fa-check"></i> Simpan Kata Sandi Baru
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function handlePasswordChangeSubmit(e) {
+  e.preventDefault();
+  const currentPassword = document.getElementById('cp-current').value;
+  const newPassword = document.getElementById('cp-new').value;
+  const confirmPassword = document.getElementById('cp-confirm').value;
+  const btn = document.getElementById('cp-submit-btn');
+
+  if (newPassword !== confirmPassword) {
+    showBannerAlert('change-pass-alert', 'Konfirmasi kata sandi baru tidak cocok.', 'danger');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...';
+
+  try {
+    const res = await apiRequest('/api/users/change-password', {
+      method: 'POST',
+      body: { currentPassword, newPassword },
+    });
+
+    if (res.success) {
+      showBannerAlert('change-pass-alert', res.message, 'success');
+      document.getElementById('cp-current').value = '';
+      document.getElementById('cp-new').value = '';
+      document.getElementById('cp-confirm').value = '';
+    }
+  } catch (err) {
+    showBannerAlert('change-pass-alert', err.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Simpan Kata Sandi Baru';
+  }
+}
+
+// ============================================================================
+// GLOBAL EXPORTS & WINDOW ATTACHMENTS
+// ============================================================================
+window.initTheme = initTheme;
+window.toggleTheme = toggleTheme;
+window.setTheme = setTheme;
+window.initDashboardApp = initDashboardApp;
+window.handleLogout = handleLogout;
+window.loadBrandingInfo = loadBrandingInfo;
+window.openAppModal = openAppModal;
+window.closeAppModal = closeAppModal;
+
+// Table pagination, search, sorting & filter handlers
+window.onPesertaPageChange = onPesertaPageChange;
+window.onPesertaSearchChange = onPesertaSearchChange;
+window.onPesertaPageSizeChange = onPesertaPageSizeChange;
+window.onPesertaSortChange = onPesertaSortChange;
+window.onPesertaFilterChange = onPesertaFilterChange;
+
+window.onBendaharaPageChange = onBendaharaPageChange;
+window.onBendaharaSearchChange = onBendaharaSearchChange;
+window.onBendaharaPageSizeChange = onBendaharaPageSizeChange;
+window.onBendaharaSortChange = onBendaharaSortChange;
+window.onBendaharaFilterChange = onBendaharaFilterChange;
+
+window.onAdminRegPageChange = onAdminRegPageChange;
+window.onAdminRegSearchChange = onAdminRegSearchChange;
+window.onAdminRegPageSizeChange = onAdminRegPageSizeChange;
+window.onAdminRegSortChange = onAdminRegSortChange;
+window.onAdminRegFilterChange = onAdminRegFilterChange;
+
+window.onAdminUserPageChange = onAdminUserPageChange;
+window.onAdminUserSearchChange = onAdminUserSearchChange;
+window.onAdminUserPageSizeChange = onAdminUserPageSizeChange;
+window.onAdminUserSortChange = onAdminUserSortChange;
+window.onAdminUserFilterChange = onAdminUserFilterChange;
+
+window.onAdminAuditPageChange = onAdminAuditPageChange;
+window.onAdminAuditSearchChange = onAdminAuditSearchChange;
+window.onAdminAuditPageSizeChange = onAdminAuditPageSizeChange;
+window.onAdminAuditSortChange = onAdminAuditSortChange;
+
+window.onAdminBranchPageChange = onAdminBranchPageChange;
+window.onAdminBranchSearchChange = onAdminBranchSearchChange;
+window.onAdminBranchPageSizeChange = onAdminBranchPageSizeChange;
+window.onAdminBranchSortChange = onAdminBranchSortChange;
+window.onAdminBranchFilterChange = onAdminBranchFilterChange;
+
+// Participant Card & Modal Handlers
+window.openParticipantCardModal = openParticipantCardModal;
+window.printParticipantCard = printParticipantCard;
+
+// Peserta wizard handlers
+window.onWizardCatSelect = onWizardCatSelect;
+window.onWizardLvlSelect = onWizardLvlSelect;
+window.onWizardBranchSelect = onWizardBranchSelect;
+window.addWizTeamMemberRow = addWizTeamMemberRow;
+window.previewProofImage = previewProofImage;
+window.handleFullRegistrationSubmit = handleFullRegistrationSubmit;
+window.handleReuploadSubmit = handleReuploadSubmit;
+
+// Bendahara payment verification & check-in handlers
+window.openPaymentVerifyModal = openPaymentVerifyModal;
+window.executeApprovePayment = executeApprovePayment;
+window.promptRejectPayment = promptRejectPayment;
+window.executeRejectPayment = executeRejectPayment;
+window.executeCheckIn = executeCheckIn;
+window.handleManualCheckInSubmit = handleManualCheckInSubmit;
+window.loadLiveCheckInLogs = loadLiveCheckInLogs;
+
+// Super Admin user management handlers
+window.openCreateUserModal = openCreateUserModal;
+window.submitCreateUser = submitCreateUser;
+window.executeToggleUserStatus = executeToggleUserStatus;
+window.openChangeRoleModal = openChangeRoleModal;
+window.submitChangeRole = submitChangeRole;
+window.openResetPasswordModal = openResetPasswordModal;
+window.submitAdminResetPass = submitAdminResetPass;
+
+// Super Admin master kategori & jenjang handlers
+window.openCreateCategoryModal = openCreateCategoryModal;
+window.submitCreateCategory = submitCreateCategory;
+window.openEditCategoryModal = openEditCategoryModal;
+window.submitEditCategory = submitEditCategory;
+window.executeDeleteCategory = executeDeleteCategory;
+window.openCreateLevelModal = openCreateLevelModal;
+window.onJenjangPresetChange = onJenjangPresetChange;
+window.submitCreateLevel = submitCreateLevel;
+window.openEditLevelModal = openEditLevelModal;
+window.submitEditLevel = submitEditLevel;
+window.executeDeleteLevel = executeDeleteLevel;
+window.toggleCatStatus = toggleCatStatus;
+
+// Super Admin master cabang lomba handlers
+window.openCreateBranchModal = openCreateBranchModal;
+window.submitCreateBranch = submitCreateBranch;
+window.openEditBranchModal = openEditBranchModal;
+window.submitEditBranch = submitEditBranch;
+window.executeDeleteBranch = executeDeleteBranch;
+window.toggleBranchStatus = toggleBranchStatus;
+window.toggleBranchTeamFields = toggleBranchTeamFields;
+
+// Super Admin payment account handlers
+window.openCreateAccountModal = openCreateAccountModal;
+window.openCreatePaymentModal = openCreateAccountModal; // Alias for compatibility
+window.submitCreateAccount = submitCreateAccount;
+window.openEditAccountModal = openEditAccountModal;
+window.submitEditAccount = submitEditAccount;
+window.executeDeleteAccount = executeDeleteAccount;
+window.toggleAccountStatus = toggleAccountStatus;
+
+// Super Admin settings & security handlers
+window.handleBrandingSave = handleBrandingSave;
+window.previewBrandingFile = previewBrandingFile;
+window.handleOperationalResetSubmit = handleOperationalResetSubmit;
+window.handlePasswordChangeSubmit = handlePasswordChangeSubmit;
+
+// Super Admin Excel / CSV Export Handlers
+window.exportTableDataToExcel = exportTableDataToExcel;
+window.exportAdminRegistrationsExcel = exportAdminRegistrationsExcel;
+window.exportAdminUsersExcel = exportAdminUsersExcel;
+window.exportAdminBranchesExcel = exportAdminBranchesExcel;
+window.exportAdminAuditExcel = exportAdminAuditExcel;
+window.exportAdminBranchStatsExcel = exportAdminBranchStatsExcel;
+window.exportAdminPaymentAccountsExcel = exportAdminPaymentAccountsExcel;
+window.exportBendaharaPaymentsExcel = exportBendaharaPaymentsExcel;
+
+// UI & Responsive Drawer Navigation Handlers
+window.togglePublicMenu = togglePublicMenu;
+window.closePublicMenu = closePublicMenu;
+window.toggleSidebarDrawer = toggleSidebarDrawer;
+window.closeSidebarDrawer = closeSidebarDrawer;
+
+// Global Delegated Click Handlers (Auto-close on backdrop / nav click)
+document.addEventListener('click', function (e) {
+  if (e.target.closest('.sidebar-backdrop') || e.target.closest('.sidebar-close-btn')) {
+    closeSidebarDrawer();
+  } else if (e.target.closest('.sidebar-nav-item')) {
+    closeSidebarDrawer();
+  } else if (e.target.closest('.public-navbar .nav-link') || e.target.closest('.public-navbar #auth-buttons-nav .btn')) {
+    closePublicMenu();
+  }
+});
+
