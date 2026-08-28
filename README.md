@@ -17,105 +17,153 @@ Sistem pendaftaran lomba berbasis web full-stack menggunakan **NestJS** (backend
 
 ---
 
-## 🚀 Cara Deploy ke VPS/Server
+## 🚀 Panduan Deploy ke VPS (Step by Step)
 
-### Prasyarat
+> Cocok untuk VPS Ubuntu/Debian dengan domain sendiri.
+
+### Prasyarat — Install di VPS dulu
 
 ```bash
-# Node.js v18+ 
-node --version
+# Update sistem
+sudo apt update && sudo apt upgrade -y
 
-# PostgreSQL 14+
-psql --version
+# Install Node.js v20
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
 
-# PM2 (process manager)
-npm install -g pm2
+# Install PostgreSQL
+sudo apt install -y postgresql postgresql-contrib
+
+# Install PM2 (menjalankan app terus meskipun terminal ditutup)
+sudo npm install -g pm2
+
+# Install Nginx (web server / reverse proxy)
+sudo apt install -y nginx
+
+# Cek versi
+node --version    # harus v20+
+psql --version    # harus 14+
 ```
 
-### 1. Clone repository
+---
+
+### Langkah 1 — Clone project dari GitHub
 
 ```bash
 git clone https://github.com/aminrois/maskumambang-fest.git
 cd maskumambang-fest
 ```
 
-### 2. Install dependencies
+---
+
+### Langkah 2 — Install dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Setup environment
+---
+
+### Langkah 3 — Buat file konfigurasi (.env)
 
 ```bash
 cp .env.example .env
-nano .env   # Edit sesuai konfigurasi server Anda
+nano .env
 ```
 
-Wajib diisi:
-- `DATABASE_URL` — koneksi PostgreSQL
-- `JWT_SECRET` — minimal 64 karakter random
-- `QR_SECRET_SALT` — minimal 64 karakter random
+Isi bagian ini (wajib diganti):
 
-Generate secret:
+```env
+NODE_ENV=production
+PORT=3000
+
+# Ganti dengan info database Anda
+DATABASE_URL="postgresql://lomba_user:PASSWORD_ANDA@localhost:5432/lomba_db?schema=public"
+
+# Generate secret dengan perintah di bawah
+JWT_SECRET=isi_dengan_string_random_64_karakter
+QR_SECRET_SALT=isi_dengan_string_random_64_karakter_berbeda
+```
+
+**Generate secret otomatis (jalankan 2x, hasil berbeda):**
 ```bash
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
-### 4. Setup database PostgreSQL
+---
+
+### Langkah 4 — Setup database PostgreSQL
 
 ```bash
-# Buat user dan database PostgreSQL
-sudo -u postgres psql << SQL
-CREATE USER lomba_user WITH PASSWORD 'password_kuat_anda';
+sudo -u postgres psql <<SQL
+CREATE USER lomba_user WITH PASSWORD 'ganti_password_kuat_disini';
 CREATE DATABASE lomba_db OWNER lomba_user;
 GRANT ALL PRIVILEGES ON DATABASE lomba_db TO lomba_user;
 SQL
 ```
 
-### 5. Jalankan migrasi database
+> ⚠️ Ganti `ganti_password_kuat_disini` dengan password yang sama dengan yang ada di `.env` pada `DATABASE_URL`
+
+---
+
+### Langkah 5 — Jalankan migrasi database
 
 ```bash
 npx prisma migrate deploy
 ```
 
-### 6. Buat akun Superadmin pertama
+---
+
+### Langkah 6 — Buat akun Superadmin
 
 ```bash
 node -e "
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
-bcrypt.hash('password_anda', 10).then(async hash => {
+bcrypt.hash('password_admin_anda', 10).then(async hash => {
   await prisma.user.create({ data: {
     name: 'Super Admin',
-    email: 'admin@email.anda',
+    email: 'admin@domain-anda.com',
     phoneNumber: '08xxxxxxxxxx',
     passwordHash: hash,
     role: 'SUPER_ADMIN',
     isActive: true,
   }});
-  console.log('Superadmin dibuat!');
+  console.log('Superadmin berhasil dibuat!');
   await prisma.\$disconnect();
 });
 "
 ```
 
-### 7. Build & jalankan aplikasi
+> Ganti `password_admin_anda`, `admin@domain-anda.com`, dan `08xxxxxxxxxx` sesuai kebutuhan.
+
+---
+
+### Langkah 7 — Build & jalankan aplikasi
 
 ```bash
-# Build TypeScript
+# Build TypeScript ke JavaScript
 npm run build
 
-# Jalankan dengan PM2
+# Jalankan dengan PM2 (tetap jalan meski terminal ditutup)
 pm2 start dist/main.js --name maskumambang-fest
 
-# Simpan config PM2 (auto-start saat reboot)
+# Simpan agar otomatis start saat VPS reboot
 pm2 save
 pm2 startup
+# (ikuti instruksi yang muncul)
 ```
 
-### 8. Setup Nginx (reverse proxy)
+---
+
+### Langkah 8 — Setup Nginx sebagai reverse proxy
+
+```bash
+sudo nano /etc/nginx/sites-available/maskumambang
+```
+
+Isi dengan (ganti `domain-anda.com`):
 
 ```nginx
 server {
@@ -139,22 +187,31 @@ server {
 ```
 
 ```bash
-# Aktifkan site
+# Aktifkan dan reload Nginx
 sudo ln -s /etc/nginx/sites-available/maskumambang /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### 9. SSL dengan Certbot (HTTPS)
+---
+
+### Langkah 9 — Pasang SSL / HTTPS gratis (Certbot)
 
 ```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d domain-anda.com
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d domain-anda.com -d www.domain-anda.com
+# Ikuti instruksi (masukkan email, setuju terms, pilih redirect HTTP -> HTTPS)
 ```
+
+> ✅ SSL gratis dari Let's Encrypt, diperbarui otomatis setiap 90 hari.
 
 ---
 
-## 🔧 Perintah Berguna
+### ✅ Selesai! Buka browser: `https://domain-anda.com`
+
+---
+
+## 🔧 Perintah Berguna Setelah Deploy
 
 ```bash
 # Lihat log aplikasi
@@ -163,48 +220,44 @@ pm2 logs maskumambang-fest
 # Restart aplikasi
 pm2 restart maskumambang-fest
 
-# Prisma Studio (admin DB)
-npx prisma studio
+# Update dari GitHub
+cd maskumambang-fest
+git pull origin main
+npm install
+npm run build
+pm2 restart maskumambang-fest
 
 # Backup database
 pg_dump -U lomba_user lomba_db > backup_$(date +%Y%m%d).sql
-```
 
----
-
-## 📁 Struktur Project
-
-```
-maskumambang-fest/
-├── src/                    # Source TypeScript (NestJS)
-│   ├── auth/               # Autentikasi & JWT
-│   ├── users/              # Manajemen user
-│   ├── competitions/       # Kategori & cabang lomba
-│   ├── registrations/      # Pendaftaran peserta
-│   ├── payments/           # Verifikasi pembayaran
-│   ├── cards/              # Kartu peserta & QR
-│   ├── checkin/            # Scan QR check-in
-│   └── settings/           # Pengaturan aplikasi
-├── public/                 # Frontend (HTML/CSS/JS)
-│   ├── index.html
-│   ├── css/
-│   └── js/app.js
-├── prisma/
-│   ├── schema.prisma       # Database schema
-│   └── migrations/        # Migrasi database
-├── uploads/                # File upload (gitignored)
-├── .env.example            # Template environment
-└── package.json
+# Status semua proses
+pm2 status
 ```
 
 ---
 
 ## 🛡️ Keamanan Production
 
-- Ganti semua secret di `.env` dengan nilai random yang kuat
-- Gunakan HTTPS (Certbot/SSL)
-- Batasi akses port PostgreSQL (hanya localhost)
-- Aktifkan firewall: `ufw allow 80,443/tcp`
+- ✅ Ganti semua secret di `.env` dengan nilai random yang kuat
+- ✅ Gunakan HTTPS (Certbot yang mengurus ini)
+- ✅ Aktifkan firewall:
+  ```bash
+  sudo ufw allow 22
+  sudo ufw allow 80
+  sudo ufw allow 443
+  sudo ufw deny 5432   # Blokir akses PostgreSQL dari luar
+  sudo ufw enable
+  ```
+- ✅ File `.env` tidak ikut ke GitHub (sudah di `.gitignore`)
+
+---
+
+## 📝 Catatan Teknis
+
+- **Node.js** berjalan di port 3000 (HTTP internal, tidak perlu SSL)
+- **Nginx** yang mengurus HTTPS/SSL di port 443
+- **HSTS** dan SSL ditangani oleh Certbot + Nginx — tidak perlu konfigurasi tambahan di aplikasi
+- File upload tersimpan di folder `uploads/` (tidak ikut ke GitHub)
 
 ---
 
