@@ -807,3 +807,48 @@ a:hover {
   font-size: 0.875rem;
   margin-top: auto;
 }
+
+/* ============================================================
+   STICKY ACTION COLUMN — semua tabel universal
+   ============================================================ */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Sticky header cell */
+.sticky-action {
+  position: sticky !important;
+  right: 0;
+  z-index: 3;
+  background: var(--table-header-bg);
+  box-shadow: -3px 0 8px rgba(0, 0, 0, 0.06);
+  white-space: nowrap;
+  max-width: 150px; /* keep column narrow */
+}
+
+/* Sticky body cell — override to match row background */
+tr .sticky-action {
+  background: var(--bg-card);
+}
+
+/* On hover keep sticky cell consistent */
+tr:hover .sticky-action {
+  background: var(--table-row-hover, color-mix(in srgb, var(--bg-card) 92%, var(--primary-500) 8%));
+}
+
+/* Ensure buttons are compact on mobile */
+@media (max-width: 480px) {
+  .sticky-action .btn {
+    font-size: 0.78rem;
+    padding: 3px 6px;
+    margin-bottom: 2px;
+  }
+}
+
+/* Buttons inside sticky action col — full width so they line up neatly */
+.sticky-action .btn {
+  width: 100%;
+  justify-content: center;
+  white-space: nowrap;
+}

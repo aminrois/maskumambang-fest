@@ -4,49 +4,563 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistem Pendaftaran Lomba - MASKUMAMBANG FEST #4</title>
+  <meta name="description" content="Daftar lomba terbaik di MASKUMAMBANG FEST #4. Kompetisi tingkat nasional 2026 — Olympiad, Little Champions, Sport, Master Chef, dan Robotika.">
   <link rel="icon" type="image/webp" id="app-favicon" href="/static/img/favicon_87007b6344.webp">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/css/dashboard.css">
   <style>
-    .hero-section {
-      padding: 70px 20px 50px;
+    /* ===========================
+       HERO SECTION - PREMIUM
+    =========================== */
+    .hero-wrapper {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #0f0c29 0%, #302b63 40%, #24243e 80%, #0f0c29 100%);
+      padding: 110px 20px 90px;
       text-align: center;
-      max-width: 950px;
+    }
+
+    /* Animated grid pattern */
+    .hero-wrapper::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(99,102,241,0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.07) 1px, transparent 1px);
+      background-size: 60px 60px;
+      animation: gridMove 20s linear infinite;
+    }
+
+    /* Floating glows */
+    .hero-glow-1 {
+      position: absolute;
+      width: 500px; height: 500px;
+      top: -100px; left: -100px;
+      background: radial-gradient(circle, rgba(99,102,241,0.35) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: float1 8s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .hero-glow-2 {
+      position: absolute;
+      width: 400px; height: 400px;
+      bottom: -80px; right: -80px;
+      background: radial-gradient(circle, rgba(6,182,212,0.3) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: float2 10s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .hero-glow-3 {
+      position: absolute;
+      width: 300px; height: 300px;
+      top: 30%; left: 60%;
+      background: radial-gradient(circle, rgba(139,92,246,0.2) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: float1 12s ease-in-out infinite reverse;
+      pointer-events: none;
+    }
+
+    @keyframes gridMove {
+      from { transform: translateY(0); }
+      to { transform: translateY(60px); }
+    }
+    @keyframes float1 {
+      0%, 100% { transform: translate(0,0) scale(1); }
+      50% { transform: translate(30px, 20px) scale(1.05); }
+    }
+    @keyframes float2 {
+      0%, 100% { transform: translate(0,0) scale(1); }
+      50% { transform: translate(-20px, -30px) scale(1.08); }
+    }
+    /* Text entrance animations */
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    /* Gradient shimmer on accent text */
+    @keyframes shimmer {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    /* Silhouette decorative shapes */
+    .hero-silhouette {
+      position: absolute;
+      pointer-events: none;
+      opacity: 0.06;
+      z-index: 1;
+    }
+    .hero-silhouette-1 {
+      width: 480px; height: 480px;
+      border-radius: 50%;
+      border: 60px solid #818cf8;
+      top: -120px; right: -80px;
+      animation: float1 14s ease-in-out infinite;
+    }
+    .hero-silhouette-2 {
+      width: 320px; height: 320px;
+      border-radius: 50%;
+      border: 40px solid #06b6d4;
+      bottom: -60px; left: 5%;
+      animation: float2 11s ease-in-out infinite;
+      opacity: 0.05;
+    }
+    .hero-silhouette-3 {
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #c084fc 0%, transparent 70%);
+      top: 40%; left: 50%;
+      transform: translate(-50%,-50%);
+      animation: float1 9s ease-in-out infinite reverse;
+      opacity: 0.07;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 900px;
       margin: 0 auto;
     }
-    .category-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      box-shadow: var(--shadow-sm);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      transition: var(--transition-normal);
-    }
-    .category-card:hover {
-      transform: translateY(-3px);
-      box-shadow: var(--shadow-md);
-      border-color: var(--primary-400);
-    }
-    .theme-toggle-btn {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-main);
-      padding: 6px 12px;
-      border-radius: 9999px;
-      cursor: pointer;
-      font-size: 0.85rem;
-      font-weight: 600;
+
+    .hero-badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      background: rgba(99,102,241,0.2);
+      border: 1px solid rgba(99,102,241,0.4);
+      color: #a5b4fc;
+      padding: 8px 18px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(8px);
+      animation: fadeSlideUp 0.6s ease both;
     }
+
+    .hero-title {
+      font-size: clamp(2.2rem, 6vw, 4rem);
+      font-weight: 800;
+      line-height: 1.15;
+      color: #ffffff;
+      margin-bottom: 20px;
+      text-shadow: 0 2px 20px rgba(0,0,0,0.3);
+      animation: fadeSlideUp 0.75s ease both;
+      animation-delay: 0.15s;
+    }
+
+    .hero-title-accent {
+      background: linear-gradient(135deg, #818cf8, #c4b5fd, #06b6d4, #818cf8);
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 5s ease infinite;
+    }
+
+    .hero-desc {
+      font-size: clamp(0.95rem, 2.5vw, 1.15rem);
+      color: rgba(255,255,255,0.7);
+      line-height: 1.75;
+      max-width: 680px;
+      margin: 0 auto 36px;
+      animation: fadeSlideUp 0.85s ease both;
+      animation-delay: 0.3s;
+    }
+
+    .hero-cta-group {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 50px;
+      animation: fadeSlideUp 0.9s ease both;
+      animation-delay: 0.45s;
+    }
+
+    .btn-hero-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      padding: 15px 32px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 1rem;
+      text-decoration: none;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.5);
+      transition: all 0.3s;
+      border: none;
+    }
+    .btn-hero-primary:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(99,102,241,0.6);
+      color: #fff;
+    }
+
+    .btn-hero-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255,255,255,0.08);
+      color: #e2e8f0;
+      padding: 15px 32px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 1rem;
+      text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(8px);
+      transition: all 0.3s;
+    }
+    .btn-hero-secondary:hover {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      transform: translateY(-3px);
+    }
+
+    /* Hero Stats Row */
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+    }
+    .hero-stat-item {
+      padding: 0 32px;
+      border-right: 1px solid rgba(255,255,255,0.1);
+      text-align: center;
+    }
+    .hero-stat-item:last-child { border-right: none; }
+    .hero-stat-num {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #fff;
+      display: block;
+    }
+    .hero-stat-label {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
+    /* Wave separator */
+    .hero-wave {
+      display: block;
+      width: 100%;
+      height: 80px;
+      margin-top: -1px;
+    }
+
+    /* ===========================
+       BRANCHES SECTION
+    =========================== */
+    .branches-section {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 60px 20px 80px;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+    .section-badge {
+      display: inline-block;
+      background: var(--primary-50);
+      color: var(--primary-600);
+      border: 1px solid var(--primary-200);
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(1.6rem, 4vw, 2.5rem);
+      font-weight: 800;
+      color: var(--text-heading);
+      margin-bottom: 10px;
+    }
+    .section-subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    /* Branches Grid */
+    .branches-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 22px;
+    }
+    @media (max-width: 1024px) {
+      .branches-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .branches-grid { grid-template-columns: 1fr; }
+      .hero-stat-item { padding: 12px 20px; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.1); }
+      .hero-stat-item:last-child { border-bottom: none; }
+    }
+
+    .branch-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .branch-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary-500), var(--accent-500));
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s ease;
+    }
+    .branch-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 36px rgba(99,102,241,0.12);
+      border-color: var(--primary-200);
+    }
+    .branch-card:hover::before {
+      transform: scaleX(1);
+    }
+
+    /* Card header: icon + type badge */
+    .branch-card-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .branch-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--primary-50), var(--primary-100));
+      color: var(--primary-600);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.15rem;
+      flex-shrink: 0;
+    }
+    /* Card title: bold, prominent */
+    .branch-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text-heading);
+      line-height: 1.3;
+      flex: 1;
+    }
+    .branch-title-cat {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--primary-500);
+      display: block;
+      margin-bottom: 2px;
+    }
+    .branch-type-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .badge-individual { background: #dbeafe; color: #1d4ed8; }
+    .badge-team { background: #fef9c3; color: #854d0e; }
+
+    /* Divider */
+    .branch-divider {
+      height: 1px;
+      background: var(--border-subtle);
+      margin: 14px 0;
+    }
+
+    /* Fee row */
+    .branch-fee-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .branch-fee {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--primary-600);
+    }
+    .branch-fee-label {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      display: block;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    /* Team size chip */
+    .branch-team-chip {
+      font-size: 0.72rem;
+      background: var(--bg-body);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 4px 8px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Actions row */
+    .branch-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: auto;
+    }
+    .btn-juknis {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 8px 14px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      border-radius: 8px;
+      border: 1px solid var(--primary-300);
+      background: var(--primary-50);
+      color: var(--primary-700);
+      text-decoration: none;
+      transition: all 0.2s;
+      flex: 1;
+      justify-content: center;
+    }
+    .btn-juknis:hover {
+      background: var(--primary-100);
+      color: var(--primary-800);
+      border-color: var(--primary-400);
+      transform: translateY(-1px);
+    }
+    .btn-daftar {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 8px 16px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      border-radius: 8px;
+      background: var(--primary-600);
+      color: #fff;
+      text-decoration: none;
+      transition: all 0.2s;
+      flex: 1;
+      justify-content: center;
+    }
+    .btn-daftar:hover {
+      background: var(--primary-700);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .btn-kuota-penuh {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      border-radius: 8px;
+      background: var(--danger-600, #dc2626);
+      color: #fff;
+      cursor: not-allowed;
+      flex: 1;
+      justify-content: center;
+      opacity: 0.9;
+      letter-spacing: 0.3px;
+    }
+
+    /* Loading skeleton */
+    .branch-skeleton {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 22px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .skeleton-line {
+      height: 14px; background: var(--border-subtle); border-radius: 6px; margin-bottom: 10px;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+
+    /* ===========================
+       GUIDE BANNER
+    =========================== */
+    .guide-banner {
+      background: linear-gradient(135deg, var(--primary-600), var(--primary-800));
+      padding: 50px 30px;
+      text-align: center;
+    }
+    .guide-banner h3 {
+      font-size: 1.5rem;
+      color: #fff;
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+    .guide-banner p {
+      color: rgba(255,255,255,0.75);
+      font-size: 0.95rem;
+      margin-bottom: 22px;
+    }
+    .btn-guide {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      background: #fff;
+      color: var(--primary-700);
+      font-weight: 700;
+      border-radius: 10px;
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+    .btn-guide:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    }
+
+    /* Category color accent per category slug */
+    .cat-olympiad .branch-icon { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1d4ed8; }
+    .cat-little    .branch-icon { background: linear-gradient(135deg, #fef9c3, #fef08a); color: #a16207; }
+    .cat-sport     .branch-icon { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #15803d; }
+    .cat-chef      .branch-icon { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #b91c1c; }
+    .cat-robot     .branch-icon { background: linear-gradient(135deg, #f3e8ff, #e9d5ff); color: #7c3aed; }
   </style>
 </head>
 <body class="public-layout">
@@ -67,7 +581,7 @@
         <ul class="nav-menu" id="public-nav-menu">
           <li><a href="/" class="nav-link active">Beranda</a></li>
           <li><a href="/cek-peserta.html" class="nav-link">Cek Peserta</a></li>
-          <li><a href="/guide.html" class="nav-link">Panduan & Rekening</a></li>
+          <li><a href="/guide.html" class="nav-link">Panduan &amp; Rekening</a></li>
           <li id="auth-buttons-nav" style="display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="/login.html" class="btn btn-sm btn-secondary" id="btn-nav-login">Masuk</a>
             <a href="/register.html" class="btn btn-sm btn-primary" id="btn-nav-register">Daftar Akun</a>
@@ -80,50 +594,101 @@
     </div>
   </header>
 
-  <!-- Hero Section -->
-  <section class="hero-section">
-    <span class="role-badge-pill role-PESERTA" style="margin-bottom: 16px; font-size: 0.85rem;"><i class="fa-solid fa-trophy"></i> KOMPETISI TINGKAT NASIONAL 2026</span>
-    <h1 style="font-size: clamp(1.8rem, 5vw, 2.8rem); line-height: 1.25; margin-bottom: 18px; color: var(--text-heading);">
-      Raih Prestasi Gemilang di <span id="hero-title" style="color: var(--primary-600);">MASKUMAMBANG FEST #4</span>
-    </h1>
-    <p id="hero-desc" style="font-size: clamp(0.95rem, 2.5vw, 1.1rem); color: var(--text-muted); line-height: 1.6; max-width: 750px; margin: 0 auto 30px;">
-      Ajang Kompetisi Tingkat Nasional Paling Bergengsi Tahun 2026. Buka peluang emas dan kembangkan potensimu bersama ribuan talenta hebat di seluruh penjuru negeri!
-    </p>
+  <!-- ===== HERO SECTION ===== -->
+  <div class="hero-wrapper">
+    <div class="hero-glow-1"></div>
+    <div class="hero-glow-2"></div>
+    <div class="hero-glow-3"></div>
+    <div class="hero-silhouette hero-silhouette-1"></div>
+    <div class="hero-silhouette hero-silhouette-2"></div>
+    <div class="hero-silhouette hero-silhouette-3"></div>
 
-    <div class="hero-cta-buttons" style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
-      <a href="/register.html" class="btn btn-primary" id="btn-hero-register" style="padding: 14px 28px; font-weight: 700; font-size: 1rem;">
-        <i class="fa-solid fa-paper-plane"></i> Daftar Lomba Sekarang
-      </a>
-      <a href="/cek-peserta.html" class="btn btn-secondary" id="btn-hero-cek-peserta" style="padding: 14px 28px; font-weight: 700; font-size: 1rem;">
-        <i class="fa-solid fa-magnifying-glass"></i> Cek Status Peserta
-      </a>
-    </div>
-  </section>
-
-  <!-- 5 Categories Master Section -->
-  <section style="max-width: 1100px; margin: 0 auto; padding: 40px 20px 60px;">
-    <div style="text-align: center; margin-bottom: 40px;">
-      <h2 style="font-size: 2rem; color: var(--text-heading); margin-bottom: 10px;">5 Kategori Lomba Utama</h2>
-      <p style="color: var(--text-muted); font-size: 1rem;">Pilih kategori yang sesuai dengan bakat, jenjang, dan keahlianmu</p>
-    </div>
-
-    <div id="categories-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
-      <!-- Populated dynamically from /api/competitions/tree -->
-      <div style="text-align: center; padding: 40px; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data kategori lomba...</div>
-    </div>
-  </section>
-
-  <!-- Guide Banner Section -->
-  <section style="background: var(--bg-card); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); padding: 50px 20px;">
-    <div style="max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
-      <div>
-        <h3 style="font-size: 1.4rem; color: var(--text-heading); margin-bottom: 6px;">Butuh Bantuan atau Informasi Rekening?</h3>
-        <p style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">Lihat rekening resmi panitia, petunjuk teknis lomba, dan alur verifikasi.</p>
+    <div class="hero-content">
+      <div class="hero-badge">
+        <i class="fa-solid fa-trophy"></i>
+        Kompetisi Tingkat Nasional 2026
       </div>
-      <a href="/guide.html" class="btn btn-secondary" style="padding: 12px 24px; font-weight: 700;">
-        <i class="fa-solid fa-book-open"></i> Buka Panduan Lengkap
-      </a>
+
+      <h1 class="hero-title">
+        Raih Prestasi Gemilang di<br>
+        <span class="hero-title-accent" id="hero-title">MASKUMAMBANG FEST #4</span>
+      </h1>
+
+      <p class="hero-desc" id="hero-desc">
+        Ajang Kompetisi Terbesar &amp; Paling Bergengsi Tahun 2026. Buka peluang emas dan kembangkan potensimu bersama ribuan talenta terbaik dari seluruh penjuru negeri!
+      </p>
+
+      <div class="hero-cta-group">
+        <a href="/register.html" class="btn-hero-primary" id="btn-hero-register">
+          <i class="fa-solid fa-paper-plane"></i>
+          Daftar Lomba Sekarang
+        </a>
+        <a href="/login.html" class="btn-hero-secondary" id="btn-hero-login">
+          <i class="fa-solid fa-right-to-bracket"></i>
+          Masuk / Login
+        </a>
+        <a href="/cek-peserta.html" class="btn-hero-secondary" id="btn-hero-cek" style="border-style: dashed;">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          Cek Status Peserta
+        </a>
+      </div>
+
+      <!-- Stats -->
+      <div class="hero-stats" id="hero-stats">
+        <div class="hero-stat-item">
+          <span class="hero-stat-num" id="stat-branches">—</span>
+          <span class="hero-stat-label">Cabang Lomba</span>
+        </div>
+        <div class="hero-stat-item">
+          <span class="hero-stat-num" id="stat-categories">5</span>
+          <span class="hero-stat-label">Kategori</span>
+        </div>
+        <div class="hero-stat-item">
+          <span class="hero-stat-num">2026</span>
+          <span class="hero-stat-label">Tahun Pelaksanaan</span>
+        </div>
+        <div class="hero-stat-item">
+          <span class="hero-stat-num">🏆</span>
+          <span class="hero-stat-label">Nasional</span>
+        </div>
+      </div>
     </div>
+  </div>
+
+  <!-- SVG Wave Separator -->
+  <svg class="hero-wave" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 80" preserveAspectRatio="none" style="background: #24243e; display:block;">
+    <path d="M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z" fill="var(--bg-body)"/>
+  </svg>
+
+  <!-- ===== ALL BRANCHES SECTION ===== -->
+  <section class="branches-section">
+    <div class="section-header">
+      <div class="section-badge"><i class="fa-solid fa-list-check"></i> Semua Cabang Lomba</div>
+      <h2 class="section-title">Pilih Cabang Lomba Favoritmu</h2>
+      <p class="section-subtitle">Dari Olympiad Nasional hingga Robotika — temukan cabang yang paling sesuai dengan bakatmu!</p>
+    </div>
+
+    <div class="branches-grid" id="branches-grid">
+      <!-- Loading skeletons -->
+      <div class="branch-skeleton"><div class="skeleton-line" style="width:60%;height:12px;"></div><div class="skeleton-line" style="width:90%;height:18px;"></div><div class="skeleton-line" style="width:75%;height:12px;"></div><div class="skeleton-line" style="width:40%;height:12px;margin-top:16px;"></div></div>
+      <div class="branch-skeleton"><div class="skeleton-line" style="width:70%;height:12px;"></div><div class="skeleton-line" style="width:85%;height:18px;"></div><div class="skeleton-line" style="width:60%;height:12px;"></div><div class="skeleton-line" style="width:45%;height:12px;margin-top:16px;"></div></div>
+      <div class="branch-skeleton"><div class="skeleton-line" style="width:55%;height:12px;"></div><div class="skeleton-line" style="width:80%;height:18px;"></div><div class="skeleton-line" style="width:70%;height:12px;"></div><div class="skeleton-line" style="width:35%;height:12px;margin-top:16px;"></div></div>
+      <div class="branch-skeleton"><div class="skeleton-line" style="width:65%;height:12px;"></div><div class="skeleton-line" style="width:88%;height:18px;"></div><div class="skeleton-line" style="width:55%;height:12px;"></div><div class="skeleton-line" style="width:50%;height:12px;margin-top:16px;"></div></div>
+      <div class="branch-skeleton"><div class="skeleton-line" style="width:75%;height:12px;"></div><div class="skeleton-line" style="width:92%;height:18px;"></div><div class="skeleton-line" style="width:65%;height:12px;"></div><div class="skeleton-line" style="width:42%;height:12px;margin-top:16px;"></div></div>
+      <div class="branch-skeleton"><div class="skeleton-line" style="width:50%;height:12px;"></div><div class="skeleton-line" style="width:78%;height:18px;"></div><div class="skeleton-line" style="width:80%;height:12px;"></div><div class="skeleton-line" style="width:38%;height:12px;margin-top:16px;"></div></div>
+    </div>
+
+    <!-- Category filter pills (populated dynamically) -->
+    <div id="category-filter-pills" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-bottom:30px; order:-1;"></div>
+  </section>
+
+  <!-- ===== GUIDE BANNER ===== -->
+  <section class="guide-banner">
+    <h3><i class="fa-solid fa-book-open"></i> Butuh Panduan atau Info Rekening?</h3>
+    <p>Lihat rekening resmi panitia, petunjuk teknis lomba, dan alur verifikasi pembayaran.</p>
+    <a href="/guide.html" class="btn-guide">
+      <i class="fa-solid fa-book-open"></i> Buka Panduan Lengkap
+    </a>
   </section>
 
   <!-- Footer -->
@@ -133,7 +698,7 @@
         MASKUMAMBANG FEST #4
       </div>
       <p style="color: var(--text-muted); font-size: 0.875rem;" id="footer-desc">
-        Sistem Pendaftaran & Verifikasi Lomba Nasional Resmi.
+        Sistem Pendaftaran &amp; Verifikasi Lomba Nasional Resmi.
       </p>
       <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-dim);">
         &copy; 2026 MASKUMAMBANG FEST. Hak Cipta Dilindungi.
@@ -152,51 +717,118 @@
         document.getElementById('user-logged-nav').style.display = 'block';
       }
 
-      // Load Competition Tree
+      // Category icon map by slug
+      const catIcons = {
+        'olympiad-nasional': { icon: 'fa-book-atlas', cls: 'cat-olympiad' },
+        'little-champions':  { icon: 'fa-child-reaching', cls: 'cat-little' },
+        'sport':             { icon: 'fa-futbol', cls: 'cat-sport' },
+        'master-chef':       { icon: 'fa-kitchen-set', cls: 'cat-chef' },
+        'robotik':           { icon: 'fa-robot', cls: 'cat-robot' },
+      };
+
+      function formatRp(num) {
+        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(num) || 0);
+      }
+
       try {
         const res = await apiRequest('/api/competitions/tree');
         if (res.success && res.data) {
-          const container = document.getElementById('categories-grid');
-          const icons = {
-            'olympiad-nasional': 'fa-book-atlas',
-            'little-champions': 'fa-child-reaching',
-            'sport': 'fa-futbol',
-            'master-chef': 'fa-kitchen-set',
-            'robotik': 'fa-robot',
-          };
+          const container = document.getElementById('branches-grid');
+          const categories = res.data;
 
-          container.innerHTML = res.data.map(cat => {
-            const icon = icons[cat.slug] || 'fa-trophy';
+          // Count total branches for hero stats
+          let totalBranches = 0;
+          categories.forEach(cat => cat.levels.forEach(lvl => totalBranches += lvl.branches.length));
+          const statEl = document.getElementById('stat-branches');
+          if (statEl) statEl.textContent = totalBranches;
+          const catStatEl = document.getElementById('stat-categories');
+          if (catStatEl) catStatEl.textContent = categories.length;
+
+          // Flatten all branches with parent info
+          const allBranches = [];
+          categories.forEach(cat => {
+            const catInfo = catIcons[cat.slug] || { icon: 'fa-trophy', cls: '' };
+            cat.levels.forEach(lvl => {
+              lvl.branches.forEach(branch => {
+                allBranches.push({
+                  ...branch,
+                  categoryName: cat.name,
+                  categorySlug: cat.slug,
+                  levelName: lvl.name,
+                  catInfo,
+                });
+              });
+            });
+          });
+
+          if (!allBranches.length) {
+            container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--text-muted);"><i class="fa-solid fa-inbox fa-2x" style="margin-bottom:12px;display:block;"></i>Belum ada cabang lomba tersedia.</div>';
+            return;
+          }
+
+          container.innerHTML = allBranches.map(b => {
+            const isTeam = b.participantType === 'TEAM';
+            // Registration count from _count.registrations (added in service)
+            const regCount = b._count?.registrations ?? 0;
+            const isFull = b.maxRegistrants && regCount >= b.maxRegistrants;
+
+            // Combined single-line title: "Kategori · Nama Cabang Jenjang"
+            const combinedLine = `${b.categoryName} · ${b.name} ${b.levelName}`;
+
+            const juknisBtn = b.juknisUrl
+              ? `<a href="${b.juknisUrl}" target="_blank" rel="noopener noreferrer" class="btn-juknis" title="Lihat Petunjuk Teknis">
+                   <i class="fa-solid fa-file-lines"></i> Lihat Juknis
+                 </a>`
+              : '';
+
+            const daftarBtn = isFull
+              ? `<span class="btn-kuota-penuh"><i class="fa-solid fa-lock"></i> KUOTA PENUH</span>`
+              : `<a href="/register.html" class="btn-daftar"><i class="fa-solid fa-paper-plane"></i> Daftar</a>`;
+
+            const quotaBar = b.maxRegistrants
+              ? `<div style="margin-top:8px;">
+                   <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-dim);margin-bottom:3px;">
+                     <span>Kuota</span><span>${regCount}/${b.maxRegistrants}</span>
+                   </div>
+                   <div style="height:4px;background:var(--border-subtle);border-radius:99px;overflow:hidden;">
+                     <div style="height:100%;width:${Math.min(100, Math.round(regCount/b.maxRegistrants*100))}%;background:${isFull ? 'var(--danger-500,#ef4444)' : 'var(--primary-500)'};transition:width 0.4s;border-radius:99px;"></div>
+                   </div>
+                 </div>`
+              : '';
+
             return `
-              <div class="category-card">
-                <div>
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px;">
-                    <div style="width: 48px; height: 48px; border-radius: 10px; background: var(--primary-50); color: var(--primary-600); display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
-                      <i class="fa-solid ${icon}"></i>
-                    </div>
-                    <span class="role-badge-pill role-PESERTA">${cat.levels.length} Jenjang</span>
+              <div class="branch-card ${b.catInfo.cls}${isFull ? ' opacity-80' : ''}">
+                <!-- Header: icon + combined title -->
+                <div class="branch-card-top">
+                  <div class="branch-icon">
+                    <i class="fa-solid ${b.catInfo.icon}"></i>
                   </div>
-                  <h3 style="font-size: 1.25rem; color: var(--text-heading); margin-bottom: 6px;">${cat.name}</h3>
-                  <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.5; margin-bottom: 16px;">${cat.description || 'Kompetisi resmi tingkat nasional.'}</p>
-                  
-                  <div style="background: var(--bg-body); border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid var(--border-subtle);">
-                    <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 6px;">Jenjang & Cabang:</div>
-                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                      ${cat.levels.map(lvl => `
-                        <span class="member-chip" style="font-size: 0.75rem;">${lvl.name} (${lvl.branches.length})</span>
-                      `).join('')}
-                    </div>
+                  <div style="flex:1;padding-left:12px;min-width:0;">
+                    <div style="font-size:1rem;font-weight:800;color:var(--text-heading);line-height:1.35;">${b.categoryName} · ${b.name} ${b.levelName}</div>
                   </div>
                 </div>
+                <div style="margin-top:8px;margin-bottom:10px;">
+                  <span class="branch-type-badge ${isTeam ? 'badge-team' : 'badge-individual'}">
+                    <i class="fa-solid ${isTeam ? 'fa-users' : 'fa-user'}"></i>
+                    ${isTeam ? `Beregu · ${b.minTeamMembers}–${b.maxTeamMembers} Org` : 'Perorangan'}
+                  </span>
+                </div>
 
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--border-subtle);">
+                <div class="branch-divider"></div>
+
+                <!-- Fee row -->
+                <div class="branch-fee-row">
                   <div>
-                    <span style="font-size: 0.75rem; color: var(--text-dim); display: block;">Biaya:</span>
-                    <strong style="color: var(--primary-600); font-size: 1.05rem;">Rp 150.000</strong>
+                    <span class="branch-fee-label">Biaya Pendaftaran</span>
+                    <div class="branch-fee">${formatRp(b.registrationFee)}</div>
                   </div>
-                  <a href="/register.html" class="btn btn-sm btn-primary">
-                    <i class="fa-solid fa-arrow-right"></i> Daftar
-                  </a>
+                </div>
+                ${quotaBar}
+
+                <!-- Action buttons -->
+                <div class="branch-actions" style="margin-top:14px;">
+                  ${juknisBtn}
+                  ${daftarBtn}
                 </div>
               </div>
             `;
@@ -204,6 +836,8 @@
         }
       } catch (err) {
         console.error(err);
+        const container = document.getElementById('branches-grid');
+        if (container) container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted);">Gagal memuat data cabang lomba.</div>';
       }
     });
   </script>

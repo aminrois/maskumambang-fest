@@ -343,7 +343,7 @@ function renderUniversalTable({
   ` : pageItems.map(item => `
     <tr style="border-bottom: 1px solid var(--border-subtle); transition: var(--transition-fast);">
       ${columns.map(col => `
-        <td class="${col.sticky ? 'sticky-action' : ''}" style="padding: 12px 14px; vertical-align: middle;">
+        <td class="${col.sticky ? 'sticky-action' : ''}" style="padding: 12px 14px; vertical-align: middle;${col.sticky ? ' border-left: 1px solid var(--border-subtle);' : ''}">
           ${col.render ? col.render(item) : (item[col.key] || '-')}
         </td>
       `).join('')}
@@ -401,8 +401,8 @@ function renderUniversalTable({
 
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
           ${(exportFilename || onExportName) ? `
-            <button type="button" class="btn btn-sm btn-outline-success" onclick="${onExportName || `exportTableDataToExcel('${exportFilename || tableId}', window['tableCols_${tableId}'], window['tableData_${tableId}'])`}" style="padding: 7px 14px; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--success-500); color: var(--success-600); background: transparent; border-radius: var(--radius-md); cursor: pointer;" title="Ekspor data tabel ke format Excel / CSV">
-              <i class="fa-solid fa-file-excel"></i> Export Excel
+            <button type="button" onclick="${onExportName ? `${onExportName}()` : `exportTableDataToExcel('${exportFilename || tableId}', [], [])`}" style="padding: 7px 10px; font-size: 1rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--success-500); color: var(--success-600); background: transparent; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;" title="Ekspor ke Excel / CSV" onmouseover="this.style.background='var(--success-50)'" onmouseout="this.style.background='transparent'">
+              <i class="fa-solid fa-file-excel"></i>
             </button>
           ` : ''}
 
@@ -413,8 +413,8 @@ function renderUniversalTable({
         </div>
       </div>
 
-      <div class="table-responsive" style="border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow-x: auto; background: var(--bg-card);">
-        <table class="table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem;">
+      <div class="table-responsive" style="border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow-x: auto; background: var(--bg-card); position: relative;">
+        <table class="table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; min-width: 600px;">
           <thead>
             <tr style="background: var(--table-header-bg); border-bottom: 1px solid var(--border-subtle);">
               ${columns.map(col => {
@@ -422,7 +422,7 @@ function renderUniversalTable({
                 const isSortable = col.sortable !== false && onSortChangeName;
                 const isCurrentSort = sortKey === targetKey;
                 return `
-                  <th class="${col.sticky ? 'sticky-action' : ''}" style="padding: 12px 14px; font-weight: 700; color: var(--text-muted); white-space: nowrap; ${col.width ? `width:${col.width};` : ''} ${isSortable ? 'cursor: pointer; user-select: none;' : ''}" ${isSortable ? `onclick="${onSortChangeName}('${targetKey}')" title="Klik untuk mengurutkan kolom"` : ''}>
+                  <th class="${col.sticky ? 'sticky-action' : ''}" style="padding: 12px 14px; font-weight: 700; color: var(--text-muted); white-space: nowrap; ${col.width ? `width:${col.width};` : ''} ${col.sticky ? 'border-left: 1px solid var(--border-subtle);' : ''} ${isSortable ? 'cursor: pointer; user-select: none;' : ''}" ${isSortable ? `onclick="${onSortChangeName}('${targetKey}')" title="Klik untuk mengurutkan kolom"` : ''}>
                     <div style="display: inline-flex; align-items: center; gap: 6px;">
                       <span>${col.header}</span>
                       ${isSortable ? `
@@ -504,6 +504,8 @@ async function initDashboardApp() {
       topbarCta.innerHTML = '<a href="#daftar" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus"></i> Daftar Lomba</a>';
     } else if (user.role === 'BENDAHARA' || user.role === 'SUPER_ADMIN') {
       topbarCta.innerHTML = '<a href="#checkin-scanner" class="btn btn-sm btn-secondary"><i class="fa-solid fa-qrcode"></i> Scanner QR</a>';
+    } else if (user.role === 'ADMIN_BARCODE') {
+      topbarCta.innerHTML = '<a href="#checkin-scanner" class="btn btn-sm btn-primary"><i class="fa-solid fa-qrcode"></i> Scanner QR</a>';
     }
   }
 
@@ -543,6 +545,7 @@ function buildRoleSidebar(role) {
       <a href="#daftar-peserta" id="nav-daftar-peserta" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-clipboard-list"></i></span><span class="nav-label">Daftar Peserta</span></a>
       <a href="#verifikasi-pembayaran" id="nav-verifikasi-pembayaran" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-credit-card"></i></span><span class="nav-label">Pembayaran</span></a>
       <a href="#checkin-scanner" id="nav-checkin-scanner" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span><span class="nav-label">Check-In QR</span></a>
+      <a href="#cetak-kartu" id="nav-cetak-kartu" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-print"></i></span><span class="nav-label">Cetak Kartu Peserta</span></a>
 
       <div class="nav-section-title">MASTER LOMBA</div>
       <a href="#master-kategori" id="nav-master-kategori" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-folder-tree"></i></span><span class="nav-label">Kategori & Jenjang</span></a>
@@ -559,6 +562,14 @@ function buildRoleSidebar(role) {
 
       <div class="nav-section-title">PEMELIHARAAN SISTEM</div>
       <a href="#reset-operasional" id="nav-reset-operasional" class="sidebar-nav-item danger-item" style="color: var(--danger-500);"><span class="nav-icon"><i class="fa-solid fa-triangle-exclamation"></i></span><span class="nav-label">Reset Data</span></a>
+    `;
+  } else if (role === 'ADMIN_BARCODE') {
+    menu.innerHTML = `
+      <div class="nav-section-title">MENU SCANNER</div>
+      <a href="#checkin-scanner" id="nav-checkin-scanner" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span><span class="nav-label">Check-In Scanner</span></a>
+      <div class="nav-section-title">AKUN SAYA</div>
+      <a href="#change-password" id="nav-change-password" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-key"></i></span><span class="nav-label">Ubah Password</span></a>
+      <a href="javascript:void(0)" onclick="handleLogout()" class="sidebar-nav-item logout-item"><span class="nav-icon"><i class="fa-solid fa-door-open"></i></span><span class="nav-label">Keluar</span></a>
     `;
   }
 }
@@ -638,6 +649,7 @@ function handleDashboardRoute() {
     if (mainRoute === 'daftar-peserta') renderAdminRegistrationsView();
     else if (mainRoute === 'verifikasi-pembayaran') renderBendaharaPaymentsView();
     else if (mainRoute === 'checkin-scanner') renderCheckInScannerView();
+    else if (mainRoute === 'cetak-kartu') renderCetakKartuView();
     else if (mainRoute === 'master-kategori') renderAdminCategoriesView();
     else if (mainRoute === 'master-cabang') renderAdminBranchesView();
     else if (mainRoute === 'users') renderAdminUsersView();
@@ -649,6 +661,9 @@ function handleDashboardRoute() {
     else if (mainRoute === 'card') renderParticipantCardView(param);
     else if (mainRoute === 'change-password') renderChangePasswordView();
     else renderAdminDashboard();
+  } else if (role === 'ADMIN_BARCODE') {
+    if (mainRoute === 'change-password') renderChangePasswordView();
+    else renderCheckInScannerView();
   }
 }
 
@@ -768,7 +783,7 @@ function renderPesertaRegistrationsTable() {
           if (r.status === 'APPROVED') {
             buttons += `<button type="button" class="btn btn-sm btn-success" style="padding: 4px 10px;" onclick="openParticipantCardModal('${r.id}')"><i class="fa-solid fa-id-card"></i> Kartu & QR</button>`;
           }
-          return `<div style="display: flex; gap: 6px;">${buttons}</div>`;
+          return `<div style="display: flex; flex-direction: column; gap: 4px;">${buttons}</div>`;
         },
       },
     ],
@@ -1482,7 +1497,109 @@ async function handleReuploadSubmit(e, regId) {
   }
 }
 
-// --- OFFICIAL PARTICIPANT CARD VIEW (PRINT / CETAK FIX) ---
+// --- SHARED CARD HTML BUILDER (used by both page view & modal view) ---
+function buildSingleCardHTML(card) {
+  const isTeam = card.participant_type === 'TEAM';
+  const membersHTML = isTeam && card.members && card.members.length > 0
+    ? card.members.map(m => `<span style="background:#e0e7ff;border:1px solid #c7d2fe;padding:3px 10px;border-radius:6px;font-size:0.78rem;font-weight:700;color:#3730a3;margin:3px 3px 0 0;display:inline-block;">${m.memberName}</span>`).join('')
+    : '';
+
+  return `
+    <div style="
+      width:378px;
+      min-height:529px;
+      background:#ffffff;
+      border-radius:14px;
+      border:2px solid #1e1b4b;
+      box-shadow:0 24px 48px -12px rgba(15,23,42,0.2);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      font-family:'Segoe UI',Arial,sans-serif;
+      color:#0f172a;
+      margin:0 auto;
+    " id="official-card-print">
+
+      <!-- HEADER BANNER -->
+      <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 55%,#4338ca 100%);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #f59e0b;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <img src="${card.logo_url || '/static/img/logo_e7a8b6a95d.webp'}" alt="Logo"
+            style="height:42px;width:42px;object-fit:contain;background:#fff;padding:3px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.25);"
+            onerror="this.style.display='none'">
+          <div>
+            <div style="font-size:1rem;font-weight:800;line-height:1.2;">${card.app_short_name || 'MASKUMAMBANG FEST #4'}</div>
+            <div style="font-size:0.72rem;color:rgba(255,255,255,0.82);margin-top:2px;">${card.category_name} · Jenjang ${card.level_name}</div>
+          </div>
+        </div>
+        <span style="background:rgba(245,158,11,0.2);border:1px solid #f59e0b;color:#fbbf24;font-size:0.65rem;font-weight:800;padding:4px 10px;border-radius:9999px;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;">${isTeam ? 'TIM / BEREGU' : 'PERORANGAN'}</span>
+      </div>
+
+      <!-- LABEL KARTU -->
+      <div style="background:#f1f5f9;text-align:center;padding:5px;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
+        <span style="font-size:0.7rem;font-weight:800;color:#475569;letter-spacing:0.14em;text-transform:uppercase;">✦ KARTU PESERTA RESMI ✦</span>
+      </div>
+
+      <!-- NO REG -->
+      <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1.5px dashed #a5b4fc;padding:7px 14px;margin:12px 14px 0;border-radius:8px;flex-shrink:0;">
+        <span style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;">No. Registrasi:</span>
+        <span style="font-size:1rem;font-weight:800;color:#4338ca;font-family:monospace;letter-spacing:0.05em;">${card.registration_number}</span>
+      </div>
+
+      <!-- INFO PESERTA -->
+      <div style="padding:12px 14px 6px;flex:1;">
+        <div style="margin-bottom:8px;">
+          <div style="font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;">Nama ${isTeam ? 'Tim' : 'Peserta'}:</div>
+          <div style="font-size:1.1rem;font-weight:800;color:#1e1b4b;line-height:1.25;margin-top:2px;">${card.participant_name}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-bottom:6px;">
+          <div>
+            <div style="font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;">Asal Sekolah:</div>
+            <div style="font-size:0.875rem;font-weight:700;color:#0f172a;line-height:1.25;margin-top:2px;">${card.school_name}</div>
+          </div>
+          <div>
+            <div style="font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;">Cabang Lomba:</div>
+            <div style="font-size:0.875rem;font-weight:700;color:#4338ca;line-height:1.25;margin-top:2px;">${card.branch_name}</div>
+          </div>
+          ${card.mentor_name && card.mentor_name !== '-' ? `
+          <div>
+            <div style="font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;">Pembimbing:</div>
+            <div style="font-size:0.875rem;font-weight:600;color:#334155;line-height:1.25;margin-top:2px;">${card.mentor_name}</div>
+          </div>` : ''}
+          ${isTeam && card.leader_name ? `
+          <div>
+            <div style="font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;">Ketua Tim:</div>
+            <div style="font-size:0.875rem;font-weight:700;color:#0f172a;line-height:1.25;margin-top:2px;">${card.leader_name}</div>
+          </div>` : ''}
+        </div>
+
+        ${membersHTML ? `
+        <div style="border-top:1px dashed #cbd5e1;padding-top:8px;margin-top:4px;">
+          <div style="font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:5px;">Anggota Tim:</div>
+          <div>${membersHTML}</div>
+        </div>` : ''}
+      </div>
+
+      <!-- QR CODE — BESAR DI BAWAH TENGAH -->
+      <div style="background:linear-gradient(to bottom,#f8fafc,#eef2ff);border-top:2px solid #e0e7ff;padding:14px 16px;display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+        <div style="background:#ffffff;border:3px solid #c7d2fe;border-radius:12px;padding:8px;box-shadow:0 4px 16px rgba(67,56,202,0.15);display:inline-block;">
+          <img src="${card.qr_data_uri}" alt="QR Check-in" style="width:130px;height:130px;display:block;border-radius:6px;">
+        </div>
+        <div style="margin-top:8px;font-size:0.72rem;font-weight:800;color:#4338ca;letter-spacing:0.12em;text-transform:uppercase;">◈ SCAN UNTUK CHECK-IN ◈</div>
+        <div style="font-size:0.62rem;color:#94a3b8;margin-top:3px;">Tunjukkan kartu ini saat memasuki area lomba</div>
+      </div>
+
+      <!-- FOOTER -->
+      <div style="background:#1e1b4b;padding:7px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+        <span style="display:inline-flex;align-items:center;gap:5px;color:#4ade80;font-size:0.72rem;font-weight:800;">
+          <i class="fa-solid fa-circle-check"></i> TERVERIFIKASI RESMI
+        </span>
+        <span style="font-size:0.65rem;color:rgba(255,255,255,0.55);">10cm × 14cm</span>
+      </div>
+    </div>
+  `;
+}
+
+// --- OFFICIAL PARTICIPANT CARD VIEW (Full Page — for direct URL / print) ---
 async function renderParticipantCardView(regId) {
   const container = document.getElementById('main-view-slot');
   container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat Kartu Peserta...</div>';
@@ -1492,85 +1609,17 @@ async function renderParticipantCardView(regId) {
     if (!res.success || !res.data) throw new Error('Kartu peserta tidak tersedia atau pendaftaran belum disetujui.');
 
     const card = res.data;
-    const isTeam = card.participant_type === 'TEAM';
-
     container.innerHTML = `
-      <div style="max-width: 600px; margin: 0 auto;">
-        
+      <div style="max-width: 480px; margin: 0 auto;">
         <div class="no-print" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
           <a href="#overview" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; display: inline-flex; align-items: center; gap: 6px;">
             <i class="fa-solid fa-arrow-left"></i> Kembali ke Dashboard
           </a>
           <button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak / Print Kartu</button>
         </div>
-
-        <!-- Official Participant Card -->
         <div class="card-preview-container">
-          <div class="id-card-official" id="official-card-print">
-            
-            <div class="card-header-banner" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-              <div style="display: flex; align-items: center; gap: 12px;">
-                <img src="${card.logo_url || '/static/img/logo_e7a8b6a95d.webp'}" alt="Logo" style="height: 44px; width: 44px; object-fit: contain; background: #ffffff; padding: 3px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.18);" onerror="this.style.display='none'">
-                <div class="event-brand">
-                  <h2 style="font-size: 1.15rem; margin: 0; color: #fff; line-height: 1.2;">${card.app_short_name || 'MASKUMAMBANG FEST #4'}</h2>
-                  <p style="margin: 2px 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.85);">${card.category_name} - Jenjang ${card.level_name}</p>
-                </div>
-              </div>
-              <span class="card-type-tag">${isTeam ? 'BEREGU (TIM)' : 'PERORANGAN'}</span>
-            </div>
-
-            <div class="card-body-content">
-              <div class="reg-number-strip">
-                <span class="reg-label">Nomor Registrasi:</span>
-                <span class="reg-code">${card.registration_number}</span>
-              </div>
-
-              <div class="card-main-grid">
-                <div>
-                  <div class="info-item">
-                    <div class="info-label">Nama ${isTeam ? 'Tim' : 'Peserta'}:</div>
-                    <div class="info-val highlight">${card.participant_name}</div>
-                  </div>
-                  <div class="info-item">
-                    <div class="info-label">Asal Sekolah:</div>
-                    <div class="info-val">${card.school_name}</div>
-                  </div>
-                  <div class="info-item">
-                    <div class="info-label">Cabang Lomba:</div>
-                    <div class="info-val" style="color: var(--primary-600);">${card.branch_name}</div>
-                  </div>
-                  ${isTeam ? `
-                    <div class="info-item">
-                      <div class="info-label">Ketua Tim:</div>
-                      <div class="info-val">${card.leader_name}</div>
-                    </div>
-                  ` : ''}
-                </div>
-
-                <div class="qr-frame">
-                  <img src="${card.qr_data_uri}" alt="QR Check-in">
-                  <div class="qr-caption">QR CHECK-IN</div>
-                </div>
-              </div>
-
-              ${isTeam && card.members && card.members.length > 0 ? `
-                <div class="card-members-section">
-                  <div class="info-label">Anggota Tim:</div>
-                  <div class="members-chips">
-                    ${card.members.map(m => `<span class="member-chip">${m.memberName}</span>`).join('')}
-                  </div>
-                </div>
-              ` : ''}
-            </div>
-
-            <div class="card-footer-strip">
-              <span class="verified-seal"><i class="fa-solid fa-circle-check"></i> TERVERIFIKASI RESMI</span>
-              <span>Tunjukkan kartu saat check-in lomba</span>
-            </div>
-
-          </div>
+          ${buildSingleCardHTML(card)}
         </div>
-
       </div>
     `;
   } catch (err) {
@@ -1585,6 +1634,7 @@ async function renderParticipantCardView(regId) {
   }
 }
 
+// --- PARTICIPANT CARD MODAL (popup dari tabel) ---
 async function openParticipantCardModal(regId) {
   openAppModal(`
     <div style="text-align: center; padding: 40px;">
@@ -1598,88 +1648,17 @@ async function openParticipantCardModal(regId) {
     if (!res.success || !res.data) throw new Error('Kartu peserta tidak tersedia atau pendaftaran belum disetujui.');
 
     const card = res.data;
-    const isTeam = card.participant_type === 'TEAM';
 
     openAppModal(`
       <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
-        <h3 style="font-size: 1.15rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-id-card"></i> Kartu Peserta Resmi</h3>
-        <div style="display: flex; gap: 8px;">
-          <button type="button" class="btn btn-sm btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak Kartu</button>
+        <h3 style="font-size: 1.1rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-id-card"></i> Kartu Peserta Resmi</h3>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button type="button" class="btn btn-sm btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak</button>
           <button type="button" onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
         </div>
       </div>
-
-      <div class="card-preview-container" style="margin: 0 auto; max-width: 520px;">
-        <div class="id-card-official" id="official-card-print">
-          
-          <div class="card-header-banner" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <img src="${card.logo_url || '/static/img/logo_e7a8b6a95d.webp'}" alt="Logo" style="height: 42px; width: 42px; object-fit: contain; background: #ffffff; padding: 3px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.18);" onerror="this.style.display='none'">
-              <div class="event-brand">
-                <h2 style="font-size: 1.1rem; margin: 0; color: #fff; line-height: 1.2;">${card.app_short_name || 'MASKUMAMBANG FEST #4'}</h2>
-                <p style="margin: 2px 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.85);">${card.category_name} - Jenjang ${card.level_name}</p>
-              </div>
-            </div>
-            <span class="card-type-tag">${isTeam ? 'BEREGU (TIM)' : 'PERORANGAN'}</span>
-          </div>
-
-          <div class="card-body-content">
-            <div class="reg-number-strip">
-              <span class="reg-label">Nomor Registrasi:</span>
-              <span class="reg-code">${card.registration_number}</span>
-            </div>
-
-            <div class="card-main-grid">
-              <div>
-                <div class="info-item">
-                  <div class="info-label">Nama ${isTeam ? 'Tim' : 'Peserta'}:</div>
-                  <div class="info-val highlight">${card.participant_name}</div>
-                </div>
-                <div class="info-item">
-                  <div class="info-label">Asal Sekolah:</div>
-                  <div class="info-val">${card.school_name}</div>
-                </div>
-                <div class="info-item">
-                  <div class="info-label">Cabang Lomba:</div>
-                  <div class="info-val" style="color: var(--primary-600);">${card.branch_name}</div>
-                </div>
-                ${isTeam ? `
-                  <div class="info-item">
-                    <div class="info-label">Ketua Tim:</div>
-                    <div class="info-val">${card.leader_name}</div>
-                  </div>
-                ` : ''}
-              </div>
-
-              <div class="qr-frame">
-                <img src="${card.qr_data_uri}" alt="QR Check-in">
-                <div class="qr-caption">QR CHECK-IN</div>
-              </div>
-            </div>
-
-            ${isTeam && card.members && card.members.length > 0 ? `
-              <div class="card-members-section">
-                <div class="info-label">Anggota Tim:</div>
-                <div class="members-chips">
-                  ${card.members.map(m => `<span class="member-chip">${m.memberName}</span>`).join('')}
-                </div>
-              </div>
-            ` : ''}
-          </div>
-
-          <div class="card-footer-strip">
-            <span class="verified-seal"><i class="fa-solid fa-circle-check"></i> TERVERIFIKASI RESMI</span>
-            <span>Tunjukkan kartu saat check-in lomba</span>
-          </div>
-
-        </div>
-      </div>
-
-      <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 10px;">
-        <a href="#card/${card.registration_id}" onclick="closeAppModal()" style="font-size: 0.85rem; color: var(--primary-600); font-weight: 600; text-decoration: none;">
-          <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka Halaman Cetak Khusus
-        </a>
-        <button type="button" class="btn btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak / Download Kartu</button>
+      <div style="display:flex;justify-content:center;overflow:auto;padding-bottom:8px;">
+        ${buildSingleCardHTML(card)}
       </div>
     `);
   } catch (err) {
@@ -1934,7 +1913,20 @@ async function renderCheckInScannerView() {
   container.innerHTML = `
     <div style="margin-bottom: 24px;">
       <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Check-In Scanner Hari Lomba</h2>
-      <p style="color: var(--text-muted); font-size: 0.95rem;">Pindai QR Code pada kartu peserta resmi atau masukkan nomor registrasi secara manual.</p>
+      <p style="color: var(--text-muted); font-size: 0.95rem;">Pindai QR Code atau masukkan nomor registrasi. Tersedia 2 tahap check-in.</p>
+    </div>
+
+    <!-- Stage Selector Tabs -->
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+      <button id="tab-stage1" onclick="switchCheckInStage(1)" class="btn btn-primary" style="flex:1; padding: 12px; font-weight: 700; border-radius: 10px;">
+        <i class="fa-solid fa-door-open"></i> Tahap 1 &mdash; Kedatangan
+      </button>
+      <button id="tab-stage2" onclick="switchCheckInStage(2)" class="btn btn-secondary" style="flex:1; padding: 12px; font-weight: 700; border-radius: 10px;">
+        <i class="fa-solid fa-person-walking-arrow-right"></i> Tahap 2 &mdash; Masuk Arena
+      </button>
+    </div>
+    <div id="checkin-stage-label" style="text-align:center; margin-bottom:14px; font-size:0.85rem; color:var(--text-muted);">
+      Mode aktif: <strong style="color:var(--primary-600);">Tahap 1 &ndash; Kedatangan</strong>
     </div>
 
     <div id="checkin-feed-alert" style="display: none; padding: 16px; border-radius: 8px; margin-bottom: 20px; font-size: 1rem;"></div>
@@ -1942,25 +1934,27 @@ async function renderCheckInScannerView() {
     <!-- Scanner & Live Log Layout -->
     <div class="checkin-layout-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
       
-      <!-- SCANNER BOX (TOP ON MOBILE) -->
+      <!-- SCANNER BOX -->
       <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
         <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 14px;"><i class="fa-solid fa-camera"></i> Kamera Pemindai QR</h3>
-        
         <div id="html5-qr-reader" style="width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid var(--primary-500); margin-bottom: 16px;"></div>
-
         <form onsubmit="handleManualCheckInSubmit(event)" style="display: flex; gap: 8px;">
           <input type="text" id="manual-reg-input" class="form-control" placeholder="Nomor Registrasi (REG-IND-...)" required style="flex: 1; padding: 10px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
           <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Submit</button>
         </form>
       </div>
 
-      <!-- LIVE LOG FEED (BOTTOM ON MOBILE) -->
+      <!-- LIVE LOG FEED -->
       <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
           <h3 style="font-size: 1.15rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-satellite-dish"></i> Live Check-In Feed</h3>
-          <button class="btn btn-sm btn-secondary" onclick="loadLiveCheckInLogs()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button style="padding: 6px 10px; font-size: 0.95rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--success-500); color: var(--success-600); background: transparent; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;" onclick="exportCheckInLogsExcel()" title="Ekspor Log Check-In ke Excel / CSV" onmouseover="this.style.background='var(--success-50)'" onmouseout="this.style.background='transparent'">
+              <i class="fa-solid fa-file-excel"></i>
+            </button>
+            <button class="btn btn-sm btn-secondary" onclick="loadLiveCheckInLogs()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+          </div>
         </div>
-
         <div id="live-checkin-table-slot">
           <div style="text-align: center; padding: 30px; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Memuat live log...</div>
         </div>
@@ -1969,8 +1963,31 @@ async function renderCheckInScannerView() {
     </div>
   `;
 
+  // Store current stage
+  state.checkInStage = 1;
   startCameraScanner();
   loadLiveCheckInLogs();
+}
+
+function switchCheckInStage(stage) {
+  state.checkInStage = stage;
+  const btn1 = document.getElementById('tab-stage1');
+  const btn2 = document.getElementById('tab-stage2');
+  const label = document.getElementById('checkin-stage-label');
+  if (!btn1 || !btn2) return;
+
+  if (stage === 1) {
+    btn1.className = 'btn btn-primary'; btn1.style.cssText = 'flex:1;padding:12px;font-weight:700;border-radius:10px;';
+    btn2.className = 'btn btn-secondary'; btn2.style.cssText = 'flex:1;padding:12px;font-weight:700;border-radius:10px;';
+    if (label) label.innerHTML = 'Mode aktif: <strong style="color:var(--primary-600);">Tahap 1 &ndash; Kedatangan</strong>';
+  } else {
+    btn2.className = 'btn btn-primary'; btn2.style.cssText = 'flex:1;padding:12px;font-weight:700;border-radius:10px;';
+    btn1.className = 'btn btn-secondary'; btn1.style.cssText = 'flex:1;padding:12px;font-weight:700;border-radius:10px;';
+    if (label) label.innerHTML = 'Mode aktif: <strong style="color:var(--primary-600);">Tahap 2 &ndash; Masuk Arena Lomba</strong>';
+  }
+
+  // Restart scanner for current stage
+  startCameraScanner();
 }
 
 function startCameraScanner() {
@@ -1978,6 +1995,7 @@ function startCameraScanner() {
     try { state.scanner.clear(); } catch (e) {}
   }
 
+  const stage = state.checkInStage || 1;
   try {
     state.scanner = new Html5QrcodeScanner('html5-qr-reader', {
       fps: 10,
@@ -1986,7 +2004,7 @@ function startCameraScanner() {
     });
 
     state.scanner.render((decodedText) => {
-      executeCheckIn(decodedText, 'QR_SCAN');
+      executeCheckIn(decodedText, 'QR_SCAN', stage);
     }, () => {});
   } catch (e) {
     console.error('Scanner init error:', e);
@@ -1997,16 +2015,20 @@ async function handleManualCheckInSubmit(e) {
   e.preventDefault();
   const code = document.getElementById('manual-reg-input').value.trim();
   if (!code) return;
-  await executeCheckIn(code, 'MANUAL_CODE');
+  const stage = state.checkInStage || 1;
+  await executeCheckIn(code, 'MANUAL_CODE', stage);
   document.getElementById('manual-reg-input').value = '';
 }
 
-async function executeCheckIn(token, method) {
+async function executeCheckIn(token, method, stage = 1) {
   const alertEl = document.getElementById('checkin-feed-alert');
   if (!alertEl) return;
 
+  const endpoint = stage === 2 ? '/api/checkin/scan2' : '/api/checkin/scan';
+  const stageLabel = stage === 2 ? 'MASUK ARENA' : 'KEDATANGAN';
+
   try {
-    const res = await apiRequest('/api/checkin/scan', {
+    const res = await apiRequest(endpoint, {
       method: 'POST',
       body: { token, method },
     });
@@ -2014,17 +2036,18 @@ async function executeCheckIn(token, method) {
     if (res.success && res.data) {
       alertEl.style.display = 'block';
       alertEl.className = 'alert alert-success';
+      const timeKey = stage === 2 ? res.data.check_in_2_time : res.data.check_in_time;
       alertEl.innerHTML = `
-        <h4 style="margin-bottom: 4px;"><i class="fa-solid fa-circle-check"></i> CHECK-IN BERHASIL!</h4>
+        <h4 style="margin-bottom: 4px;"><i class="fa-solid fa-circle-check"></i> CHECK-IN ${stageLabel} BERHASIL!</h4>
         <div>Peserta: <strong>${res.data.participant_name}</strong> (${res.data.school_name})</div>
-        <div>Cabang: <strong>${res.data.branch_name}</strong> | Waktu: ${formatDate(res.data.check_in_time)}</div>
+        <div>Cabang: <strong>${res.data.branch_name}</strong> | Waktu: ${formatDate(timeKey)}</div>
       `;
       loadLiveCheckInLogs();
     } else if (res.already_checked_in) {
       alertEl.style.display = 'block';
       alertEl.className = 'alert alert-danger';
       alertEl.innerHTML = `
-        <h4 style="margin-bottom: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> DUPLIKAT CHECK-IN DITOLAK!</h4>
+        <h4 style="margin-bottom: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> DUPLIKAT — SUDAH CHECK-IN ${stageLabel}!</h4>
         <div>${res.message}</div>
       `;
     } else {
@@ -2044,33 +2067,39 @@ async function loadLiveCheckInLogs() {
   if (!container) return;
 
   try {
-    const res = await apiRequest('/api/checkin/live-log?limit=15');
+    const res = await apiRequest('/api/checkin/live-log?limit=100');
     if (res.success && res.data) {
+      state.checkInLogs = res.data;
+
       if (res.data.length === 0) {
         container.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">Belum ada riwayat check-in hari ini.</p>';
         return;
       }
 
+      const checkBadge = (val) => val
+        ? `<span style="color:var(--success-600);font-weight:700;"><i class="fa-solid fa-circle-check"></i> ${formatDate(val)}</span>`
+        : `<span style="color:var(--text-dim);font-size:0.8em;"><i class="fa-solid fa-circle-minus"></i> Belum</span>`;
+
       container.innerHTML = `
-        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-          <table class="table" style="width: 100%; font-size: 0.85rem;">
+        <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+          <table class="table" style="width: 100%; font-size: 0.82rem;">
             <thead>
               <tr style="background: var(--table-header-bg);">
-                <th style="padding: 10px;">Waktu</th>
-                <th style="padding: 10px;">No. Registrasi</th>
-                <th style="padding: 10px;">Peserta / Tim</th>
-                <th style="padding: 10px;">Cabang</th>
-                <th style="padding: 10px;">Petugas</th>
+                <th style="padding: 8px;">No. Reg</th>
+                <th style="padding: 8px;">Peserta / Tim</th>
+                <th style="padding: 8px;">Cabang</th>
+                <th style="padding: 8px;"><i class="fa-solid fa-door-open"></i> Tiba</th>
+                <th style="padding: 8px;"><i class="fa-solid fa-person-walking-arrow-right"></i> Masuk Arena</th>
               </tr>
             </thead>
             <tbody>
               ${res.data.map(log => `
                 <tr style="border-bottom: 1px solid var(--border-subtle);">
-                  <td style="padding: 10px; white-space: nowrap;">${formatDate(log.check_in_time)}</td>
-                  <td style="padding: 10px;"><code style="font-weight: 800; color: var(--primary-600);">${log.registration_number}</code></td>
-                  <td style="padding: 10px; font-weight: 700;">${log.participant_name}</td>
-                  <td style="padding: 10px;">${log.branch_name}</td>
-                  <td style="padding: 10px; color: var(--text-muted);">${log.checked_in_by_name}</td>
+                  <td style="padding: 8px;"><code style="font-weight: 800; color: var(--primary-600); font-size:0.8rem;">${log.registration_number}</code></td>
+                  <td style="padding: 8px; font-weight: 700;">${log.participant_name}</td>
+                  <td style="padding: 8px; color:var(--text-muted);">${log.branch_name}</td>
+                  <td style="padding: 8px;">${checkBadge(log.check_in_time)}</td>
+                  <td style="padding: 8px;">${checkBadge(log.check_in_2_time)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2082,6 +2111,25 @@ async function loadLiveCheckInLogs() {
     container.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
   }
 }
+
+function exportCheckInLogsExcel() {
+  const data = state.checkInLogs || [];
+  if (!data.length) {
+    alert('Belum ada data check-in untuk diekspor.');
+    return;
+  }
+  const cols = [
+    { header: 'No. Registrasi', exportValue: l => l.registration_number || '-' },
+    { header: 'Nama Peserta / Tim', exportValue: l => l.participant_name || '-' },
+    { header: 'Cabang Lomba', exportValue: l => l.branch_name || '-' },
+    { header: 'Tiba (Tahap 1)', exportValue: l => l.check_in_time ? formatDate(l.check_in_time) : '-' },
+    { header: 'Petugas Tahap 1', exportValue: l => l.checked_in_by_name || '-' },
+    { header: 'Masuk Arena (Tahap 2)', exportValue: l => l.check_in_2_time ? formatDate(l.check_in_2_time) : 'Belum' },
+    { header: 'Petugas Tahap 2', exportValue: l => l.checked_in_2_by_name || '-' },
+  ];
+  exportTableDataToExcel(`log_checkin_${new Date().toISOString().slice(0,10)}`, cols, data);
+}
+
 
 // ============================================================================
 // SUPER ADMIN MODULES (DAFTAR PESERTA + USERS + KATEGORI + CABANG + RESET)
@@ -2327,7 +2375,7 @@ function renderAdminRegistrationsTable() {
           if (r.status === 'APPROVED') {
             btns += `<button type="button" class="btn btn-sm btn-success" style="padding: 4px 10px;" onclick="openParticipantCardModal('${r.id}')" title="Lihat & Cetak Kartu"><i class="fa-solid fa-id-card"></i> Kartu</button>`;
           }
-          return `<div style="display: flex; gap: 6px;">${btns}</div>`;
+          return `<div style="display: flex; flex-direction: column; gap: 4px;">${btns}</div>`;
         },
       },
     ],
@@ -2443,7 +2491,7 @@ function renderAdminUsersTable() {
         sticky: true,
         sortable: false,
         render: u => `
-          <div style="display: flex; gap: 6px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
             <button class="btn btn-sm btn-secondary" style="padding: 4px 8px;" title="Toggle Status" onclick="executeToggleUserStatus('${u.id}')">
               <i class="fa-solid ${u.isActive ? 'fa-user-slash' : 'fa-user-check'}"></i>
             </button>
@@ -2468,6 +2516,7 @@ function renderAdminUsersTable() {
       { label: 'Semua Role Pengguna', value: '' },
       { label: 'Super Admin', value: 'SUPER_ADMIN' },
       { label: 'Bendahara', value: 'BENDAHARA' },
+      { label: 'Admin Scanner', value: 'ADMIN_BARCODE' },
       { label: 'Peserta', value: 'PESERTA' },
     ],
     currentPage: ts.page,
@@ -2540,10 +2589,12 @@ function openCreateUserModal() {
       <div class="form-group" style="margin-bottom: 18px;">
         <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Role Akses</label>
         <select id="usr-role-input" class="form-select" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
-          <option value="PESERTA">PESERTA</option>
+          <option value="PESERTA">PESERTA (Pendaftar)</option>
           <option value="BENDAHARA">BENDAHARA</option>
+          <option value="ADMIN_BARCODE">ADMIN SCANNER (BARCODE)</option>
           <option value="SUPER_ADMIN">SUPER_ADMIN</option>
         </select>
+
       </div>
       <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Pengguna Baru</button>
     </form>
@@ -2594,6 +2645,7 @@ function openChangeRoleModal(userId, name, currentRole) {
       <select id="modal-new-role" class="form-select" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
         <option value="PESERTA" ${currentRole === 'PESERTA' ? 'selected' : ''}>PESERTA</option>
         <option value="BENDAHARA" ${currentRole === 'BENDAHARA' ? 'selected' : ''}>BENDAHARA</option>
+        <option value="ADMIN_BARCODE" ${currentRole === 'ADMIN_BARCODE' ? 'selected' : ''}>ADMIN SCANNER (BARCODE)</option>
         <option value="SUPER_ADMIN" ${currentRole === 'SUPER_ADMIN' ? 'selected' : ''}>SUPER_ADMIN</option>
       </select>
     </div>
@@ -3001,8 +3053,8 @@ function renderAdminBranchesTable() {
         sticky: true,
         sortable: false,
         render: b => `
-          <div style="display: flex; gap: 6px;">
-            <button class="btn btn-sm btn-secondary" style="padding: 4px 8px;" title="Edit Cabang" onclick="openEditBranchModal('${b.id}', '${b.name.replace(/'/g, "\\'")}', ${b.registrationFee}, '${b.participantType}', ${b.minTeamMembers || 1}, ${b.maxTeamMembers || 1}, '${(b.description || '').replace(/'/g, "\\'")}')">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <button class="btn btn-sm btn-secondary" style="padding: 4px 8px;" title="Edit Cabang" onclick="openEditBranchModal('${b.id}', '${b.name.replace(/'/g, "\\'")}', ${b.registrationFee}, '${b.participantType}', ${b.minTeamMembers || 1}, ${b.maxTeamMembers || 1}, '${(b.description || '').replace(/'/g, "\\'")}', '${(b.juknisUrl || '').replace(/'/g, "\\'")}', ${b.maxRegistrants || 0})">
               <i class="fa-solid fa-pen-to-square"></i>
             </button>
             <button class="btn btn-sm btn-secondary" style="padding: 4px 8px;" title="Toggle Status" onclick="toggleBranchStatus('${b.id}')">
@@ -3118,9 +3170,24 @@ async function openCreateBranchModal() {
           <input type="number" id="br-max-input" class="form-control" value="5" min="1" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
         </div>
       </div>
-      <div class="form-group" style="margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 14px;">
         <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Deskripsi</label>
         <textarea id="br-desc-input" class="form-control" rows="2" placeholder="Petunjuk atau deskripsi cabang lomba" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);"></textarea>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">
+            <i class="fa-solid fa-link" style="color: var(--primary-500);"></i> Link Juknis <span style="font-weight: 400; color: var(--text-dim);">(opsional)</span>
+          </label>
+          <input type="url" id="br-juknis-input" class="form-control" placeholder="https://drive.google.com/..." style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">
+            <i class="fa-solid fa-users-slash" style="color: var(--danger-500);"></i> Maks. Kuota Pendaftar <span style="font-weight: 400; color: var(--text-dim);">(opsional)</span>
+          </label>
+          <input type="number" id="br-quota-input" class="form-control" placeholder="Kosong = tidak terbatas" min="1" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 4px;">Jika penuh, tombol daftar otomatis dikunci.</div>
+        </div>
       </div>
       <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Cabang Lomba</button>
     </form>
@@ -3136,6 +3203,8 @@ async function submitCreateBranch(e) {
   e.preventDefault();
   const type = document.getElementById('br-type-select').value;
   try {
+    const juknisVal = document.getElementById('br-juknis-input')?.value?.trim() || '';
+    const quotaVal = document.getElementById('br-quota-input')?.value;
     const res = await apiRequest('/api/competitions/branches', {
       method: 'POST',
       body: {
@@ -3146,6 +3215,8 @@ async function submitCreateBranch(e) {
         minTeamMembers: type === 'TEAM' ? parseInt(document.getElementById('br-min-input').value, 10) : 1,
         maxTeamMembers: type === 'TEAM' ? parseInt(document.getElementById('br-max-input').value, 10) : 1,
         description: document.getElementById('br-desc-input').value,
+        juknisUrl: juknisVal || undefined,
+        maxRegistrants: quotaVal ? parseInt(quotaVal, 10) : undefined,
       },
     });
     if (res.success) {
@@ -3159,7 +3230,7 @@ async function submitCreateBranch(e) {
   }
 }
 
-function openEditBranchModal(branchId, name, fee, type, minM, maxM, desc) {
+function openEditBranchModal(branchId, name, fee, type, minM, maxM, desc, juknisUrl, maxRegistrants) {
   openAppModal(`
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-pen-to-square"></i> Edit Cabang Lomba</h3>
@@ -3193,9 +3264,24 @@ function openEditBranchModal(branchId, name, fee, type, minM, maxM, desc) {
           <input type="number" id="edit-br-max" class="form-control" value="${maxM || 5}" min="1" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
         </div>
       </div>
-      <div class="form-group" style="margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 14px;">
         <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Deskripsi</label>
         <textarea id="edit-br-desc" class="form-control" rows="2" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">${desc}</textarea>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">
+            <i class="fa-solid fa-link" style="color: var(--primary-500);"></i> Link Juknis <span style="font-weight: 400; color: var(--text-dim);">(opsional)</span>
+          </label>
+          <input type="url" id="edit-br-juknis" class="form-control" value="${juknisUrl || ''}" placeholder="https://drive.google.com/..." style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        </div>
+        <div>
+          <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">
+            <i class="fa-solid fa-users-slash" style="color: var(--danger-500);"></i> Maks. Kuota Pendaftar <span style="font-weight: 400; color: var(--text-dim);">(opsional)</span>
+          </label>
+          <input type="number" id="edit-br-quota" class="form-control" value="${maxRegistrants || ''}" placeholder="Kosong = tidak terbatas" min="1" style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 4px;">Jika penuh, tombol daftar otomatis dikunci.</div>
+        </div>
       </div>
       <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Perubahan Cabang</button>
     </form>
@@ -3206,6 +3292,8 @@ async function submitEditBranch(e, branchId) {
   e.preventDefault();
   const type = document.getElementById('edit-br-type').value;
   try {
+    const juknisVal = document.getElementById('edit-br-juknis')?.value?.trim() || '';
+    const quotaVal = document.getElementById('edit-br-quota')?.value;
     const res = await apiRequest(`/api/competitions/branches/${branchId}`, {
       method: 'PATCH',
       body: {
@@ -3215,6 +3303,8 @@ async function submitEditBranch(e, branchId) {
         minTeamMembers: type === 'TEAM' ? parseInt(document.getElementById('edit-br-min').value, 10) : 1,
         maxTeamMembers: type === 'TEAM' ? parseInt(document.getElementById('edit-br-max').value, 10) : 1,
         description: document.getElementById('edit-br-desc').value,
+        juknisUrl: juknisVal,
+        maxRegistrants: quotaVal ? parseInt(quotaVal, 10) : null,
       },
     });
     if (res.success) {
@@ -3858,6 +3948,388 @@ window.onAdminBranchFilterChange = onAdminBranchFilterChange;
 window.openParticipantCardModal = openParticipantCardModal;
 window.printParticipantCard = printParticipantCard;
 
+// ============================================================================
+// CETAK KARTU PESERTA MASSAL (SUPERADMIN)
+// ============================================================================
+
+const cetakKartuState = {
+  data: [],
+  selected: new Set(),
+  filterBranch: '',
+  search: '',
+};
+
+async function renderCetakKartuView() {
+  const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat daftar peserta terverifikasi...</div>';
+
+  try {
+    const res = await apiRequest('/api/registrations?perPage=999&status=APPROVED');
+    cetakKartuState.data = res.success ? (res.data || res.registrations || []) : [];
+    cetakKartuState.selected = new Set();
+    renderCetakKartuPage();
+  } catch (e) {
+    container.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+function renderCetakKartuPage() {
+  const container = document.getElementById('main-view-slot');
+  const allData = cetakKartuState.data;
+
+  // Get unique branches for filter
+  const branches = [...new Set(allData.map(r => r.branch?.name || r.branchName || '').filter(Boolean))].sort();
+
+  // Apply filter
+  let filtered = allData;
+  if (cetakKartuState.filterBranch) {
+    filtered = filtered.filter(r => (r.branch?.name || r.branchName || '') === cetakKartuState.filterBranch);
+  }
+  if (cetakKartuState.search.trim()) {
+    const q = cetakKartuState.search.toLowerCase();
+    filtered = filtered.filter(r => {
+      const name = r.individualParticipant?.fullName || r.team?.teamName || '';
+      const school = r.individualParticipant?.schoolName || r.team?.schoolName || '';
+      const reg = r.registrationNumber || '';
+      return name.toLowerCase().includes(q) || school.toLowerCase().includes(q) || reg.toLowerCase().includes(q);
+    });
+  }
+
+  const selectedCount = cetakKartuState.selected.size;
+
+  container.innerHTML = `
+    <div style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+      <div>
+        <h2 style="font-size:1.6rem; color:var(--text-heading); margin-bottom:4px;"><i class="fa-solid fa-print"></i> Cetak Kartu Peserta</h2>
+        <p style="color:var(--text-muted); font-size:0.9rem;">Pilih peserta yang kartunya ingin dicetak. Ukuran kartu: <strong>10cm × 14cm</strong> (PDF landscape-ready).</p>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="cetakSelectAll()" title="Pilih semua yang terfilter">
+          <i class="fa-solid fa-check-double"></i> Pilih Semua
+        </button>
+        <button class="btn btn-secondary" onclick="cetakClearAll()">
+          <i class="fa-solid fa-xmark"></i> Hapus Pilihan
+        </button>
+        <button class="btn btn-primary" onclick="cetakKartuPDF()" ${selectedCount === 0 ? 'disabled' : ''} style="min-width:160px;">
+          <i class="fa-solid fa-print"></i> Cetak PDF (<span id="cetak-count">${selectedCount}</span> kartu)
+        </button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card" style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:16px 20px; margin-bottom:20px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+      <div style="flex:1; min-width:200px; position:relative;">
+        <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-dim); font-size:0.85rem;"></i>
+        <input type="text" placeholder="Cari nama / sekolah / nomor reg..." value="${cetakKartuState.search}" oninput="cetakOnSearch(this.value)" style="width:100%; padding:8px 12px 8px 34px; font-size:0.875rem; border-radius:var(--radius-md); border:1px solid var(--input-border); background:var(--input-bg); color:var(--text-main);">
+      </div>
+      <div style="min-width:200px;">
+        <select onchange="cetakOnFilterBranch(this.value)" style="width:100%; padding:8px 12px; font-size:0.875rem; border-radius:var(--radius-md); border:1px solid var(--input-border); background:var(--input-bg); color:var(--text-main);">
+          <option value="">— Semua Cabang Lomba —</option>
+          ${branches.map(b => `<option value="${b}" ${cetakKartuState.filterBranch === b ? 'selected' : ''}>${b}</option>`).join('')}
+        </select>
+      </div>
+      <div style="font-size:0.85rem; color:var(--text-muted); white-space:nowrap;">
+        Menampilkan <strong>${filtered.length}</strong> peserta
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card" style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); overflow:hidden;">
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.875rem;">
+          <thead>
+            <tr style="background:var(--table-header-bg); border-bottom:1px solid var(--border-subtle);">
+              <th style="padding:10px 14px; width:40px; text-align:center;">
+                <input type="checkbox" id="cetak-check-all" onchange="cetakToggleAll(this.checked, ${JSON.stringify(filtered.map(r=>r.id))})" title="Pilih semua di halaman ini">
+              </th>
+              <th style="padding:10px 14px; font-weight:700; color:var(--text-muted);">No. Reg</th>
+              <th style="padding:10px 14px; font-weight:700; color:var(--text-muted);">Nama Peserta / Tim</th>
+              <th style="padding:10px 14px; font-weight:700; color:var(--text-muted);">Asal Sekolah</th>
+              <th style="padding:10px 14px; font-weight:700; color:var(--text-muted);">Cabang Lomba</th>
+              <th style="padding:10px 14px; font-weight:700; color:var(--text-muted);">Jenis</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.length === 0 ? `
+              <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">
+                <i class="fa-solid fa-folder-open" style="font-size:1.8rem; display:block; margin-bottom:8px; color:var(--text-dim);"></i>
+                Tidak ada peserta yang sudah terverifikasi.
+              </td></tr>
+            ` : filtered.map(r => {
+              const name = r.individualParticipant?.fullName || r.team?.teamName || '-';
+              const school = r.individualParticipant?.schoolName || r.team?.schoolName || '-';
+              const branch = r.branch?.name || r.branchName || '-';
+              const type = r.branch?.participantType === 'TEAM' ? 'Beregu' : 'Perorangan';
+              const checked = cetakKartuState.selected.has(r.id) ? 'checked' : '';
+              return `
+                <tr style="border-bottom:1px solid var(--border-subtle); ${checked ? 'background: color-mix(in srgb, var(--primary-500) 6%, var(--bg-card));' : ''}">
+                  <td style="padding:10px 14px; text-align:center;">
+                    <input type="checkbox" class="cetak-row-check" value="${r.id}" ${checked} onchange="cetakToggleOne('${r.id}', this.checked)">
+                  </td>
+                  <td style="padding:10px 14px;"><code style="font-weight:800; color:var(--primary-600); font-size:0.8rem;">${r.registrationNumber || '-'}</code></td>
+                  <td style="padding:10px 14px; font-weight:700;">${name}</td>
+                  <td style="padding:10px 14px; color:var(--text-muted);">${school}</td>
+                  <td style="padding:10px 14px;">${branch}</td>
+                  <td style="padding:10px 14px;"><span style="font-size:0.78rem; padding:2px 8px; border-radius:9999px; background:${type==='Beregu'?'#dbeafe':'#dcfce7'}; color:${type==='Beregu'?'#1d4ed8':'#15803d'}; font-weight:700;">${type}</span></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function cetakToggleOne(id, checked) {
+  if (checked) cetakKartuState.selected.add(id);
+  else cetakKartuState.selected.delete(id);
+  // update counter without full re-render
+  const el = document.getElementById('cetak-count');
+  if (el) el.textContent = cetakKartuState.selected.size;
+  // update print button disabled state
+  const btn = document.querySelector('[onclick="cetakKartuPDF()"]');
+  if (btn) btn.disabled = cetakKartuState.selected.size === 0;
+}
+
+function cetakToggleAll(checked, ids) {
+  ids.forEach(id => { if (checked) cetakKartuState.selected.add(id); else cetakKartuState.selected.delete(id); });
+  renderCetakKartuPage();
+}
+
+function cetakSelectAll() {
+  cetakKartuState.data.forEach(r => cetakKartuState.selected.add(r.id));
+  renderCetakKartuPage();
+}
+
+function cetakClearAll() {
+  cetakKartuState.selected.clear();
+  renderCetakKartuPage();
+}
+
+function cetakOnSearch(val) {
+  cetakKartuState.search = val;
+  renderCetakKartuPage();
+}
+
+function cetakOnFilterBranch(val) {
+  cetakKartuState.filterBranch = val;
+  renderCetakKartuPage();
+}
+
+async function cetakKartuPDF() {
+  const ids = [...cetakKartuState.selected];
+  if (ids.length === 0) { alert('Pilih minimal 1 peserta.'); return; }
+
+  const loadingModal = document.createElement('div');
+  loadingModal.id = 'cetak-loading-overlay';
+  loadingModal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  loadingModal.innerHTML = `<div style="background:var(--bg-card);padding:32px 40px;border-radius:16px;text-align:center;min-width:280px;">
+    <i class="fa-solid fa-spinner fa-spin" style="font-size:2rem;color:var(--primary-600);margin-bottom:16px;display:block;"></i>
+    <div style="font-weight:700;font-size:1.1rem;margin-bottom:6px;">Memuat kartu peserta...</div>
+    <div id="cetak-progress" style="color:var(--text-muted);font-size:0.85rem;">0 / ${ids.length}</div>
+  </div>`;
+  document.body.appendChild(loadingModal);
+
+  try {
+    const cards = [];
+    for (let i = 0; i < ids.length; i++) {
+      const progressEl = document.getElementById('cetak-progress');
+      if (progressEl) progressEl.textContent = `${i + 1} / ${ids.length}`;
+      const res = await apiRequest(`/api/cards/${ids[i]}`);
+      if (res.success && res.data) cards.push(res.data);
+    }
+
+    document.body.removeChild(loadingModal);
+    openBulkPrintWindow(cards);
+  } catch (e) {
+    document.body.removeChild(loadingModal);
+    alert('Gagal memuat kartu: ' + e.message);
+  }
+}
+
+function buildCardHTML(card) {
+  const isTeam = card.participant_type === 'TEAM';
+  const membersHTML = isTeam && card.members && card.members.length > 0
+    ? card.members.map(m => `<span style="background:#e0e7ff;border:1px solid #c7d2fe;padding:2px 8px;border-radius:5px;font-size:7.5px;font-weight:700;color:#3730a3;margin:2px 2px 0 0;display:inline-block;">${m.memberName}</span>`).join('')
+    : '';
+
+  return `
+    <div class="print-card">
+
+      <!-- HEADER BANNER -->
+      <div class="card-banner">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <img src="${card.logo_url || '/static/img/logo_e7a8b6a95d.webp'}" alt="Logo"
+            style="height:36px;width:36px;object-fit:contain;background:#fff;padding:2px;border-radius:6px;box-shadow:0 2px 5px rgba(0,0,0,0.25);"
+            onerror="this.style.display='none'">
+          <div>
+            <div style="font-size:9.5px;font-weight:800;color:#fff;line-height:1.2;">${card.app_short_name || 'MASKUMAMBANG FEST #4'}</div>
+            <div style="font-size:7.5px;color:rgba(255,255,255,0.8);margin-top:1px;">${card.category_name} · Jenjang ${card.level_name}</div>
+          </div>
+        </div>
+        <span style="background:rgba(245,158,11,0.2);border:1px solid #f59e0b;color:#fbbf24;font-size:6.5px;font-weight:800;padding:3px 7px;border-radius:9999px;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;">${isTeam ? 'TIM / BEREGU' : 'PERORANGAN'}</span>
+      </div>
+
+      <!-- LABEL KARTU -->
+      <div style="background:#f1f5f9;text-align:center;padding:4px;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
+        <span style="font-size:7px;font-weight:800;color:#475569;letter-spacing:0.12em;text-transform:uppercase;">✦ KARTU PESERTA RESMI ✦</span>
+      </div>
+
+      <!-- NO REG -->
+      <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1.5px dashed #a5b4fc;padding:5px 10px;margin:8px 10px 0;border-radius:6px;flex-shrink:0;">
+        <span style="font-size:7px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;">No. Registrasi:</span>
+        <span style="font-size:10px;font-weight:800;color:#4338ca;font-family:monospace;letter-spacing:0.05em;">${card.registration_number}</span>
+      </div>
+
+      <!-- INFO PESERTA -->
+      <div style="padding:8px 10px 4px;flex:1;">
+        <div style="margin-bottom:6px;">
+          <div style="font-size:7px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;">Nama ${isTeam ? 'Tim' : 'Peserta'}:</div>
+          <div style="font-size:12px;font-weight:800;color:#1e1b4b;line-height:1.2;margin-top:1px;">${card.participant_name}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;margin-bottom:4px;">
+          <div>
+            <div style="font-size:7px;font-weight:700;color:#64748b;text-transform:uppercase;">Asal Sekolah:</div>
+            <div style="font-size:9px;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;">${card.school_name}</div>
+          </div>
+          <div>
+            <div style="font-size:7px;font-weight:700;color:#64748b;text-transform:uppercase;">Cabang Lomba:</div>
+            <div style="font-size:9px;font-weight:700;color:#4338ca;line-height:1.2;margin-top:1px;">${card.branch_name}</div>
+          </div>
+          ${card.mentor_name && card.mentor_name !== '-' ? `
+          <div>
+            <div style="font-size:7px;font-weight:700;color:#64748b;text-transform:uppercase;">Pembimbing:</div>
+            <div style="font-size:8.5px;font-weight:600;color:#334155;line-height:1.2;margin-top:1px;">${card.mentor_name}</div>
+          </div>` : ''}
+          ${isTeam && card.leader_name ? `
+          <div>
+            <div style="font-size:7px;font-weight:700;color:#64748b;text-transform:uppercase;">Ketua Tim:</div>
+            <div style="font-size:8.5px;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;">${card.leader_name}</div>
+          </div>` : ''}
+        </div>
+
+        ${membersHTML ? `
+        <div style="border-top:1px dashed #cbd5e1;padding-top:5px;margin-top:3px;">
+          <div style="font-size:7px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:3px;">Anggota Tim:</div>
+          <div>${membersHTML}</div>
+        </div>` : ''}
+      </div>
+
+      <!-- QR CODE — BESAR DI BAWAH TENGAH -->
+      <div style="background:linear-gradient(to bottom,#f8fafc,#eef2ff);border-top:2px solid #e0e7ff;padding:10px 12px;display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+        <div style="background:#fff;border:2.5px solid #c7d2fe;border-radius:10px;padding:6px;box-shadow:0 4px 12px rgba(67,56,202,0.15);display:inline-block;">
+          <img src="${card.qr_data_uri}" alt="QR Check-in" style="width:120px;height:120px;display:block;border-radius:4px;">
+        </div>
+        <div style="margin-top:6px;font-size:7px;font-weight:800;color:#4338ca;letter-spacing:0.1em;text-transform:uppercase;">◈ SCAN UNTUK CHECK-IN ◈</div>
+        <div style="font-size:6px;color:#94a3b8;margin-top:2px;">Tunjukkan kartu ini saat memasuki area lomba</div>
+      </div>
+
+      <!-- FOOTER -->
+      <div style="background:#1e1b4b;padding:5px 10px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+        <span style="display:inline-flex;align-items:center;gap:4px;color:#4ade80;font-size:7px;font-weight:800;">✓ TERVERIFIKASI RESMI</span>
+        <span style="font-size:6.5px;color:rgba(255,255,255,0.5);">10cm × 14cm</span>
+      </div>
+    </div>
+  `;
+}
+
+function openBulkPrintWindow(cards) {
+  const printWin = window.open('', '_blank', 'width=900,height=700');
+  if (!printWin) { alert('Popup diblokir browser. Izinkan popup dan coba lagi.'); return; }
+
+  const cardsHTML = cards.map(buildCardHTML).join('');
+
+  printWin.document.write(`<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Cetak Kartu Peserta — ${cards.length} Kartu</title>
+<style>
+  @page {
+    size: 10cm 14cm;
+    margin: 0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #fff;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .cards-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+  }
+  .print-card {
+    width: 10cm;
+    height: 14cm;
+    background: #ffffff;
+    border: 1.5px solid #0f172a;
+    border-radius: 10px;
+    overflow: hidden;
+    page-break-after: always;
+    page-break-inside: avoid;
+    break-after: page;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .card-banner {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+    color: #fff;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2.5px solid #f59e0b;
+    flex-shrink: 0;
+  }
+  @media print {
+    body { margin: 0; }
+    .no-print { display: none !important; }
+    .print-card {
+      page-break-after: always;
+      break-after: page;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="no-print" style="background:#1e1b4b;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;">
+    <div>
+      <strong style="font-size:1rem;">🖨️ Cetak Kartu Peserta</strong>
+      <span style="margin-left:12px;font-size:0.85rem;opacity:0.8;">${cards.length} kartu siap dicetak · Ukuran: 10cm × 14cm</span>
+    </div>
+    <button onclick="window.print()" style="background:#f59e0b;color:#1e1b4b;border:none;padding:10px 24px;border-radius:8px;font-size:0.95rem;font-weight:800;cursor:pointer;">
+      🖨️ Print / Simpan PDF
+    </button>
+  </div>
+  <div class="cards-wrapper">
+    ${cardsHTML}
+  </div>
+  <script>
+    // Auto-trigger print after a short delay for images to load
+    window.onload = function() {
+      setTimeout(() => window.print(), 800);
+    };
+  <\/script>
+</body>
+</html>`);
+  printWin.document.close();
+}
+
+window.renderCetakKartuView = renderCetakKartuView;
+window.cetakToggleOne = cetakToggleOne;
+window.cetakToggleAll = cetakToggleAll;
+window.cetakSelectAll = cetakSelectAll;
+window.cetakClearAll = cetakClearAll;
+window.cetakOnSearch = cetakOnSearch;
+window.cetakOnFilterBranch = cetakOnFilterBranch;
+window.cetakKartuPDF = cetakKartuPDF;
+
+
 // Peserta wizard handlers
 window.onWizardCatSelect = onWizardCatSelect;
 window.onWizardLvlSelect = onWizardLvlSelect;
@@ -3932,6 +4404,8 @@ window.exportAdminAuditExcel = exportAdminAuditExcel;
 window.exportAdminBranchStatsExcel = exportAdminBranchStatsExcel;
 window.exportAdminPaymentAccountsExcel = exportAdminPaymentAccountsExcel;
 window.exportBendaharaPaymentsExcel = exportBendaharaPaymentsExcel;
+window.exportCheckInLogsExcel = exportCheckInLogsExcel;
+window.loadLiveCheckInLogs = loadLiveCheckInLogs;
 
 // UI & Responsive Drawer Navigation Handlers
 window.togglePublicMenu = togglePublicMenu;

@@ -185,16 +185,119 @@ export class CheckInService {
   }
 
   /**
-   * Retrieves recent check-in live log.
+   * Processes Stage-2 check-in (masuk arena lomba).
+   * Requires Stage-1 already done. Uses same QR/manual token.
+   */
+  async processCheckIn2(staffUserId: string, dto: ScanCheckInDto) {
+    const cleaned = dto.token.trim();
+    const salt = this.configService.get<string>('qr.salt') || 'default_salt';
+
+    const reg = await this.prisma.registration.findFirst({
+      where: {
+        OR: [
+          { qrCodeToken: cleaned },
+          { registrationNumber: { equals: cleaned, mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        branch: { include: { level: { include: { category: true } } } },
+        individualParticipant: true,
+        team: true,
+        checkIn: { include: { checkedInBy: { select: { id: true, name: true } } } },
+      },
+    });
+
+    if (!reg) {
+      return { success: false, message: 'Data pendaftaran tidak ditemukan.', data: null };
+    }
+
+    if (reg.status !== RegistrationStatus.APPROVED) {
+      return {
+        success: false,
+        message: `Pendaftaran belum disetujui. Status: ${reg.status}.`,
+        data: null,
+      };
+    }
+
+    // Must have completed Stage 1 first
+    if (!reg.checkIn) {
+      return {
+        success: false,
+        message: 'Peserta belum melakukan Check-In Tahap 1 (Kedatangan). Selesaikan dahulu.',
+        data: null,
+      };
+    }
+
+    // Already done Stage 2?
+    if (reg.checkIn.checkIn2Time) {
+      return {
+        success: false,
+        message: `Peserta sudah masuk arena pada ${reg.checkIn.checkIn2Time.toISOString()}.`,
+        data: {
+          registration_number: reg.registrationNumber,
+          participant_name: reg.individualParticipant?.fullName || reg.team?.teamName || 'Peserta',
+          branch_name: reg.branch.name,
+        },
+        already_checked_in: true,
+      };
+    }
+
+    // Anti-tamper verification for QR
+    if (dto.method === CheckInMethod.QR_SCAN && cleaned.startsWith('REGQR_')) {
+      const isValid = QrEngineUtil.verifyToken(cleaned, reg.id, reg.registrationNumber, salt);
+      if (!isValid) {
+        return { success: false, message: 'QR Code tidak valid atau telah dimanipulasi.', data: null };
+      }
+    }
+
+    // Record Stage 2
+    const updated = await this.prisma.checkIn.update({
+      where: { registrationId: reg.id },
+      data: {
+        checkIn2Time: new Date(),
+        checkIn2ByUserId: staffUserId,
+        checkIn2Method: dto.method,
+        notes2: dto.notes?.trim() || `Masuk arena via ${dto.method}`,
+      },
+      include: { checkedInBy2: { select: { name: true } } },
+    });
+
+    await this.auditService.log({
+      userId: staffUserId,
+      action: 'CHECK_IN_2_SUCCESS',
+      targetTable: 'check_ins',
+      targetId: updated.id,
+      details: `Check-In Tahap 2 (masuk arena) berhasil untuk ${reg.registrationNumber}`,
+    });
+
+    return {
+      success: true,
+      message: `Check-In ARENA BERHASIL untuk ${reg.registrationNumber}!`,
+      data: {
+        registration_number: reg.registrationNumber,
+        participant_name: reg.individualParticipant?.fullName || reg.team?.teamName || 'Peserta',
+        school_name: reg.individualParticipant?.schoolName || reg.team?.schoolName || '-',
+        category_name: reg.branch.level.category.name,
+        level_name: reg.branch.level.name,
+        branch_name: reg.branch.name,
+        check_in_2_time: updated.checkIn2Time!.toISOString(),
+        checked_in_by: updated.checkedInBy2?.name || '-',
+        stage: 2,
+      },
+      already_checked_in: false,
+    };
+  }
+
+  /**
+   * Retrieves recent check-in live log (both stages).
    */
   async getLiveCheckInLogs(limit = 50) {
     const records = await this.prisma.checkIn.findMany({
       take: limit,
       orderBy: { checkInTime: 'desc' },
       include: {
-        checkedInBy: {
-          select: { name: true },
-        },
+        checkedInBy: { select: { name: true } },
+        checkedInBy2: { select: { name: true } },
         registration: {
           include: {
             branch: true,
@@ -217,9 +320,14 @@ export class CheckInService {
         r.registration.team?.schoolName ||
         '-',
       branch_name: r.registration.branch.name,
+      // Stage 1
       check_in_time: r.checkInTime.toISOString(),
       checked_in_by_name: r.checkedInBy.name,
       check_in_method: r.checkInMethod,
+      // Stage 2
+      check_in_2_time: r.checkIn2Time?.toISOString() || null,
+      checked_in_2_by_name: r.checkedInBy2?.name || null,
+      check_in_2_method: r.checkIn2Method || null,
     }));
   }
 }

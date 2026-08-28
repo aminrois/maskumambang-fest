@@ -86,6 +86,16 @@ export class CreateBranchDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  juknisUrl?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  maxRegistrants?: number;
 }
 
 export class UpdateBranchDto {
@@ -115,4 +125,14 @@ export class UpdateBranchDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  juknisUrl?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  maxRegistrants?: number;
 }

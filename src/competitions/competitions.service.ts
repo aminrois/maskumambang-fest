@@ -31,6 +31,11 @@ export class CompetitionsService {
             branches: {
               where: { isActive: true },
               orderBy: { name: 'asc' },
+              include: {
+                _count: {
+                  select: { registrations: true },
+                },
+              },
             },
           },
           orderBy: { name: 'asc' },
@@ -284,6 +289,8 @@ export class CompetitionsService {
         minTeamMembers: dto.participantType === 'TEAM' ? dto.minTeamMembers : null,
         maxTeamMembers: dto.participantType === 'TEAM' ? dto.maxTeamMembers : null,
         description: dto.description?.trim(),
+        juknisUrl: dto.juknisUrl?.trim() || null,
+        maxRegistrants: dto.maxRegistrants ?? null,
         isActive: true,
       },
     });
@@ -304,6 +311,8 @@ export class CompetitionsService {
         minTeamMembers: dto.minTeamMembers,
         maxTeamMembers: dto.maxTeamMembers,
         description: dto.description?.trim(),
+        juknisUrl: dto.juknisUrl !== undefined ? (dto.juknisUrl?.trim() || null) : undefined,
+        maxRegistrants: dto.maxRegistrants !== undefined ? (dto.maxRegistrants ?? null) : undefined,
       },
     });
   }

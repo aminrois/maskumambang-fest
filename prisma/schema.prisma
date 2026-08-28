@@ -10,6 +10,7 @@ generator client {
 enum Role {
   SUPER_ADMIN
   BENDAHARA
+  ADMIN_BARCODE
   PESERTA
 }
 
@@ -60,7 +61,8 @@ model User {
 
   registrations          Registration[]
   verificationsPerformed PaymentVerificationLog[]
-  checkInsPerformed      CheckIn[]
+  checkInsPerformed      CheckIn[]  @relation("CheckInStaff1")
+  checkIns2Performed     CheckIn[]  @relation("CheckInStaff2")
   auditLogs              AuditLog[]
 
   @@map("users")
@@ -94,17 +96,19 @@ model CompetitionLevel {
 }
 
 model CompetitionBranch {
-  id              String          @id @default(uuid()) @db.VarChar(36)
-  levelId         String          @map("level_id") @db.VarChar(36)
-  name            String          @db.VarChar(150)
-  participantType ParticipantType @map("participant_type")
-  registrationFee Decimal         @default(150000.00) @map("registration_fee") @db.Decimal(12, 2)
-  minTeamMembers  Int?            @map("min_team_members")
-  maxTeamMembers  Int?            @map("max_team_members")
-  description     String?         @db.Text
-  isActive        Boolean         @default(true) @map("is_active")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  id               String          @id @default(uuid()) @db.VarChar(36)
+  levelId          String          @map("level_id") @db.VarChar(36)
+  name             String          @db.VarChar(150)
+  participantType  ParticipantType @map("participant_type")
+  registrationFee  Decimal         @default(150000.00) @map("registration_fee") @db.Decimal(12, 2)
+  minTeamMembers   Int?            @map("min_team_members")
+  maxTeamMembers   Int?            @map("max_team_members")
+  description      String?         @db.Text
+  juknisUrl        String?         @map("juknis_url") @db.VarChar(500)
+  maxRegistrants   Int?            @map("max_registrants")
+  isActive         Boolean         @default(true) @map("is_active")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
 
   level         CompetitionLevel @relation(fields: [levelId], references: [id], onDelete: Cascade)
   registrations Registration[]
@@ -236,15 +240,22 @@ model PaymentVerificationLog {
 }
 
 model CheckIn {
-  id                String        @id @default(uuid()) @db.VarChar(36)
-  registrationId    String        @unique @map("registration_id") @db.VarChar(36)
-  checkedInByUserId String        @map("checked_in_by_user_id") @db.VarChar(36)
-  checkInMethod     CheckInMethod @map("check_in_method")
-  checkInTime       DateTime      @default(now()) @map("check_in_time")
-  notes             String?       @db.Text
+  id                String         @id @default(uuid()) @db.VarChar(36)
+  registrationId    String         @unique @map("registration_id") @db.VarChar(36)
+  checkedInByUserId String         @map("checked_in_by_user_id") @db.VarChar(36)
+  checkInMethod     CheckInMethod  @map("check_in_method")
+  checkInTime       DateTime       @default(now()) @map("check_in_time")
+  notes             String?        @db.Text
 
-  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  checkedInBy  User         @relation(fields: [checkedInByUserId], references: [id], onDelete: Restrict)
+  // Stage 2: masuk arena lomba (opsional)
+  checkIn2Time       DateTime?     @map("check_in_2_time")
+  checkIn2ByUserId   String?       @map("check_in_2_by_user_id") @db.VarChar(36)
+  checkIn2Method     CheckInMethod? @map("check_in_2_method")
+  notes2             String?        @db.Text @map("notes_2")
+
+  registration  Registration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  checkedInBy   User         @relation("CheckInStaff1", fields: [checkedInByUserId], references: [id], onDelete: Restrict)
+  checkedInBy2  User?        @relation("CheckInStaff2", fields: [checkIn2ByUserId], references: [id], onDelete: Restrict)
 
   @@map("check_ins")
 }
