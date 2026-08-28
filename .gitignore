@@ -6,8 +6,6 @@
 # Dependencies
 node_modules/
 
-# Build output
-dist/
 
 # Uploads (file yang diupload user)
 uploads/
