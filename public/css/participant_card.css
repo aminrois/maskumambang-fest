@@ -201,52 +201,61 @@
    PRINT RULES — satu kartu per halaman, ukuran 10cm × 14cm
    ============================================================ */
 @media print {
+  @page {
+    size: 10cm 14cm portrait;
+    margin: 0;
+  }
+
   html, body {
     background: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
+    width: 10cm !important;
+    height: 14cm !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  body * { visibility: hidden; }
+  /* Hide all dashboard layout elements */
+  body * {
+    visibility: hidden;
+  }
 
   .app-sidebar, .app-topbar, .footer, .btn, .no-print,
-  .flash-messages, .theme-toggle-btn {
+  .flash-messages, .theme-toggle-btn, .sidebar-backdrop, .modal-backdrop,
+  header, nav, aside {
     display: none !important;
   }
 
-  .card-preview-container,
+  /* Ensure card container and card itself are visible */
+  #official-card-print,
+  #official-card-print *,
   .id-card-official,
-  .id-card-official * {
-    visibility: visible;
+  .id-card-official *,
+  .card-preview-container,
+  .card-preview-container * {
+    visibility: visible !important;
   }
 
-  .card-preview-container {
-    padding: 0 !important;
-    margin: 0 !important;
-    display: block !important;
-  }
-
+  #official-card-print,
   .id-card-official {
-    position: fixed !important;
+    position: absolute !important;
     top: 0 !important;
     left: 0 !important;
     width: 10cm !important;
     height: 14cm !important;
     max-width: 10cm !important;
     min-height: 14cm !important;
+    margin: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     border: none !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     transform: none !important;
-  }
-
-  @page {
-    size: 10cm 14cm portrait;
-    margin: 0;
+    background: #ffffff !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 }
 

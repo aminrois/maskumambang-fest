@@ -1513,6 +1513,9 @@ async function handleReuploadSubmit(e, regId) {
   }
 }
 
+// Global holder for currently opened modal card
+let currentActiveCardData = null;
+
 // --- SHARED CARD HTML BUILDER (used by both page view & modal view) ---
 function buildSingleCardHTML(card) {
   const isTeam = card.participant_type === 'TEAM';
@@ -1521,7 +1524,7 @@ function buildSingleCardHTML(card) {
     : '';
 
   return `
-    <div style="
+    <div class="id-card-official official-card-print" id="official-card-print" style="
       width:378px;
       min-height:529px;
       background:#ffffff;
@@ -1534,7 +1537,8 @@ function buildSingleCardHTML(card) {
       font-family:'Segoe UI',Arial,sans-serif;
       color:#0f172a;
       margin:0 auto;
-    " id="official-card-print">
+      text-align:left;
+    ">
 
       <!-- HEADER BANNER -->
       <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 55%,#4338ca 100%);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #f59e0b;flex-shrink:0;">
@@ -1615,6 +1619,121 @@ function buildSingleCardHTML(card) {
   `;
 }
 
+// --- DEDICATED POPUP PRINT FOR SINGLE CARD (100% RELIABLE, NEVER BLANK) ---
+function printSingleCardPopup(card) {
+  if (!card) {
+    if (currentActiveCardData) card = currentActiveCardData;
+    else { window.print(); return; }
+  }
+
+  const printWin = window.open('', '_blank', 'width=850,height=950');
+  if (!printWin) {
+    window.print();
+    return;
+  }
+
+  printWin.document.write(`<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cetak Kartu Peserta - ${card.participant_name} (${card.registration_number})</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<style>
+  @page {
+    size: 10cm 14cm portrait;
+    margin: 0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f1f5f9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: #0f172a;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 24px 0;
+    margin: 0;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print-action-bar {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 9999;
+    display: flex;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.85);
+    padding: 8px 12px;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  }
+  .print-action-bar button {
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-do-print {
+    background: #4f46e5;
+    color: #ffffff;
+  }
+  .btn-do-print:hover {
+    background: #4338ca;
+  }
+  .btn-do-close {
+    background: #334155;
+    color: #ffffff;
+  }
+  .btn-do-close:hover {
+    background: #475569;
+  }
+  .card-outer-wrap {
+    width: 10cm;
+    height: 14cm;
+    max-width: 10cm;
+    min-height: 14cm;
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  }
+  @media print {
+    body { padding: 0; margin: 0; background: #ffffff !important; }
+    .no-print { display: none !important; }
+    .card-outer-wrap {
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      width: 10cm !important;
+      height: 14cm !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="no-print print-action-bar">
+    <button type="button" class="btn-do-print" onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak / Print</button>
+    <button type="button" class="btn-do-close" onclick="window.close()">Tutup</button>
+  </div>
+  <div class="card-outer-wrap">
+    ${buildSingleCardHTML(card)}
+  </div>
+  <script>
+    window.onload = function() {
+      setTimeout(() => window.print(), 600);
+    };
+  <\/script>
+</body>
+</html>`);
+  printWin.document.close();
+}
+
 // --- OFFICIAL PARTICIPANT CARD VIEW (Full Page — for direct URL / print) ---
 async function renderParticipantCardView(regId) {
   const container = document.getElementById('main-view-slot');
@@ -1625,13 +1744,15 @@ async function renderParticipantCardView(regId) {
     if (!res.success || !res.data) throw new Error('Kartu peserta tidak tersedia atau pendaftaran belum disetujui.');
 
     const card = res.data;
+    currentActiveCardData = card;
+
     container.innerHTML = `
       <div style="max-width: 480px; margin: 0 auto;">
         <div class="no-print" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
           <a href="#overview" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; display: inline-flex; align-items: center; gap: 6px;">
             <i class="fa-solid fa-arrow-left"></i> Kembali ke Dashboard
           </a>
-          <button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak / Print Kartu</button>
+          <button class="btn btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak / Print Kartu</button>
         </div>
         <div class="card-preview-container">
           ${buildSingleCardHTML(card)}
@@ -1664,12 +1785,13 @@ async function openParticipantCardModal(regId) {
     if (!res.success || !res.data) throw new Error('Kartu peserta tidak tersedia atau pendaftaran belum disetujui.');
 
     const card = res.data;
+    currentActiveCardData = card;
 
     openAppModal(`
       <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
         <h3 style="font-size: 1.1rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-id-card"></i> Kartu Peserta Resmi</h3>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <button type="button" class="btn btn-sm btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak</button>
+          <button type="button" class="btn btn-sm btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak Kartu</button>
           <button type="button" onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
         </div>
       </div>
@@ -1689,9 +1811,10 @@ async function openParticipantCardModal(regId) {
   }
 }
 
-function printParticipantCard() {
-  window.print();
+function printParticipantCard(card) {
+  printSingleCardPopup(card || currentActiveCardData);
 }
+
 
 // ============================================================================
 // BENDAHARA MODULE (VERIFIKASI + SCANNER CHECK-IN MOBILE VERTICAL LAYOUT)
@@ -1924,6 +2047,8 @@ async function executeRejectPayment(paymentId, rejectionReason) {
 }
 
 // --- CHECK-IN SCANNER (DESKTOP SIDE-BY-SIDE / MOBILE TOP-DOWN) ---
+let currentCameraFacingMode = 'environment'; // Default: Kamera Belakang (Utama)
+
 async function renderCheckInScannerView() {
   const container = document.getElementById('main-view-slot');
   container.innerHTML = `
@@ -1952,8 +2077,22 @@ async function renderCheckInScannerView() {
       
       <!-- SCANNER BOX -->
       <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
-        <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 14px;"><i class="fa-solid fa-camera"></i> Kamera Pemindai QR</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <h3 style="font-size: 1.15rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-camera"></i> Kamera Scanner QR</h3>
+          
+          <!-- Camera Switcher for Mobile / Desktop -->
+          <div style="display: inline-flex; background: var(--bg-body); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 2px;">
+            <button type="button" id="btn-cam-env" onclick="switchCameraMode('environment')" class="btn btn-sm ${currentCameraFacingMode === 'environment' ? 'btn-primary' : 'btn-secondary'}" style="font-size: 0.75rem; padding: 4px 10px; border-radius: 6px;" title="Gunakan Kamera Belakang HP">
+              <i class="fa-solid fa-camera"></i> Belakang
+            </button>
+            <button type="button" id="btn-cam-usr" onclick="switchCameraMode('user')" class="btn btn-sm ${currentCameraFacingMode === 'user' ? 'btn-primary' : 'btn-secondary'}" style="font-size: 0.75rem; padding: 4px 10px; border-radius: 6px;" title="Gunakan Kamera Depan HP / Webcam">
+              <i class="fa-solid fa-user"></i> Depan
+            </button>
+          </div>
+        </div>
+
         <div id="html5-qr-reader" style="width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid var(--primary-500); margin-bottom: 16px;"></div>
+        
         <form onsubmit="handleManualCheckInSubmit(event)" style="display: flex; gap: 8px;">
           <input type="text" id="manual-reg-input" class="form-control" placeholder="Nomor Registrasi (REG-IND-...)" required style="flex: 1; padding: 10px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
           <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Submit</button>
@@ -1983,6 +2122,22 @@ async function renderCheckInScannerView() {
   state.checkInStage = 1;
   startCameraScanner();
   loadLiveCheckInLogs();
+}
+
+function switchCameraMode(mode) {
+  currentCameraFacingMode = mode;
+  const btnEnv = document.getElementById('btn-cam-env');
+  const btnUsr = document.getElementById('btn-cam-usr');
+  if (btnEnv && btnUsr) {
+    if (mode === 'environment') {
+      btnEnv.className = 'btn btn-sm btn-primary';
+      btnUsr.className = 'btn btn-sm btn-secondary';
+    } else {
+      btnEnv.className = 'btn btn-sm btn-secondary';
+      btnUsr.className = 'btn btn-sm btn-primary';
+    }
+  }
+  startCameraScanner();
 }
 
 function switchCheckInStage(stage) {
@@ -2017,6 +2172,9 @@ function startCameraScanner() {
       fps: 10,
       qrbox: { width: 220, height: 220 },
       rememberLastUsedCamera: true,
+      videoConstraints: {
+        facingMode: { ideal: currentCameraFacingMode }
+      },
     });
 
     state.scanner.render((decodedText) => {
@@ -2035,6 +2193,7 @@ async function handleManualCheckInSubmit(e) {
   await executeCheckIn(code, 'MANUAL_CODE', stage);
   document.getElementById('manual-reg-input').value = '';
 }
+
 
 async function executeCheckIn(token, method, stage = 1) {
   const alertEl = document.getElementById('checkin-feed-alert');
@@ -3975,6 +4134,24 @@ const cetakKartuState = {
   search: '',
 };
 
+function getCetakFilteredData() {
+  const allData = cetakKartuState.data;
+  let filtered = allData;
+  if (cetakKartuState.filterBranch) {
+    filtered = filtered.filter(r => (r.branch?.name || r.branchName || '') === cetakKartuState.filterBranch);
+  }
+  if (cetakKartuState.search.trim()) {
+    const q = cetakKartuState.search.toLowerCase();
+    filtered = filtered.filter(r => {
+      const name = r.individualParticipant?.fullName || r.team?.teamName || '';
+      const school = r.individualParticipant?.schoolName || r.team?.schoolName || '';
+      const reg = r.registrationNumber || '';
+      return name.toLowerCase().includes(q) || school.toLowerCase().includes(q) || reg.toLowerCase().includes(q);
+    });
+  }
+  return filtered;
+}
+
 async function renderCetakKartuView() {
   const container = document.getElementById('main-view-slot');
   container.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat daftar peserta terverifikasi...</div>';
@@ -3996,56 +4173,43 @@ function renderCetakKartuPage() {
   // Get unique branches for filter
   const branches = [...new Set(allData.map(r => r.branch?.name || r.branchName || '').filter(Boolean))].sort();
 
-  // Apply filter
-  let filtered = allData;
-  if (cetakKartuState.filterBranch) {
-    filtered = filtered.filter(r => (r.branch?.name || r.branchName || '') === cetakKartuState.filterBranch);
-  }
-  if (cetakKartuState.search.trim()) {
-    const q = cetakKartuState.search.toLowerCase();
-    filtered = filtered.filter(r => {
-      const name = r.individualParticipant?.fullName || r.team?.teamName || '';
-      const school = r.individualParticipant?.schoolName || r.team?.schoolName || '';
-      const reg = r.registrationNumber || '';
-      return name.toLowerCase().includes(q) || school.toLowerCase().includes(q) || reg.toLowerCase().includes(q);
-    });
-  }
-
+  const filtered = getCetakFilteredData();
   const selectedCount = cetakKartuState.selected.size;
+  const isAllSelected = filtered.length > 0 && filtered.every(r => cetakKartuState.selected.has(r.id));
 
   container.innerHTML = `
     <div style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
       <div>
-        <h2 style="font-size:1.6rem; color:var(--text-heading); margin-bottom:4px;"><i class="fa-solid fa-print"></i> Cetak Kartu Peserta</h2>
-        <p style="color:var(--text-muted); font-size:0.9rem;">Pilih peserta yang kartunya ingin dicetak. Ukuran kartu: <strong>10cm × 14cm</strong> (PDF landscape-ready).</p>
+        <h2 style="font-size:1.6rem; color:var(--text-heading); margin-bottom:4px;"><i class="fa-solid fa-print"></i> Cetak Kartu Peserta Massal</h2>
+        <p style="color:var(--text-muted); font-size:0.9rem;">Pilih peserta yang ingin dicetak kartunya secara massal (Ukuran Standar: <strong>10cm × 14cm</strong>).</p>
       </div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <button class="btn btn-secondary" onclick="cetakSelectAll()" title="Pilih semua yang terfilter">
-          <i class="fa-solid fa-check-double"></i> Pilih Semua
+        <button type="button" class="btn btn-secondary" onclick="cetakSelectAll()" title="Pilih semua yang terfilter">
+          <i class="fa-solid fa-check-double"></i> Pilih Semua (${filtered.length})
         </button>
-        <button class="btn btn-secondary" onclick="cetakClearAll()">
-          <i class="fa-solid fa-xmark"></i> Hapus Pilihan
+        <button type="button" class="btn btn-secondary" onclick="cetakClearAll()" title="Kosongkan pilihan">
+          <i class="fa-solid fa-xmark"></i> Batal Pilih
         </button>
-        <button class="btn btn-primary" onclick="cetakKartuPDF()" ${selectedCount === 0 ? 'disabled' : ''} style="min-width:160px;">
-          <i class="fa-solid fa-print"></i> Cetak PDF (<span id="cetak-count">${selectedCount}</span> kartu)
+        <button type="button" class="btn btn-primary" onclick="cetakKartuPDF()" ${selectedCount === 0 ? 'disabled' : ''} style="min-width:170px;">
+          <i class="fa-solid fa-print"></i> Cetak PDF (<span id="cetak-count">${selectedCount}</span>)
         </button>
       </div>
     </div>
 
     <!-- Filters -->
     <div class="card" style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:16px 20px; margin-bottom:20px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-      <div style="flex:1; min-width:200px; position:relative;">
+      <div style="flex:1; min-width:220px; position:relative;">
         <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-dim); font-size:0.85rem;"></i>
         <input type="text" placeholder="Cari nama / sekolah / nomor reg..." value="${cetakKartuState.search}" oninput="cetakOnSearch(this.value)" style="width:100%; padding:8px 12px 8px 34px; font-size:0.875rem; border-radius:var(--radius-md); border:1px solid var(--input-border); background:var(--input-bg); color:var(--text-main);">
       </div>
-      <div style="min-width:200px;">
+      <div style="min-width:220px;">
         <select onchange="cetakOnFilterBranch(this.value)" style="width:100%; padding:8px 12px; font-size:0.875rem; border-radius:var(--radius-md); border:1px solid var(--input-border); background:var(--input-bg); color:var(--text-main);">
           <option value="">— Semua Cabang Lomba —</option>
           ${branches.map(b => `<option value="${b}" ${cetakKartuState.filterBranch === b ? 'selected' : ''}>${b}</option>`).join('')}
         </select>
       </div>
       <div style="font-size:0.85rem; color:var(--text-muted); white-space:nowrap;">
-        Menampilkan <strong>${filtered.length}</strong> peserta
+        Menampilkan <strong>${filtered.length}</strong> peserta (${selectedCount} dipilih)
       </div>
     </div>
 
@@ -4055,21 +4219,21 @@ function renderCetakKartuPage() {
         <table style="width:100%; border-collapse:collapse; font-size:0.875rem;">
           <thead>
             <tr style="background:var(--table-header-bg); border-bottom:1px solid var(--border-subtle);">
-              <th style="padding:10px 14px; width:40px; text-align:center;">
-                <input type="checkbox" id="cetak-check-all" onchange="cetakToggleAll(this.checked, ${JSON.stringify(filtered.map(r=>r.id))})" title="Pilih semua di halaman ini">
+              <th style="padding:12px 14px; width:50px; text-align:center;">
+                <input type="checkbox" id="cetak-check-all" onchange="cetakToggleAll(this.checked)" ${isAllSelected ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer; accent-color:var(--primary-600);" title="Pilih Semua yang Tampil">
               </th>
-              <th style="padding:10px 14px; font-weight:700; color:var(--text-muted);">No. Reg</th>
-              <th style="padding:10px 14px; font-weight:700; color:var(--text-muted);">Nama Peserta / Tim</th>
-              <th style="padding:10px 14px; font-weight:700; color:var(--text-muted);">Asal Sekolah</th>
-              <th style="padding:10px 14px; font-weight:700; color:var(--text-muted);">Cabang Lomba</th>
-              <th style="padding:10px 14px; font-weight:700; color:var(--text-muted);">Jenis</th>
+              <th style="padding:12px 14px; font-weight:700; color:var(--text-muted);">No. Reg</th>
+              <th style="padding:12px 14px; font-weight:700; color:var(--text-muted);">Nama Peserta / Tim</th>
+              <th style="padding:12px 14px; font-weight:700; color:var(--text-muted);">Asal Sekolah</th>
+              <th style="padding:12px 14px; font-weight:700; color:var(--text-muted);">Cabang Lomba</th>
+              <th style="padding:12px 14px; font-weight:700; color:var(--text-muted);">Jenis</th>
             </tr>
           </thead>
           <tbody>
             ${filtered.length === 0 ? `
-              <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">
-                <i class="fa-solid fa-folder-open" style="font-size:1.8rem; display:block; margin-bottom:8px; color:var(--text-dim);"></i>
-                Tidak ada peserta yang sudah terverifikasi.
+              <tr><td colspan="6" style="text-align:center; padding:36px; color:var(--text-muted);">
+                <i class="fa-solid fa-folder-open" style="font-size:2rem; display:block; margin-bottom:8px; color:var(--text-dim);"></i>
+                Tidak ada peserta yang sudah disetujui / terverifikasi.
               </td></tr>
             ` : filtered.map(r => {
               const name = r.individualParticipant?.fullName || r.team?.teamName || '-';
@@ -4078,15 +4242,15 @@ function renderCetakKartuPage() {
               const type = r.branch?.participantType === 'TEAM' ? 'Beregu' : 'Perorangan';
               const checked = cetakKartuState.selected.has(r.id) ? 'checked' : '';
               return `
-                <tr style="border-bottom:1px solid var(--border-subtle); ${checked ? 'background: rgba(99,102,241,0.07);' : ''}">
-                  <td style="padding:10px 14px; text-align:center;">
-                    <input type="checkbox" class="cetak-row-check" value="${r.id}" ${checked} onchange="cetakToggleOne('${r.id}', this.checked)">
+                <tr style="border-bottom:1px solid var(--border-subtle); ${checked ? 'background: rgba(99,102,241,0.08);' : ''}; cursor:pointer;" onclick="cetakRowClick(event, '${r.id}')">
+                  <td style="padding:12px 14px; text-align:center;" onclick="event.stopPropagation();">
+                    <input type="checkbox" class="cetak-row-check" value="${r.id}" ${checked} onchange="cetakToggleOne('${r.id}', this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:var(--primary-600);">
                   </td>
-                  <td style="padding:10px 14px;"><code style="font-weight:800; color:var(--primary-600); font-size:0.8rem;">${r.registrationNumber || '-'}</code></td>
-                  <td style="padding:10px 14px; font-weight:700;">${name}</td>
-                  <td style="padding:10px 14px; color:var(--text-muted);">${school}</td>
-                  <td style="padding:10px 14px;">${branch}</td>
-                  <td style="padding:10px 14px;"><span style="font-size:0.78rem; padding:2px 8px; border-radius:9999px; background:${type==='Beregu'?'#dbeafe':'#dcfce7'}; color:${type==='Beregu'?'#1d4ed8':'#15803d'}; font-weight:700;">${type}</span></td>
+                  <td style="padding:12px 14px;"><code style="font-weight:800; color:var(--primary-600); font-size:0.82rem;">${r.registrationNumber || '-'}</code></td>
+                  <td style="padding:12px 14px; font-weight:700; color:var(--text-heading);">${name}</td>
+                  <td style="padding:12px 14px; color:var(--text-muted);">${school}</td>
+                  <td style="padding:12px 14px; font-weight:600;">${branch}</td>
+                  <td style="padding:12px 14px;"><span style="font-size:0.75rem; padding:3px 10px; border-radius:9999px; background:${type==='Beregu'?'#dbeafe':'#dcfce7'}; color:${type==='Beregu'?'#1d4ed8':'#15803d'}; font-weight:700;">${type}</span></td>
                 </tr>
               `;
             }).join('')}
@@ -4097,24 +4261,43 @@ function renderCetakKartuPage() {
   `;
 }
 
+function cetakRowClick(e, id) {
+  if (e.target.tagName === 'INPUT') return;
+  const isSelected = cetakKartuState.selected.has(id);
+  cetakToggleOne(id, !isSelected);
+}
+
 function cetakToggleOne(id, checked) {
   if (checked) cetakKartuState.selected.add(id);
   else cetakKartuState.selected.delete(id);
-  // update counter without full re-render
+
+  // Update check-all state
+  const filtered = getCetakFilteredData();
+  const allEl = document.getElementById('cetak-check-all');
+  if (allEl) allEl.checked = filtered.length > 0 && filtered.every(r => cetakKartuState.selected.has(r.id));
+
+  // Update count & button
   const el = document.getElementById('cetak-count');
   if (el) el.textContent = cetakKartuState.selected.size;
-  // update print button disabled state
   const btn = document.querySelector('[onclick="cetakKartuPDF()"]');
   if (btn) btn.disabled = cetakKartuState.selected.size === 0;
+
+  // Re-render row highlight if needed
+  renderCetakKartuPage();
 }
 
-function cetakToggleAll(checked, ids) {
-  ids.forEach(id => { if (checked) cetakKartuState.selected.add(id); else cetakKartuState.selected.delete(id); });
+function cetakToggleAll(checked) {
+  const filtered = getCetakFilteredData();
+  filtered.forEach(r => {
+    if (checked) cetakKartuState.selected.add(r.id);
+    else cetakKartuState.selected.delete(r.id);
+  });
   renderCetakKartuPage();
 }
 
 function cetakSelectAll() {
-  cetakKartuState.data.forEach(r => cetakKartuState.selected.add(r.id));
+  const filtered = getCetakFilteredData();
+  filtered.forEach(r => cetakKartuState.selected.add(r.id));
   renderCetakKartuPage();
 }
 
@@ -4344,6 +4527,10 @@ window.cetakClearAll = cetakClearAll;
 window.cetakOnSearch = cetakOnSearch;
 window.cetakOnFilterBranch = cetakOnFilterBranch;
 window.cetakKartuPDF = cetakKartuPDF;
+window.cetakRowClick = cetakRowClick;
+window.printSingleCardPopup = printSingleCardPopup;
+window.switchCameraMode = switchCameraMode;
+window.switchCheckInStage = switchCheckInStage;
 
 
 // Peserta wizard handlers
