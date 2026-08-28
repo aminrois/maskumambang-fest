@@ -373,6 +373,7 @@
   right: 0;
   bottom: 0;
   background: rgba(15, 23, 42, 0.7);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   z-index: 1040;
   display: none;
@@ -827,6 +828,7 @@
   right: 0;
   bottom: 0;
   background: rgba(15, 23, 42, 0.6);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   z-index: 1000;
   display: none;
@@ -947,3 +949,80 @@
     border-radius: var(--radius-lg);
   }
 }
+
+/* ============================================================
+   SAFARI & iOS COMPATIBILITY FIXES
+   ============================================================ */
+
+/* Fix: Safari requires -webkit-overflow-scrolling for smooth table scroll */
+.table-container,
+.table-responsive,
+.table-scroll-wrapper,
+.overflow-auto,
+[style*="overflow-x: auto"],
+[style*="overflow-x:auto"] {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fix: Safari sidebar scroll */
+.app-sidebar {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fix: Safari sometimes doesn't apply transform correctly without this */
+.app-sidebar,
+.modal-backdrop,
+.sidebar-backdrop {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* Fix: iOS safe area padding for notched devices */
+@supports (padding: max(0px)) {
+  .app-topbar {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+  .dashboard-content-area {
+    padding-bottom: max(3rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Fix: Safari flex gap polyfill for very old iOS (fallback using margins) */
+@supports not (gap: 1rem) {
+  .stats-grid > * + * { margin-top: 1.25rem; }
+  .dashboard-header > * + * { margin-top: 1rem; }
+  .topbar-right > * + * { margin-left: 0.75rem; }
+}
+
+/* Fix: Safari button/input font inheritance */
+button, input, select, textarea {
+  font-family: var(--font-primary);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Fix: Safari table layout */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* Fix: prevent iOS Safari double-tap zoom on buttons */
+button, a, [onclick] {
+  touch-action: manipulation;
+}
+
+/* Fix: Safari sometimes clips box-shadow */
+.stat-card,
+.card,
+.modal-container {
+  -webkit-transform: translateZ(0);
+}
+
+/* Fix: Smooth animations on Safari */
+@keyframes modalPop {
+  from { opacity: 0; -webkit-transform: scale(0.96); transform: scale(0.96); }
+  to   { opacity: 1; -webkit-transform: scale(1);    transform: scale(1);    }
+}
+

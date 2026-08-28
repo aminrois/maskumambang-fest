@@ -4,30 +4,46 @@
  * ============================================================================
  */
 
+/**
+ * Safe localStorage wrapper - handles Safari Private Mode SecurityError
+ */
+const safeStorage = {
+  getItem(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  },
+  setItem(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) {}
+  },
+  removeItem(key) {
+    try { localStorage.removeItem(key); } catch (e) {}
+  },
+};
+
 // Global Application State
 const state = {
-  token: localStorage.getItem('lomba_jwt_token') || null,
-  user: JSON.parse(localStorage.getItem('lomba_user_data') || 'null'),
+  token: safeStorage.getItem('lomba_jwt_token') || null,
+  user: (() => { try { return JSON.parse(safeStorage.getItem('lomba_user_data') || 'null'); } catch(e){ return null; } })(),
   settings: {},
   competitionTree: [],
   paymentAccounts: [],
-  theme: localStorage.getItem('lomba_theme') || 'light',
+  theme: safeStorage.getItem('lomba_theme') || 'light',
   scanner: null,
   activeRoute: 'overview',
   routeParams: null,
 };
 
+
 // ============================================================================
 // THEME MANAGER (LIGHT MODE DEFAULT + DARK MODE SWITCHER)
 // ============================================================================
 function initTheme() {
-  const savedTheme = localStorage.getItem('lomba_theme') || 'light';
+  const savedTheme = safeStorage.getItem('lomba_theme') || 'light';
   setTheme(savedTheme);
 }
 
 function setTheme(theme) {
   state.theme = theme;
-  localStorage.setItem('lomba_theme', theme);
+  safeStorage.setItem('lomba_theme', theme);
   document.documentElement.setAttribute('data-theme', theme);
   document.body.setAttribute('data-theme', theme);
 
@@ -52,15 +68,15 @@ function toggleTheme() {
 function setSession(token, user) {
   state.token = token;
   state.user = user;
-  localStorage.setItem('lomba_jwt_token', token);
-  localStorage.setItem('lomba_user_data', JSON.stringify(user));
+  safeStorage.setItem('lomba_jwt_token', token);
+  safeStorage.setItem('lomba_user_data', JSON.stringify(user));
 }
 
 function clearSession() {
   state.token = null;
   state.user = null;
-  localStorage.removeItem('lomba_jwt_token');
-  localStorage.removeItem('lomba_user_data');
+  safeStorage.removeItem('lomba_jwt_token');
+  safeStorage.removeItem('lomba_user_data');
 }
 
 function handleLogout() {
@@ -463,7 +479,7 @@ async function initDashboardApp() {
     const profile = await apiRequest('/api/users/profile');
     if (profile) {
       state.user = profile;
-      localStorage.setItem('lomba_user_data', JSON.stringify(profile));
+      safeStorage.setItem('lomba_user_data', JSON.stringify(profile));
     }
   } catch (e) {
     clearSession();
@@ -1440,12 +1456,12 @@ async function renderPesertaRegistrationDetail(regId) {
               <div style="text-align: center;">
                 <div style="font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px; font-weight: 700;">Bukti Transfer:</div>
                 <div style="background: #0f172a; border-radius: 8px; overflow: hidden; text-align: center; border: 1px solid var(--border-subtle); padding: 4px; max-height: 140px; display: flex; align-items: center; justify-content: center;">
-                  <img src="/api/payments/file/${encodeURIComponent(latestPayment.proofImagePath)}?token=${encodeURIComponent(state.token || localStorage.getItem('lomba_jwt_token') || '')}" alt="Bukti Transfer" style="max-width: 100%; max-height: 130px; border-radius: 4px; object-fit: contain;" onerror="this.style.display='none'; document.getElementById('det-proof-fb').style.display='block';">
+                  <img src="/api/payments/file/${encodeURIComponent(latestPayment.proofImagePath)}?token=${encodeURIComponent(state.token || safeStorage.getItem('lomba_jwt_token') || '')}" alt="Bukti Transfer" style="max-width: 100%; max-height: 130px; border-radius: 4px; object-fit: contain;" onerror="this.style.display='none'; document.getElementById('det-proof-fb').style.display='block';">
                   <div id="det-proof-fb" style="display: none; color: var(--text-muted); font-size: 0.8rem; padding: 10px;">
                     <i class="fa-solid fa-file-image" style="font-size: 1.5rem; color: var(--primary-500); margin-bottom: 4px;"></i><br>Bukti terunggah
                   </div>
                 </div>
-                <a href="/api/payments/file/${encodeURIComponent(latestPayment.proofImagePath)}?token=${encodeURIComponent(state.token || localStorage.getItem('lomba_jwt_token') || '')}" target="_blank" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--primary-600); margin-top: 6px; font-weight: 600; text-decoration: none;">
+                <a href="/api/payments/file/${encodeURIComponent(latestPayment.proofImagePath)}?token=${encodeURIComponent(state.token || safeStorage.getItem('lomba_jwt_token') || '')}" target="_blank" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--primary-600); margin-top: 6px; font-weight: 600; text-decoration: none;">
                   <i class="fa-solid fa-arrow-up-right-from-square"></i> Lihat Bukti Penuh
                 </a>
               </div>
@@ -1847,13 +1863,13 @@ function openPaymentVerifyModal(paymentId, filename, regNum, participantName, am
       <div>
         <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 6px;">Bukti Transfer:</div>
         <div style="background: #0f172a; border-radius: 8px; overflow: hidden; text-align: center; border: 1px solid var(--border-subtle); min-height: 160px; max-height: 220px; display: flex; align-items: center; justify-content: center; padding: 6px;">
-          <img src="/api/payments/file/${encodeURIComponent(filename)}?token=${encodeURIComponent(state.token || localStorage.getItem('lomba_jwt_token') || '')}" alt="Bukti Transfer" style="max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 4px;" onerror="this.style.display='none'; document.getElementById('proof-fallback-link').style.display='block';">
+          <img src="/api/payments/file/${encodeURIComponent(filename)}?token=${encodeURIComponent(state.token || safeStorage.getItem('lomba_jwt_token') || '')}" alt="Bukti Transfer" style="max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 4px;" onerror="this.style.display='none'; document.getElementById('proof-fallback-link').style.display='block';">
           <div id="proof-fallback-link" style="display: none; color: var(--text-muted); font-size: 0.85rem; padding: 20px;">
             <i class="fa-solid fa-file-image" style="font-size: 2rem; color: var(--primary-500); margin-bottom: 8px;"></i><br>
             File bukti transfer terunggah
           </div>
         </div>
-        <a href="/api/payments/file/${encodeURIComponent(filename)}?token=${encodeURIComponent(state.token || localStorage.getItem('lomba_jwt_token') || '')}" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--primary-600); margin-top: 8px; font-weight: 600; text-decoration: none;">
+        <a href="/api/payments/file/${encodeURIComponent(filename)}?token=${encodeURIComponent(state.token || safeStorage.getItem('lomba_jwt_token') || '')}" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--primary-600); margin-top: 8px; font-weight: 600; text-decoration: none;">
           <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka Gambar di Tab Baru
         </a>
       </div>
@@ -4062,7 +4078,7 @@ function renderCetakKartuPage() {
               const type = r.branch?.participantType === 'TEAM' ? 'Beregu' : 'Perorangan';
               const checked = cetakKartuState.selected.has(r.id) ? 'checked' : '';
               return `
-                <tr style="border-bottom:1px solid var(--border-subtle); ${checked ? 'background: color-mix(in srgb, var(--primary-500) 6%, var(--bg-card));' : ''}">
+                <tr style="border-bottom:1px solid var(--border-subtle); ${checked ? 'background: rgba(99,102,241,0.07);' : ''}">
                   <td style="padding:10px 14px; text-align:center;">
                     <input type="checkbox" class="cetak-row-check" value="${r.id}" ${checked} onchange="cetakToggleOne('${r.id}', this.checked)">
                   </td>

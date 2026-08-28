@@ -14,9 +14,17 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
 
+  const nodeEnv = configService.get<string>('NODE_ENV') || 'development';
+  const isProduction = nodeEnv === 'production';
+
   // Security Headers via Helmet
+  // NOTE: HSTS is DISABLED on HTTP (development). Enable only on HTTPS production.
+  // Enabling HSTS on HTTP causes Safari to cache the directive and force HTTPS
+  // for all subsequent requests, breaking navigation on non-SSL servers.
   app.use(
     helmet({
+      // Disable HSTS completely on HTTP - Safari caches this and breaks all links
+      hsts: false,
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
@@ -42,6 +50,9 @@ async function bootstrap() {
           ],
           imgSrc: ["'self'", 'data:', 'blob:'],
           connectSrc: ["'self'"],
+          mediaSrc: ["'self'", 'blob:'],
+          // Do NOT upgrade insecure requests on HTTP servers - breaks Safari navigation
+          upgradeInsecureRequests: null,
         },
       },
       crossOriginEmbedderPolicy: false,

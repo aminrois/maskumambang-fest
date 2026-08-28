@@ -1,7 +1,6 @@
 /* ==========================================================================
    DESIGN SYSTEM & CORE TYPOGRAPHY (MODERN, INSTITUTIONAL & ENERGETIC)
    ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap');
 
 :root {
   --font-primary: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -108,6 +107,7 @@
   right: 0;
   bottom: 0;
   background: rgba(15, 23, 42, 0.65);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   z-index: 1050;
   display: none;
@@ -834,7 +834,7 @@ tr .sticky-action {
 
 /* On hover keep sticky cell consistent */
 tr:hover .sticky-action {
-  background: var(--table-row-hover, color-mix(in srgb, var(--bg-card) 92%, var(--primary-500) 8%));
+  background: var(--table-hover-bg, #f8fafc);
 }
 
 /* Ensure buttons are compact on mobile */
@@ -851,4 +851,37 @@ tr:hover .sticky-action {
   width: 100%;
   justify-content: center;
   white-space: nowrap;
+}
+/* ============================================================
+   SAFARI & iOS GLOBAL COMPATIBILITY FIXES
+   ============================================================ */
+
+/* Fix: button & input font inherit on Safari/iOS */
+button, input, select, textarea {
+  font-family: var(--font-primary);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Fix: prevent iOS double-tap zoom */
+button, a, [onclick] {
+  touch-action: manipulation;
+}
+
+/* Fix: smooth momentum scrolling on iOS Safari */
+body, .modal-container {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fix: -webkit-backdrop-filter for modal on older Safari */
+.modal-backdrop {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+/* Fix: iOS safe area for hero sections */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .site-footer {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
 }
