@@ -25,6 +25,7 @@ export declare class SettingsService {
             teams: number;
             individualParticipants: number;
             registrations: number;
+            deletedPesertaUsers: number;
         };
     }>;
 }

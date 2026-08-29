@@ -1580,30 +1580,30 @@ function buildSingleCardHTML(card) {
         </div>
       </div>
 
-      <!-- INFO PESERTA (SCALED & COMPACT) -->
+      <!-- INFO PESERTA (SCALED, AUTO-WRAP & COMPACT) -->
       <div style="padding:6px 12px;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;">
         <div style="margin-bottom:4px;">
           <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.03em;">NAMA ${isTeam ? 'TIM' : 'PESERTA'}:</div>
-          <div style="font-size:${isTeam ? '0.95rem' : '1.02rem'};font-weight:800;color:#1e1b4b;line-height:1.2;margin-top:1px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${card.participant_name}</div>
+          <div style="font-size:${isTeam ? '0.92rem' : '0.98rem'};font-weight:800;color:#1e1b4b;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.participant_name}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin-bottom:4px;">
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;">ASAL SEKOLAH:</div>
-            <div style="font-size:0.78rem;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${card.school_name}</div>
+            <div style="font-size:0.75rem;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.school_name}</div>
           </div>
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;">CABANG LOMBA:</div>
-            <div style="font-size:0.78rem;font-weight:700;color:#4338ca;line-height:1.2;margin-top:1px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${card.branch_name}</div>
+            <div style="font-size:0.75rem;font-weight:700;color:#4338ca;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.branch_name}</div>
           </div>
           ${card.mentor_name && card.mentor_name !== '-' ? `
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;">PEMBIMBING:</div>
-            <div style="font-size:0.75rem;font-weight:600;color:#334155;line-height:1.2;margin-top:1px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${card.mentor_name}</div>
+            <div style="font-size:0.72rem;font-weight:600;color:#334155;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.mentor_name}</div>
           </div>` : ''}
           ${isTeam && card.leader_name ? `
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;">KETUA TIM:</div>
-            <div style="font-size:0.75rem;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${card.leader_name}</div>
+            <div style="font-size:0.72rem;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.leader_name}</div>
           </div>` : ''}
         </div>
 
@@ -1630,7 +1630,7 @@ function buildSingleCardHTML(card) {
           <span style="display:inline-flex;align-items:center;gap:4px;color:#4ade80;font-size:0.68rem;font-weight:800;text-transform:uppercase;">
             <i class="fa-solid fa-circle-check"></i> TERVERIFIKASI RESMI
           </span>
-          <span style="font-size:0.62rem;color:rgba(255,255,255,0.6);text-transform:uppercase;">10CM × 14CM</span>
+          <span style="font-size:0.65rem;color:rgba(255,255,255,0.75);font-weight:600;letter-spacing:0.04em;">www.maskumambang.ac.id</span>
         </div>
       </div>
 
@@ -2668,7 +2668,34 @@ function onAdminRegFilterChange(v) {
   updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
 }
 
-// --- ADMIN USER MANAGEMENT (UNIVERSAL TABLE + STICKY ACTIONS + RESET PASS) ---
+// --- ADMIN USER MANAGEMENT (UNIVERSAL TABLE + DROPDOWN ACTIONS + BULK DELETE) ---
+const selectedAdminUserIds = new Set();
+
+function escapeQuotes(str) {
+  if (!str) return '';
+  return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function toggleUserDropdown(e, userId) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById(`user-dd-${userId}`);
+  const isShown = menu && menu.style.display === 'block';
+  closeAllUserDropdowns();
+  if (menu && !isShown) {
+    menu.style.display = 'block';
+  }
+}
+
+function closeAllUserDropdowns() {
+  document.querySelectorAll('.user-dropdown-menu').forEach(el => {
+    el.style.display = 'none';
+  });
+}
+
+document.addEventListener('click', () => {
+  closeAllUserDropdowns();
+});
+
 async function renderAdminUsersView() {
   const container = document.getElementById('main-view-slot');
   container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data user...</div>';
@@ -2676,14 +2703,30 @@ async function renderAdminUsersView() {
   try {
     const res = await apiRequest('/api/users?perPage=500');
     tableState.adminUsers.data = res.success ? res.users : [];
+    selectedAdminUserIds.clear();
 
     container.innerHTML = `
-      <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div>
           <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Manajemen Pengguna</h2>
-          <p style="color: var(--text-muted); font-size: 0.95rem;">Kelola hak akses, status aktif/nonaktif, dan reset password pengguna.</p>
+          <p style="color: var(--text-muted); font-size: 0.95rem;">Kelola akun pendaftar & staf, hak akses, reset password, dan hapus pengguna.</p>
         </div>
         <button class="btn btn-primary" onclick="openCreateUserModal()"><i class="fa-solid fa-user-plus"></i> Tambah Pengguna</button>
+      </div>
+
+      <!-- Bulk Action Bar -->
+      <div id="admin-user-bulk-actions" style="margin-bottom: 14px; display: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); padding: 10px 16px; border-radius: var(--radius-md);">
+        <div style="font-size: 0.875rem; font-weight: 700; color: var(--danger-600); display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-check-double"></i> <span id="user-selected-count">0</span> Pengguna Terpilih
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-sm btn-danger" onclick="executeBulkDeleteUsers()" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700;">
+            <i class="fa-solid fa-trash"></i> Hapus Terpilih
+          </button>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="clearSelectedUsers()">
+            <i class="fa-solid fa-xmark"></i> Batal
+          </button>
+        </div>
       </div>
 
       <div id="admin-users-table-slot">
@@ -2697,9 +2740,21 @@ async function renderAdminUsersView() {
 
 function renderAdminUsersTable() {
   const ts = tableState.adminUsers;
+  const currentAdmin = authState.user;
+
   return renderUniversalTable({
     tableId: 'admin-users-table',
     columns: [
+      {
+        header: `<input type="checkbox" id="user-check-all" onchange="toggleSelectAllUsers(this.checked)" style="-webkit-appearance:checkbox !important; appearance:checkbox !important; width:18px; height:18px; cursor:pointer; accent-color:var(--primary-600); margin:0;" title="Pilih Semua">`,
+        sortable: false,
+        render: u => {
+          const isSelf = currentAdmin && currentAdmin.id === u.id;
+          if (isSelf) return `<span title="Akun Anda Sendiri" style="font-size:0.75rem; color:var(--text-dim); display:inline-block; width:18px; text-align:center;"><i class="fa-solid fa-lock"></i></span>`;
+          const checked = selectedAdminUserIds.has(u.id) ? 'checked' : '';
+          return `<input type="checkbox" class="user-row-check" value="${u.id}" ${checked} onchange="toggleUserSelect('${u.id}', this.checked)" style="-webkit-appearance:checkbox !important; appearance:checkbox !important; width:18px; height:18px; cursor:pointer; accent-color:var(--primary-600); margin:0;">`;
+        },
+      },
       { header: 'Nama Lengkap', key: 'name', render: u => `<strong>${u.name}</strong>` },
       { header: 'Email', key: 'email' },
       { header: 'No. WhatsApp', sortValue: u => u.phoneNumber || '', render: u => u.phoneNumber || '-' },
@@ -2710,19 +2765,33 @@ function renderAdminUsersTable() {
         header: 'Aksi',
         sticky: true,
         sortable: false,
-        render: u => `
-          <div style="display: flex; flex-direction: column; gap: 4px;">
-            <button class="btn btn-sm btn-secondary" style="padding: 4px 8px;" title="Toggle Status" onclick="executeToggleUserStatus('${u.id}')">
-              <i class="fa-solid ${u.isActive ? 'fa-user-slash' : 'fa-user-check'}"></i>
-            </button>
-            <button class="btn btn-sm btn-secondary" style="padding: 4px 8px;" title="Ubah Role" onclick="openChangeRoleModal('${u.id}', '${u.name}', '${u.role}')">
-              <i class="fa-solid fa-user-tag"></i>
-            </button>
-            <button class="btn btn-sm btn-warning" style="padding: 4px 8px;" title="Reset Password" onclick="openResetPasswordModal('${u.id}', '${u.name}', '${u.email}')">
-              <i class="fa-solid fa-key"></i>
-            </button>
-          </div>
-        `,
+        render: u => {
+          const isSelf = currentAdmin && currentAdmin.id === u.id;
+          return `
+            <div class="dropdown" style="position: relative; display: inline-block;">
+              <button type="button" class="btn btn-sm btn-secondary" onclick="toggleUserDropdown(event, '${u.id}')" style="padding: 5px 12px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer;">
+                Aksi <i class="fa-solid fa-chevron-down" style="font-size: 0.65rem;"></i>
+              </button>
+              <div id="user-dd-${u.id}" class="user-dropdown-menu" style="display: none; position: absolute; right: 0; top: calc(100% + 4px); min-width: 175px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: 0 10px 25px rgba(0,0,0,0.18); z-index: 1050; padding: 5px 0; text-align: left;">
+                <a href="javascript:void(0)" onclick="executeToggleUserStatus('${u.id}'); closeAllUserDropdowns();" style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: 0.82rem; color: var(--text-main); text-decoration: none;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
+                  <i class="fa-solid ${u.isActive ? 'fa-user-slash' : 'fa-user-check'}" style="width: 16px; color: ${u.isActive ? 'var(--warning-600)' : 'var(--success-600)'};"></i> ${u.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                </a>
+                <a href="javascript:void(0)" onclick="openChangeRoleModal('${u.id}', '${escapeQuotes(u.name)}', '${u.role}'); closeAllUserDropdowns();" style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: 0.82rem; color: var(--text-main); text-decoration: none;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
+                  <i class="fa-solid fa-user-tag" style="width: 16px; color: var(--primary-600);"></i> Ubah Role
+                </a>
+                <a href="javascript:void(0)" onclick="openResetPasswordModal('${u.id}', '${escapeQuotes(u.name)}', '${u.email}'); closeAllUserDropdowns();" style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: 0.82rem; color: var(--text-main); text-decoration: none;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
+                  <i class="fa-solid fa-key" style="width: 16px; color: var(--warning-600);"></i> Reset Password
+                </a>
+                ${!isSelf ? `
+                <div style="border-top: 1px solid var(--border-subtle); margin: 4px 0;"></div>
+                <a href="javascript:void(0)" onclick="confirmDeleteUser('${u.id}', '${escapeQuotes(u.name)}', '${u.email}'); closeAllUserDropdowns();" style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: 0.82rem; color: var(--danger-600); text-decoration: none; font-weight: 600;" onmouseover="this.style.background='rgba(239,68,68,0.08)'" onmouseout="this.style.background='transparent'">
+                  <i class="fa-solid fa-trash" style="width: 16px; color: var(--danger-600);"></i> Hapus Pengguna
+                </a>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        },
       },
     ],
     data: ts.data,
@@ -2750,6 +2819,123 @@ function renderAdminUsersTable() {
     onExportName: 'exportAdminUsersExcel',
     emptyMessage: 'Pengguna tidak ditemukan.',
   });
+}
+
+function toggleUserSelect(userId, checked) {
+  if (checked) {
+    selectedAdminUserIds.add(userId);
+  } else {
+    selectedAdminUserIds.delete(userId);
+  }
+  updateUserBulkActionBar();
+}
+
+function toggleSelectAllUsers(checked) {
+  const ts = tableState.adminUsers;
+  const currentAdmin = authState.user;
+  const filtered = (ts.data || []).filter(u => !currentAdmin || u.id !== currentAdmin.id);
+
+  if (checked) {
+    filtered.forEach(u => selectedAdminUserIds.add(u.id));
+  } else {
+    selectedAdminUserIds.clear();
+  }
+  updateUniversalTable('admin-users-table-slot', renderAdminUsersTable);
+  updateUserBulkActionBar();
+}
+
+function clearSelectedUsers() {
+  selectedAdminUserIds.clear();
+  updateUniversalTable('admin-users-table-slot', renderAdminUsersTable);
+  updateUserBulkActionBar();
+}
+
+function updateUserBulkActionBar() {
+  const bar = document.getElementById('admin-user-bulk-actions');
+  const countEl = document.getElementById('user-selected-count');
+  if (bar) {
+    bar.style.display = selectedAdminUserIds.size > 0 ? 'flex' : 'none';
+  }
+  if (countEl) {
+    countEl.innerText = selectedAdminUserIds.size;
+  }
+}
+
+function confirmDeleteUser(userId, name, email) {
+  openAppModal(`
+    <div style="text-align: center; padding: 10px 0;">
+      <div style="width: 56px; height: 56px; border-radius: 50%; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 16px;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--text-heading); margin-bottom: 8px;">Konfirmasi Hapus Pengguna</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 18px; line-height: 1.5;">
+        Apakah Anda yakin ingin menghapus pengguna <strong>${name}</strong> (<code>${email}</code>)?<br>
+        <span style="color: #dc2626; font-size: 0.8rem; font-weight: 600;">Peringatan: Seluruh data pendaftaran dan riwayat terkait pengguna ini juga akan dihapus permanen.</span>
+      </p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button type="button" class="btn btn-secondary" onclick="closeAppModal()" style="padding: 9px 20px;">Batal</button>
+        <button type="button" class="btn btn-danger" onclick="executeDeleteUser('${userId}')" style="padding: 9px 20px; font-weight: 700;">
+          <i class="fa-solid fa-trash"></i> Ya, Hapus Sekarang
+        </button>
+      </div>
+    </div>
+  `);
+}
+
+async function executeDeleteUser(userId) {
+  try {
+    closeAppModal();
+    const res = await apiRequest(`/api/users/${userId}`, { method: 'DELETE' });
+    if (res.success) {
+      alert(res.message);
+      selectedAdminUserIds.delete(userId);
+      renderAdminUsersView();
+    }
+  } catch (err) {
+    alert('Gagal menghapus pengguna: ' + err.message);
+  }
+}
+
+function executeBulkDeleteUsers() {
+  const count = selectedAdminUserIds.size;
+  if (count === 0) return;
+
+  openAppModal(`
+    <div style="text-align: center; padding: 10px 0;">
+      <div style="width: 56px; height: 56px; border-radius: 50%; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 16px;">
+        <i class="fa-solid fa-trash-can"></i>
+      </div>
+      <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--text-heading); margin-bottom: 8px;">Hapus Massal Pengguna</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 18px; line-height: 1.5;">
+        Anda akan menghapus <strong>${count} pengguna terpilih</strong> sekaligus secara permanen.<br>
+        <span style="color: #dc2626; font-size: 0.8rem; font-weight: 600;">Tindakan ini tidak dapat dibatalkan!</span>
+      </p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button type="button" class="btn btn-secondary" onclick="closeAppModal()" style="padding: 9px 20px;">Batal</button>
+        <button type="button" class="btn btn-danger" onclick="submitBulkDeleteUsers()" style="padding: 9px 20px; font-weight: 700;">
+          <i class="fa-solid fa-trash"></i> Hapus ${count} Pengguna
+        </button>
+      </div>
+    </div>
+  `);
+}
+
+async function submitBulkDeleteUsers() {
+  try {
+    closeAppModal();
+    const userIds = Array.from(selectedAdminUserIds);
+    const res = await apiRequest('/api/users/bulk-delete', {
+      method: 'POST',
+      body: { userIds },
+    });
+    if (res.success) {
+      alert(res.message);
+      selectedAdminUserIds.clear();
+      renderAdminUsersView();
+    }
+  } catch (err) {
+    alert('Gagal menghapus massal: ' + err.message);
+  }
 }
 
 function exportAdminUsersExcel() {
@@ -2814,7 +3000,6 @@ function openCreateUserModal() {
           <option value="ADMIN_BARCODE">ADMIN SCANNER (BARCODE)</option>
           <option value="SUPER_ADMIN">SUPER_ADMIN</option>
         </select>
-
       </div>
       <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Pengguna Baru</button>
     </form>
@@ -4433,30 +4618,30 @@ function buildCardHTML(card) {
         </div>
       </div>
 
-      <!-- INFO PESERTA (COMPACT & SCALED) -->
+      <!-- INFO PESERTA (COMPACT, AUTO-WRAP & SCALED) -->
       <div style="padding:4px 8px;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;">
         <div style="margin-bottom:3px;">
           <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.03em;">NAMA ${isTeam ? 'TIM' : 'PESERTA'}:</div>
-          <div style="font-size:${isTeam ? '9.5px' : '10.5px'};font-weight:800;color:#1e1b4b;line-height:1.2;margin-top:1px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${card.participant_name}</div>
+          <div style="font-size:${isTeam ? '9.2px' : '10px'};font-weight:800;color:#1e1b4b;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.participant_name}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;margin-bottom:3px;">
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;">ASAL SEKOLAH:</div>
-            <div style="font-size:7.5px;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${card.school_name}</div>
+            <div style="font-size:7.2px;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.school_name}</div>
           </div>
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;">CABANG LOMBA:</div>
-            <div style="font-size:7.5px;font-weight:700;color:#4338ca;line-height:1.2;margin-top:1px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${card.branch_name}</div>
+            <div style="font-size:7.2px;font-weight:700;color:#4338ca;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.branch_name}</div>
           </div>
           ${card.mentor_name && card.mentor_name !== '-' ? `
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;">PEMBIMBING:</div>
-            <div style="font-size:7px;font-weight:600;color:#334155;line-height:1.2;margin-top:1px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${card.mentor_name}</div>
+            <div style="font-size:6.8px;font-weight:600;color:#334155;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.mentor_name}</div>
           </div>` : ''}
           ${isTeam && card.leader_name ? `
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;">KETUA TIM:</div>
-            <div style="font-size:7px;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${card.leader_name}</div>
+            <div style="font-size:6.8px;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.leader_name}</div>
           </div>` : ''}
         </div>
 
@@ -4481,7 +4666,7 @@ function buildCardHTML(card) {
         <!-- FOOTER -->
         <div style="background:#1e1b4b;padding:4px 10px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
           <span style="display:inline-flex;align-items:center;gap:3px;color:#4ade80;font-size:6.5px;font-weight:800;text-transform:uppercase;">✓ TERVERIFIKASI RESMI</span>
-          <span style="font-size:6px;color:rgba(255,255,255,0.6);text-transform:uppercase;">10CM × 14CM</span>
+          <span style="font-size:6px;color:rgba(255,255,255,0.75);font-weight:600;letter-spacing:0.04em;">www.maskumambang.ac.id</span>
         </div>
       </div>
 
@@ -4624,6 +4809,15 @@ window.openChangeRoleModal = openChangeRoleModal;
 window.submitChangeRole = submitChangeRole;
 window.openResetPasswordModal = openResetPasswordModal;
 window.submitAdminResetPass = submitAdminResetPass;
+window.toggleUserDropdown = toggleUserDropdown;
+window.closeAllUserDropdowns = closeAllUserDropdowns;
+window.toggleUserSelect = toggleUserSelect;
+window.toggleSelectAllUsers = toggleSelectAllUsers;
+window.clearSelectedUsers = clearSelectedUsers;
+window.confirmDeleteUser = confirmDeleteUser;
+window.executeDeleteUser = executeDeleteUser;
+window.executeBulkDeleteUsers = executeBulkDeleteUsers;
+window.submitBulkDeleteUsers = submitBulkDeleteUsers;
 
 // Super Admin master kategori & jenjang handlers
 window.openCreateCategoryModal = openCreateCategoryModal;

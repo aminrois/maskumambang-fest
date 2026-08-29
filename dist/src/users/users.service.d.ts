@@ -48,4 +48,13 @@ export declare class UsersService {
         success: boolean;
         message: string;
     }>;
+    deleteUser(staffId: string, targetUserId: string): Promise<{
+        success: boolean;
+        message: string;
+    }>;
+    bulkDeleteUsers(staffId: string, userIds: string[]): Promise<{
+        success: boolean;
+        message: string;
+        deletedCount: number;
+    }>;
 }

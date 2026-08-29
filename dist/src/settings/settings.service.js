@@ -106,6 +106,19 @@ let SettingsService = class SettingsService {
             const teams = await tx.team.deleteMany({});
             const indivs = await tx.individualParticipant.deleteMany({});
             const registrations = await tx.registration.deleteMany({});
+            const pesertaUsers = await tx.user.findMany({
+                where: { role: 'PESERTA' },
+                select: { id: true },
+            });
+            const pesertaIds = pesertaUsers.map((u) => u.id);
+            if (pesertaIds.length > 0) {
+                await tx.auditLog.deleteMany({
+                    where: { userId: { in: pesertaIds } },
+                });
+            }
+            const deletedPeserta = await tx.user.deleteMany({
+                where: { role: 'PESERTA' },
+            });
             return {
                 checkIns: checkIns.count,
                 verificationLogs: logs.count,
@@ -114,17 +127,18 @@ let SettingsService = class SettingsService {
                 teams: teams.count,
                 individualParticipants: indivs.count,
                 registrations: registrations.count,
+                deletedPesertaUsers: deletedPeserta.count,
             };
         });
         await this.auditService.log({
             userId: staffUserId,
             action: 'RESET_OPERATIONAL_DATA',
             targetTable: 'system',
-            details: `Super Admin melakukan reset data operasional lomba: ${stats.registrations} registrasi, ${stats.payments} pembayaran dibersihkan.`,
+            details: `Super Admin melakukan reset data operasional lomba: ${stats.registrations} registrasi, ${stats.payments} pembayaran, dan ${stats.deletedPesertaUsers} akun peserta dibersihkan.`,
         });
         return {
             success: true,
-            message: 'Seluruh data operasional transaksi berhasil dibersihkan. Data master lomba tetap aman.',
+            message: `Seluruh data transaksi (${stats.registrations} pendaftaran) dan ${stats.deletedPesertaUsers} akun peserta berhasil dibersihkan. Akun admin dan master data lomba tetap aman.`,
             stats,
         };
     }

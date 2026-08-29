@@ -112,7 +112,7 @@ export class SettingsService {
       );
     }
 
-    // Atomic purge of operational tables while preserving all master data & staff accounts
+    // Atomic purge of operational tables and PESERTA user accounts while preserving master data & staff/admin accounts
     const stats = await this.prisma.$transaction(async (tx) => {
       const checkIns = await tx.checkIn.deleteMany({});
       const logs = await tx.paymentVerificationLog.deleteMany({});
@@ -122,6 +122,23 @@ export class SettingsService {
       const indivs = await tx.individualParticipant.deleteMany({});
       const registrations = await tx.registration.deleteMany({});
 
+      // Find all PESERTA user IDs
+      const pesertaUsers = await tx.user.findMany({
+        where: { role: 'PESERTA' as any },
+        select: { id: true },
+      });
+      const pesertaIds = pesertaUsers.map((u) => u.id);
+
+      if (pesertaIds.length > 0) {
+        await tx.auditLog.deleteMany({
+          where: { userId: { in: pesertaIds } },
+        });
+      }
+
+      const deletedPeserta = await tx.user.deleteMany({
+        where: { role: 'PESERTA' as any },
+      });
+
       return {
         checkIns: checkIns.count,
         verificationLogs: logs.count,
@@ -130,6 +147,7 @@ export class SettingsService {
         teams: teams.count,
         individualParticipants: indivs.count,
         registrations: registrations.count,
+        deletedPesertaUsers: deletedPeserta.count,
       };
     });
 
@@ -137,12 +155,12 @@ export class SettingsService {
       userId: staffUserId,
       action: 'RESET_OPERATIONAL_DATA',
       targetTable: 'system',
-      details: `Super Admin melakukan reset data operasional lomba: ${stats.registrations} registrasi, ${stats.payments} pembayaran dibersihkan.`,
+      details: `Super Admin melakukan reset data operasional lomba: ${stats.registrations} registrasi, ${stats.payments} pembayaran, dan ${stats.deletedPesertaUsers} akun peserta dibersihkan.`,
     });
 
     return {
       success: true,
-      message: 'Seluruh data operasional transaksi berhasil dibersihkan. Data master lomba tetap aman.',
+      message: `Seluruh data transaksi (${stats.registrations} pendaftaran) dan ${stats.deletedPesertaUsers} akun peserta berhasil dibersihkan. Akun admin dan master data lomba tetap aman.`,
       stats,
     };
   }

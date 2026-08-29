@@ -67,6 +67,12 @@ let UsersController = class UsersController {
     async resetPassword(id, staffId, dto) {
         return this.usersService.resetPassword(staffId, id, dto);
     }
+    async bulkDeleteUsers(staffId, userIds) {
+        return this.usersService.bulkDeleteUsers(staffId, userIds);
+    }
+    async deleteUser(id, staffId) {
+        return this.usersService.deleteUser(staffId, id);
+    }
 };
 exports.UsersController = UsersController;
 __decorate([
@@ -134,6 +140,24 @@ __decorate([
     __metadata("design:paramtypes", [String, String, user_dto_1.ResetPasswordDto]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "resetPassword", null);
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.SUPER_ADMIN),
+    (0, common_1.Post)('bulk-delete'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)('id')),
+    __param(1, (0, common_1.Body)('userIds')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Array]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "bulkDeleteUsers", null);
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.SUPER_ADMIN),
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "deleteUser", null);
 exports.UsersController = UsersController = __decorate([
     (0, common_1.Controller)('users'),
     __metadata("design:paramtypes", [users_service_1.UsersService])

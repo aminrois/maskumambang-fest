@@ -41,6 +41,7 @@ export declare class SettingsController {
             teams: number;
             individualParticipants: number;
             registrations: number;
+            deletedPesertaUsers: number;
         };
     }>;
 }

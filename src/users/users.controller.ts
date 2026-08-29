@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -111,5 +112,23 @@ export class UsersController {
     @Body() dto: ResetPasswordDto,
   ) {
     return this.usersService.resetPassword(staffId, id, dto);
+  }
+
+  @Roles(Role.SUPER_ADMIN)
+  @Post('bulk-delete')
+  async bulkDeleteUsers(
+    @CurrentUser('id') staffId: string,
+    @Body('userIds') userIds: string[],
+  ) {
+    return this.usersService.bulkDeleteUsers(staffId, userIds);
+  }
+
+  @Roles(Role.SUPER_ADMIN)
+  @Delete(':id')
+  async deleteUser(
+    @Param('id') id: string,
+    @CurrentUser('id') staffId: string,
+  ) {
+    return this.usersService.deleteUser(staffId, id);
   }
 }

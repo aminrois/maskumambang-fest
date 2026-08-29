@@ -200,6 +200,84 @@ let UsersService = class UsersService {
             message: `Kata sandi untuk ${user.email} berhasil direset.`,
         };
     }
+    async deleteUser(staffId, targetUserId) {
+        if (staffId === targetUserId) {
+            throw new common_1.BadRequestException('Anda tidak dapat menghapus akun Anda sendiri.');
+        }
+        const user = await this.findById(targetUserId);
+        if (!user) {
+            throw new common_1.NotFoundException('Pengguna tidak ditemukan.');
+        }
+        await this.prisma.$transaction(async (tx) => {
+            const regs = await tx.registration.findMany({
+                where: { userId: targetUserId },
+                select: { id: true },
+            });
+            const regIds = regs.map((r) => r.id);
+            if (regIds.length > 0) {
+                await tx.checkIn.deleteMany({ where: { registrationId: { in: regIds } } });
+                const payments = await tx.payment.findMany({
+                    where: { registrationId: { in: regIds } },
+                    select: { id: true },
+                });
+                const payIds = payments.map((p) => p.id);
+                if (payIds.length > 0) {
+                    await tx.paymentVerificationLog.deleteMany({ where: { paymentId: { in: payIds } } });
+                }
+                await tx.payment.deleteMany({ where: { registrationId: { in: regIds } } });
+                await tx.individualParticipant.deleteMany({ where: { registrationId: { in: regIds } } });
+                const teams = await tx.team.findMany({
+                    where: { registrationId: { in: regIds } },
+                    select: { id: true },
+                });
+                const teamIds = teams.map((t) => t.id);
+                if (teamIds.length > 0) {
+                    await tx.teamMember.deleteMany({ where: { teamId: { in: teamIds } } });
+                }
+                await tx.team.deleteMany({ where: { registrationId: { in: regIds } } });
+                await tx.registration.deleteMany({ where: { id: { in: regIds } } });
+            }
+            await tx.paymentVerificationLog.deleteMany({
+                where: { verifiedByUserId: targetUserId },
+            });
+            await tx.auditLog.deleteMany({ where: { userId: targetUserId } });
+            await tx.user.delete({ where: { id: targetUserId } });
+        });
+        await this.auditService.log({
+            userId: staffId,
+            action: 'ADMIN_DELETE_USER',
+            targetTable: 'users',
+            targetId: targetUserId,
+            details: `Super Admin menghapus pengguna: ${user.name} (${user.email})`,
+        });
+        return {
+            success: true,
+            message: `Pengguna ${user.name} (${user.email}) berhasil dihapus.`,
+        };
+    }
+    async bulkDeleteUsers(staffId, userIds) {
+        if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+            throw new common_1.BadRequestException('Pilih setidaknya satu pengguna untuk dihapus.');
+        }
+        const validIds = userIds.filter((id) => id !== staffId);
+        if (validIds.length === 0) {
+            throw new common_1.BadRequestException('Tidak ada pengguna yang valid untuk dihapus (tidak dapat menghapus akun sendiri).');
+        }
+        let deletedCount = 0;
+        for (const id of validIds) {
+            try {
+                await this.deleteUser(staffId, id);
+                deletedCount++;
+            }
+            catch (err) {
+            }
+        }
+        return {
+            success: true,
+            message: `${deletedCount} pengguna berhasil dihapus.`,
+            deletedCount,
+        };
+    }
 };
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([
