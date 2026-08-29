@@ -2740,7 +2740,7 @@ async function renderAdminUsersView() {
 
 function renderAdminUsersTable() {
   const ts = tableState.adminUsers;
-  const currentAdmin = authState.user;
+  const currentAdmin = state.user;
 
   return renderUniversalTable({
     tableId: 'admin-users-table',
@@ -2832,7 +2832,7 @@ function toggleUserSelect(userId, checked) {
 
 function toggleSelectAllUsers(checked) {
   const ts = tableState.adminUsers;
-  const currentAdmin = authState.user;
+  const currentAdmin = state.user;
   const filtered = (ts.data || []).filter(u => !currentAdmin || u.id !== currentAdmin.id);
 
   if (checked) {
