@@ -21,7 +21,7 @@ const safeStorage = {
 
 // Global Application State
 const state = {
-  token: safeStorage.getItem('lomba_jwt_token') || null,
+  token: null, // Token dikelola via HttpOnly Cookie oleh server, tidak disimpan di JS
   user: (() => { try { return JSON.parse(safeStorage.getItem('lomba_user_data') || 'null'); } catch(e){ return null; } })(),
   settings: {},
   competitionTree: [],
@@ -66,10 +66,13 @@ function toggleTheme() {
 // AUTH & API UTILITIES
 // ============================================================================
 function setSession(token, user) {
-  state.token = token;
+  // Token disimpan di HttpOnly Cookie oleh server — tidak disimpan di localStorage
+  state.token = token; // Simpan sementara di memory untuk backward compatibility
   state.user = user;
-  safeStorage.setItem('lomba_jwt_token', token);
+  // Hanya data user (bukan token) yang disimpan di localStorage
   safeStorage.setItem('lomba_user_data', JSON.stringify(user));
+  // Hapus token lama dari localStorage jika ada (migrasi keamanan)
+  safeStorage.removeItem('lomba_jwt_token');
 }
 
 function clearSession() {
@@ -79,13 +82,20 @@ function clearSession() {
   safeStorage.removeItem('lomba_user_data');
 }
 
-function handleLogout() {
+async function handleLogout() {
+  try {
+    // Hapus cookie sesi di server
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  } catch (e) {}
   clearSession();
   window.location.href = '/login.html';
 }
 
 async function apiRequest(endpoint, options = {}) {
   const headers = options.headers || {};
+
+  // Kirim Authorization header jika token tersedia di memory (backward compat)
+  // Token utama dikirim otomatis via HttpOnly Cookie
   if (state.token) {
     headers['Authorization'] = `Bearer ${state.token}`;
   }
@@ -96,6 +106,8 @@ async function apiRequest(endpoint, options = {}) {
   }
 
   options.headers = headers;
+  // Penting: kirim cookie sesi HttpOnly secara otomatis di setiap request
+  options.credentials = 'include';
 
   try {
     const response = await fetch(endpoint, options);
@@ -469,18 +481,16 @@ function renderUniversalTable({
 // DASHBOARD INITIALIZATION & HASH ROUTING
 // ============================================================================
 async function initDashboardApp() {
-  if (!state.token) {
-    window.location.href = '/login.html';
-    return;
-  }
-
-  // 1. Verify User Profile
+  // Coba verifikasi sesi via cookie — tidak perlu cek token di localStorage
   try {
     const profile = await apiRequest('/api/users/profile');
-    if (profile) {
-      state.user = profile;
-      safeStorage.setItem('lomba_user_data', JSON.stringify(profile));
+    if (!profile || !profile.id) {
+      clearSession();
+      window.location.href = '/login.html';
+      return;
     }
+    state.user = profile;
+    safeStorage.setItem('lomba_user_data', JSON.stringify(profile));
   } catch (e) {
     clearSession();
     window.location.href = '/login.html';
@@ -2236,15 +2246,22 @@ async function executeCheckIn(token, method, stage = 1) {
     });
 
     if (res.success && res.data) {
+      const timeKey = stage === 2 ? res.data.check_in_2_time : res.data.check_in_time;
+
+      // Update alert bar (ringkas)
       alertEl.style.display = 'block';
       alertEl.className = 'alert alert-success';
-      const timeKey = stage === 2 ? res.data.check_in_2_time : res.data.check_in_time;
       alertEl.innerHTML = `
-        <h4 style="margin-bottom: 4px;"><i class="fa-solid fa-circle-check"></i> CHECK-IN ${stageLabel} BERHASIL!</h4>
-        <div>Peserta: <strong>${res.data.participant_name}</strong> (${res.data.school_name})</div>
-        <div>Cabang: <strong>${res.data.branch_name}</strong> | Waktu: ${formatDate(timeKey)}</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-circle-check" style="font-size: 1.2rem;"></i>
+          <strong>CHECK-IN ${stageLabel} BERHASIL</strong> — ${res.data.participant_name}
+        </div>
       `;
+
+      // Tampilkan popup kartu peserta
+      openCheckInSuccessPopup(res.data, stage, stageLabel, timeKey);
       loadLiveCheckInLogs();
+
     } else if (res.already_checked_in) {
       alertEl.style.display = 'block';
       alertEl.className = 'alert alert-danger';
@@ -2262,6 +2279,140 @@ async function executeCheckIn(token, method, stage = 1) {
     alertEl.className = 'alert alert-danger';
     alertEl.innerHTML = `<div><i class="fa-solid fa-circle-xmark"></i> ${err.message}</div>`;
   }
+}
+
+function openCheckInSuccessPopup(data, stage, stageLabel, checkInTime) {
+  const isStage2 = stage === 2;
+  const stageColor = isStage2 ? '#7c3aed' : '#059669';
+  const stageBg = isStage2 ? 'rgba(124,58,237,0.08)' : 'rgba(5,150,105,0.08)';
+  const stageBorder = isStage2 ? 'rgba(124,58,237,0.3)' : 'rgba(5,150,105,0.3)';
+  const stageIcon = isStage2 ? 'fa-person-walking-arrow-right' : 'fa-door-open';
+
+  // Buat modal khusus check-in (tidak pakai openAppModal supaya tidak bentrok)
+  const existing = document.getElementById('checkin-success-popup');
+  if (existing) existing.remove();
+
+  const popup = document.createElement('div');
+  popup.id = 'checkin-success-popup';
+  popup.style.cssText = `
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+    padding: 20px; animation: fadeInPopup 0.2s ease;
+  `;
+
+  // Tambahkan animasi via style tag jika belum ada
+  if (!document.getElementById('checkin-popup-anim')) {
+    const style = document.createElement('style');
+    style.id = 'checkin-popup-anim';
+    style.textContent = `
+      @keyframes fadeInPopup { from { opacity: 0; transform: scale(0.93); } to { opacity: 1; transform: scale(1); } }
+      @keyframes bounceCheck { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+      #checkin-success-popup .popup-inner { animation: fadeInPopup 0.25s cubic-bezier(.34,1.56,.64,1); }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const timeStr = checkInTime ? new Date(checkInTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
+  const dateStr = checkInTime ? new Date(checkInTime).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '-';
+
+  popup.innerHTML = `
+    <div class="popup-inner" style="
+      background: var(--bg-card);
+      border: 1px solid ${stageBorder};
+      border-radius: 20px;
+      padding: 32px 28px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 0 4px ${stageBg};
+      text-align: center;
+      position: relative;
+    ">
+      <!-- Ikon berhasil -->
+      <div style="
+        width: 72px; height: 72px; border-radius: 50%;
+        background: ${stageBg}; border: 3px solid ${stageColor};
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 16px; font-size: 2rem; color: ${stageColor};
+        animation: bounceCheck 0.5s ease 0.1s;
+      ">
+        <i class="fa-solid fa-circle-check"></i>
+      </div>
+
+      <!-- Status badge -->
+      <div style="
+        display: inline-flex; align-items: center; gap: 6px;
+        background: ${stageBg}; border: 1px solid ${stageBorder};
+        color: ${stageColor}; font-size: 0.72rem; font-weight: 800;
+        padding: 4px 12px; border-radius: 9999px; letter-spacing: 0.07em;
+        text-transform: uppercase; margin-bottom: 14px;
+      ">
+        <i class="fa-solid ${stageIcon}"></i> CHECK-IN ${stageLabel} BERHASIL
+      </div>
+
+      <!-- Nama peserta -->
+      <div style="font-size: 1.35rem; font-weight: 900; color: var(--text-heading); line-height: 1.2; margin-bottom: 6px;">
+        ${data.participant_name || '-'}
+      </div>
+      <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 18px;">
+        ${data.school_name || '-'}
+      </div>
+
+      <!-- Info grid -->
+      <div style="
+        display: grid; grid-template-columns: 1fr 1fr;
+        gap: 10px; margin-bottom: 22px;
+        text-align: left;
+      ">
+        <div style="background: var(--bg-body); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 10px 12px;">
+          <div style="font-size: 0.65rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; margin-bottom: 3px;">Cabang Lomba</div>
+          <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-heading); line-height: 1.25;">${data.branch_name || '-'}</div>
+        </div>
+        <div style="background: var(--bg-body); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 10px 12px;">
+          <div style="font-size: 0.65rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; margin-bottom: 3px;">No. Registrasi</div>
+          <div style="font-size: 0.82rem; font-weight: 800; color: var(--primary-600); font-family: monospace; letter-spacing: 0.04em;">${data.registration_number || '-'}</div>
+        </div>
+        <div style="grid-column: 1 / -1; background: ${stageBg}; border: 1px solid ${stageBorder}; border-radius: 10px; padding: 10px 12px;">
+          <div style="font-size: 0.65rem; font-weight: 700; color: ${stageColor}; text-transform: uppercase; margin-bottom: 3px;"><i class="fa-solid fa-clock"></i> Waktu Check-In</div>
+          <div style="font-size: 0.9rem; font-weight: 800; color: ${stageColor};">${timeStr} <span style="font-size:0.75rem; font-weight:600; color:var(--text-muted);">· ${dateStr}</span></div>
+        </div>
+      </div>
+
+      <!-- Tombol OK -->
+      <button
+        type="button"
+        onclick="document.getElementById('checkin-success-popup').remove()"
+        style="
+          width: 100%; padding: 14px;
+          background: ${stageColor}; color: #fff;
+          border: none; border-radius: 12px;
+          font-size: 1rem; font-weight: 800;
+          cursor: pointer; letter-spacing: 0.03em;
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+          transition: opacity 0.15s, transform 0.1s;
+        "
+        onmouseover="this.style.opacity='0.9'"
+        onmouseout="this.style.opacity='1'"
+        onmousedown="this.style.transform='scale(0.97)'"
+        onmouseup="this.style.transform='scale(1)'"
+      >
+        <i class="fa-solid fa-check"></i> OK, Lanjutkan Scan
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Auto close setelah 12 detik jika tidak diklik
+  setTimeout(() => {
+    const el = document.getElementById('checkin-success-popup');
+    if (el) el.remove();
+  }, 12000);
+
+  // Klik luar popup untuk tutup
+  popup.addEventListener('click', (e) => {
+    if (e.target === popup) popup.remove();
+  });
 }
 
 async function loadLiveCheckInLogs() {

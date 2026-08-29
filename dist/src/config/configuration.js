@@ -9,7 +9,7 @@ exports.default = () => ({
     },
     jwt: {
         secret: process.env.JWT_SECRET || 'dev_jwt_secret_fallback_key_32_bytes_long_min',
-        expiresIn: process.env.JWT_EXPIRATION || '7d',
+        expiresIn: process.env.JWT_EXPIRATION || '8h',
     },
     qr: {
         salt: process.env.QR_SECRET_SALT || 'dev_qr_secret_salt_fallback_key_32_bytes',

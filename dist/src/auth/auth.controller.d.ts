@@ -1,7 +1,7 @@
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
@@ -20,11 +20,10 @@ export declare class AuthController {
             updatedAt: Date;
         };
     }>;
-    login(dto: LoginDto, req: Request): Promise<{
+    login(dto: LoginDto, req: Request, res: Response): Promise<{
         success: boolean;
         message: string;
         data: {
-            accessToken: string;
             user: {
                 id: string;
                 email: string;
@@ -36,6 +35,11 @@ export declare class AuthController {
                 createdAt: Date;
                 updatedAt: Date;
             };
+            accessToken: string;
         };
     }>;
+    logout(res: Response): {
+        success: boolean;
+        message: string;
+    };
 }
