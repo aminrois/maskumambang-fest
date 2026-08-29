@@ -27,6 +27,10 @@ export class SettingsService {
       application_description: 'Ajang Kompetisi Tingkat Nasional Paling Bergengsi Tahun 2026.',
       application_logo: 'logo_e7a8b6a95d.webp',
       application_favicon: 'favicon_87007b6344.webp',
+      countdown_enabled: 'true',
+      countdown_title: 'Hitung Mundur Penutupan Pendaftaran',
+      countdown_target_date: '2026-10-15T23:59:00',
+      countdown_ended_text: 'Pendaftaran Resmi Ditutup',
     };
 
     settings.forEach((s) => {

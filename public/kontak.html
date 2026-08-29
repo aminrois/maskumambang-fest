@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="format-detection" content="telephone=no">
+  <title>Kontak & Lokasi - MASKUMAMBANG FEST #4</title>
+  <link rel="icon" type="image/webp" id="app-favicon" href="/static/img/favicon_87007b6344.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="/css/main.css">
+  <style>
+    .contact-hero {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+      color: #fff;
+      padding: 60px 24px 70px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .contact-hero::before {
+      content: '';
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      top: -100px;
+      right: -100px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .contact-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+    .contact-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.25s ease;
+    }
+    .contact-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(99, 102, 241, 0.12);
+      border-color: var(--primary-300);
+    }
+    .wa-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #25D366;
+      color: #ffffff !important;
+      font-weight: 700;
+      font-size: 0.9rem;
+      padding: 11px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: all 0.2s;
+      margin-top: 14px;
+      box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+    }
+    .wa-btn:hover {
+      background: #1eb954;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);
+    }
+    .maps-container {
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-md);
+      position: relative;
+      height: 380px;
+      width: 100%;
+    }
+    .maps-container iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+  </style>
+</head>
+<body class="public-layout">
+
+  <!-- Header / Navbar -->
+  <header class="public-navbar">
+    <div class="nav-container">
+      <a href="/" class="brand-logo" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+        <img id="nav-logo" src="/static/img/logo_e7a8b6a95d.webp" alt="Logo" style="height: 38px; width: auto; border-radius: 6px;" onerror="this.style.display='none'">
+        <span class="brand-logo-title" id="nav-title" style="font-weight: 800; font-size: 1.15rem; color: var(--text-heading);">MASKUMAMBANG FEST #4</span>
+      </a>
+
+      <button type="button" class="btn-toggle-public-menu" id="btn-toggle-public-menu" onclick="togglePublicMenu(event)" aria-label="Menu Navigasi" style="cursor: pointer;">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+
+      <nav>
+        <ul class="nav-menu" id="public-nav-menu">
+          <li><a href="/" class="nav-link">Beranda</a></li>
+          <li><a href="/cek-peserta.html" class="nav-link">Cek Peserta</a></li>
+          <li><a href="/guide.html" class="nav-link">Panduan &amp; Rekening</a></li>
+          <li><a href="/kontak.html" class="nav-link active">Kontak</a></li>
+          <li id="auth-buttons-nav" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="/login.html" class="btn btn-sm btn-secondary" id="btn-nav-login">Masuk</a>
+            <a href="/register.html" class="btn btn-sm btn-primary" id="btn-nav-register">Daftar Akun</a>
+          </li>
+          <li id="user-logged-nav" style="display: none;">
+            <a href="/dashboard.html" class="btn btn-sm btn-primary"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <div class="contact-hero">
+    <div style="max-width: 800px; margin: 0 auto; position: relative; z-index: 2;">
+      <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(99, 102, 241, 0.25); border: 1px solid rgba(99, 102, 241, 0.4); color: #c7d2fe; padding: 6px 16px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px;">
+        <i class="fa-solid fa-headset"></i> Pusat Layanan & Narahubung
+      </div>
+      <h1 style="font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 800; margin-bottom: 12px; line-height: 1.2;">
+        Hubungi Panitia & Lokasi Acara
+      </h1>
+      <p style="font-size: 1rem; color: rgba(255, 255, 255, 0.75); line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        Butuh bantuan pendaftaran, teknis lomba, atau informasi rute lokasi? Hubungi narahubung WhatsApp masing-masing cabang lomba di bawah ini.
+      </p>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main style="max-width: 1200px; margin: 0 auto; padding: 48px 24px;">
+
+    <!-- Section: Kontak WhatsApp Per Kategori -->
+    <div style="margin-bottom: 48px;">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <div style="display: inline-flex; align-items: center; gap: 6px; color: var(--primary-600); font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">
+          <i class="fa-brands fa-whatsapp"></i> Narahubung WhatsApp
+        </div>
+        <h2 style="font-size: 1.8rem; color: var(--text-heading); font-weight: 800; margin-bottom: 8px;">
+          Kontak Panitia Per Kategori Lomba
+        </h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">
+          Klik tombol WhatsApp untuk langsung terhubung dengan penanggung jawab lomba.
+        </p>
+      </div>
+
+      <div class="contact-grid">
+        
+        <!-- 1. Kategori Keagamaan & Tahfidz -->
+        <div class="contact-card">
+          <div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+              <div style="width: 46px; height: 46px; border-radius: 12px; background: rgba(16, 185, 129, 0.12); color: #059669; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+                <i class="fa-solid fa-book-quran"></i>
+              </div>
+              <div>
+                <span class="badge badge-success" style="font-size: 0.7rem; font-weight: 700;">KATEGORI 1</span>
+                <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--text-heading); margin: 2px 0 0;">Keagamaan & Tahfidz</h3>
+              </div>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+              Informasi cabang Musabaqah Hifdzil Qur'an (MHQ), Da'i Muda, Kaligrafi, dan CCA Islami.
+            </p>
+            <div style="font-size: 0.825rem; color: var(--text-heading); font-weight: 600;">
+              <i class="fa-solid fa-user-tie" style="color: var(--primary-500); width: 18px;"></i> PIC: Ust. Ahmad Fauzi
+            </div>
+            <div style="font-size: 0.825rem; color: var(--text-muted); margin-top: 2px;">
+              <i class="fa-solid fa-phone" style="color: var(--primary-500); width: 18px;"></i> 0812-3456-7890
+            </div>
+          </div>
+          <a href="https://wa.me/6281234567890?text=Halo%20Panitia%20Maskumambang%20Fest,%20saya%20ingin%20bertanya%20mengenai%20Lomba%20Keagamaan" target="_blank" rel="noopener noreferrer" class="wa-btn">
+            <i class="fa-brands fa-whatsapp"></i> Chat WhatsApp
+          </a>
+        </div>
+
+        <!-- 2. Kategori Sains & Olimpiade -->
+        <div class="contact-card">
+          <div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+              <div style="width: 46px; height: 46px; border-radius: 12px; background: rgba(59, 130, 246, 0.12); color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+                <i class="fa-solid fa-atom"></i>
+              </div>
+              <div>
+                <span class="badge badge-primary" style="font-size: 0.7rem; font-weight: 700;">KATEGORI 2</span>
+                <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--text-heading); margin: 2px 0 0;">Sains & Olimpiade</h3>
+              </div>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+              Informasi teknis Olimpiade Matematika, IPA Terpadu, IPS, dan Lomba Cerdas Cermat Sains.
+            </p>
+            <div style="font-size: 0.825rem; color: var(--text-heading); font-weight: 600;">
+              <i class="fa-solid fa-user-tie" style="color: var(--primary-500); width: 18px;"></i> PIC: Ibu Siti Rahmawati
+            </div>
+            <div style="font-size: 0.825rem; color: var(--text-muted); margin-top: 2px;">
+              <i class="fa-solid fa-phone" style="color: var(--primary-500); width: 18px;"></i> 0813-9876-5432
+            </div>
+          </div>
+          <a href="https://wa.me/6281398765432?text=Halo%20Panitia%20Maskumambang%20Fest,%20saya%20ingin%20bertanya%20mengenai%20Olimpiade%20Sains" target="_blank" rel="noopener noreferrer" class="wa-btn">
+            <i class="fa-brands fa-whatsapp"></i> Chat WhatsApp
+          </a>
+        </div>
+
+        <!-- 3. Kategori Seni & Bahasa -->
+        <div class="contact-card">
+          <div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+              <div style="width: 46px; height: 46px; border-radius: 12px; background: rgba(245, 158, 11, 0.12); color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+                <i class="fa-solid fa-palette"></i>
+              </div>
+              <div>
+                <span class="badge badge-warning" style="font-size: 0.7rem; font-weight: 700;">KATEGORI 3</span>
+                <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--text-heading); margin: 2px 0 0;">Seni, Desain & Bahasa</h3>
+              </div>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+              Informasi lomba Pidato 3 Bahasa (Arab/Inggris/Indo), Storytelling, Desain Poster & Fotografi.
+            </p>
+            <div style="font-size: 0.825rem; color: var(--text-heading); font-weight: 600;">
+              <i class="fa-solid fa-user-tie" style="color: var(--primary-500); width: 18px;"></i> PIC: Bpk. Hendra Pratama
+            </div>
+            <div style="font-size: 0.825rem; color: var(--text-muted); margin-top: 2px;">
+              <i class="fa-solid fa-phone" style="color: var(--primary-500); width: 18px;"></i> 0857-1122-3344
+            </div>
+          </div>
+          <a href="https://wa.me/6285711223344?text=Halo%20Panitia%20Maskumambang%20Fest,%20saya%20ingin%20bertanya%20mengenai%20Lomba%20Seni%20dan%20Bahasa" target="_blank" rel="noopener noreferrer" class="wa-btn">
+            <i class="fa-brands fa-whatsapp"></i> Chat WhatsApp
+          </a>
+        </div>
+
+        <!-- 4. Kategori Olahraga & Ketangkasan -->
+        <div class="contact-card">
+          <div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+              <div style="width: 46px; height: 46px; border-radius: 12px; background: rgba(239, 68, 68, 0.12); color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+                <i class="fa-solid fa-volleyball"></i>
+              </div>
+              <div>
+                <span class="badge badge-danger" style="font-size: 0.7rem; font-weight: 700;">KATEGORI 4</span>
+                <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--text-heading); margin: 2px 0 0;">Olahraga & Ketangkasan</h3>
+              </div>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+              Informasi turnamen Futsal, Bulu Tangkis, Tenis Meja, Catur, dan Panahan Tradisional.
+            </p>
+            <div style="font-size: 0.825rem; color: var(--text-heading); font-weight: 600;">
+              <i class="fa-solid fa-user-tie" style="color: var(--primary-500); width: 18px;"></i> PIC: Ust. Ridwan Malik
+            </div>
+            <div style="font-size: 0.825rem; color: var(--text-muted); margin-top: 2px;">
+              <i class="fa-solid fa-phone" style="color: var(--primary-500); width: 18px;"></i> 0821-5566-7788
+            </div>
+          </div>
+          <a href="https://wa.me/6282155667788?text=Halo%20Panitia%20Maskumambang%20Fest,%20saya%20ingin%20bertanya%20mengenai%20Cabang%20Olahraga" target="_blank" rel="noopener noreferrer" class="wa-btn">
+            <i class="fa-brands fa-whatsapp"></i> Chat WhatsApp
+          </a>
+        </div>
+
+        <!-- 5. Kategori Robotik & Teknologi -->
+        <div class="contact-card">
+          <div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+              <div style="width: 46px; height: 46px; border-radius: 12px; background: rgba(139, 92, 246, 0.12); color: #7c3aed; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+                <i class="fa-solid fa-robot"></i>
+              </div>
+              <div>
+                <span class="badge" style="background: rgba(139, 92, 246, 0.2); color: #7c3aed; font-size: 0.7rem; font-weight: 700;">KATEGORI 5</span>
+                <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--text-heading); margin: 2px 0 0;">Robotik & Teknologi</h3>
+              </div>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+              Informasi teknis Line Follower, Robot Sumo, Pemrograman Animasi Scratch, dan Desain Web.
+            </p>
+            <div style="font-size: 0.825rem; color: var(--text-heading); font-weight: 600;">
+              <i class="fa-solid fa-user-tie" style="color: var(--primary-500); width: 18px;"></i> PIC: Bpk. Dani Kurniawan
+            </div>
+            <div style="font-size: 0.825rem; color: var(--text-muted); margin-top: 2px;">
+              <i class="fa-solid fa-phone" style="color: var(--primary-500); width: 18px;"></i> 0819-4455-6677
+            </div>
+          </div>
+          <a href="https://wa.me/6281944556677?text=Halo%20Panitia%20Maskumambang%20Fest,%20saya%20ingin%20bertanya%20mengenai%20Lomba%20Robotik" target="_blank" rel="noopener noreferrer" class="wa-btn">
+            <i class="fa-brands fa-whatsapp"></i> Chat WhatsApp
+          </a>
+        </div>
+
+        <!-- 6. Helpdesk & Sekretariat Umum -->
+        <div class="contact-card" style="border: 2px solid var(--primary-400); background: linear-gradient(180deg, var(--bg-card) 0%, rgba(99, 102, 241, 0.04) 100%);">
+          <div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+              <div style="width: 46px; height: 46px; border-radius: 12px; background: var(--primary-600); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+                <i class="fa-solid fa-building-columns"></i>
+              </div>
+              <div>
+                <span class="badge badge-primary" style="font-size: 0.7rem; font-weight: 700;">PUSAT BANTUAN</span>
+                <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--text-heading); margin: 2px 0 0;">Sekretariat Panitia</h3>
+              </div>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+              Bantuan pendaftaran akun, konfirmasi pembayaran, cetak kartu, dan informasi umum kegiatan.
+            </p>
+            <div style="font-size: 0.825rem; color: var(--text-heading); font-weight: 600;">
+              <i class="fa-solid fa-envelope" style="color: var(--primary-500); width: 18px;"></i> panitia@maskumambang.ac.id
+            </div>
+            <div style="font-size: 0.825rem; color: var(--text-muted); margin-top: 2px;">
+              <i class="fa-solid fa-phone" style="color: var(--primary-500); width: 18px;"></i> (031) 3948011
+            </div>
+          </div>
+          <a href="https://wa.me/6281299887766?text=Halo%20Admin%20Maskumambang%20Fest,%20saya%20memerlukan%20bantuan%20pendaftaran" target="_blank" rel="noopener noreferrer" class="wa-btn" style="background: var(--primary-600); box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+            <i class="fa-brands fa-whatsapp"></i> Hubungi Sekretariat
+          </a>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Section: Lokasi Acara & Google Maps -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 20px; padding: 32px; box-shadow: var(--shadow-sm);">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 32px; align-items: center;">
+        
+        <div>
+          <div style="display: inline-flex; align-items: center; gap: 6px; color: var(--primary-600); font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
+            <i class="fa-solid fa-location-dot"></i> Venue & Lokasi
+          </div>
+          <h2 style="font-size: 1.7rem; color: var(--text-heading); font-weight: 800; margin-bottom: 12px; line-height: 1.25;">
+            Pondok Pesantren Maskumambang
+          </h2>
+          <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 20px;">
+            Kompleks Kampus Pondok Pesantren Maskumambang, Jl. Raya Sembungan Kidul, Dukun, Kabupaten Gresik, Jawa Timur 61155.
+          </p>
+
+          <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--bg-body); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--primary-600); flex-shrink: 0;">
+                <i class="fa-solid fa-clock"></i>
+              </div>
+              <div>
+                <div style="font-weight: 700; font-size: 0.85rem; color: var(--text-heading);">Jam Layanan Sekretariat</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Senin &ndash; Ahad: 08.00 &ndash; 16.00 WIB</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--bg-body); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--primary-600); flex-shrink: 0;">
+                <i class="fa-solid fa-globe"></i>
+              </div>
+              <div>
+                <div style="font-weight: 700; font-size: 0.85rem; color: var(--text-heading);">Website Resmi</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);"><a href="https://www.maskumambang.ac.id" target="_blank" style="color: var(--primary-600); font-weight: 600; text-decoration: none;">www.maskumambang.ac.id</a></div>
+              </div>
+            </div>
+          </div>
+
+          <a href="https://maps.google.com/?q=Pondok+Pesantren+Maskumambang+Dukun+Gresik" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="padding: 12px 24px; font-weight: 700;">
+            <i class="fa-solid fa-diamond-turn-right"></i> Buka Rute di Google Maps
+          </a>
+        </div>
+
+        <!-- Maps Embed -->
+        <div>
+          <div class="maps-container">
+            <iframe 
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3959.8877114170365!2d112.5186088749974!3d-7.02246799297926!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e77e780775d7fc7%3A0x959779ae243fc471!2sPondok%20Pesantren%20Maskumambang%20Dukun%20Gresik!5e0!3m2!1sid!2sid!4v1700000000000!5m2!1sid!2sid"
+              allowfullscreen="" 
+              loading="lazy" 
+              referrerpolicy="no-referrer-when-downgrade"
+              title="Peta Lokasi Pondok Pesantren Maskumambang">
+            </iframe>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="public-footer">
+    <div class="footer-container">
+      <div class="footer-bottom" style="text-align: center; padding-top: 20px; font-size: 0.85rem; color: var(--text-dim);">
+        &copy; 2026 MASKUMAMBANG CREATIVE CENTER. Hak Cipta Dilindungi.
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/app.js?v=20260829_02"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      loadBrandingInfo();
+      checkAuthStatus();
+    });
+
+    function checkAuthStatus() {
+      if (state.user) {
+        const authNav = document.getElementById('auth-buttons-nav');
+        const userNav = document.getElementById('user-logged-nav');
+        if (authNav) authNav.style.display = 'none';
+        if (userNav) userNav.style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>

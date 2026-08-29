@@ -20,6 +20,22 @@ export class UpdateSettingsDto {
   @IsString()
   @IsOptional()
   application_favicon?: string;
+
+  @IsString()
+  @IsOptional()
+  countdown_enabled?: string;
+
+  @IsString()
+  @IsOptional()
+  countdown_title?: string;
+
+  @IsString()
+  @IsOptional()
+  countdown_target_date?: string;
+
+  @IsString()
+  @IsOptional()
+  countdown_ended_text?: string;
 }
 
 export class ResetOperationalDataDto {

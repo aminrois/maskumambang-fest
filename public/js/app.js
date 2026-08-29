@@ -581,6 +581,7 @@ function buildRoleSidebar(role) {
       <a href="#users" id="nav-users" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-users-gear"></i></span><span class="nav-label">Pengguna</span></a>
       <a href="#payment-accounts" id="nav-payment-accounts" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-building-columns"></i></span><span class="nav-label">Rekening Pembayaran</span></a>
       <a href="#branding-settings" id="nav-branding-settings" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-sliders"></i></span><span class="nav-label">Identitas Aplikasi</span></a>
+      <a href="#countdown-settings" id="nav-countdown-settings" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-stopwatch"></i></span><span class="nav-label">Pengaturan Countdown</span></a>
 
       <div class="nav-section-title">LOG & AKUN</div>
       <a href="#audit-logs" id="nav-audit-logs" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-scroll"></i></span><span class="nav-label">Audit Log</span></a>
@@ -681,6 +682,7 @@ function handleDashboardRoute() {
     else if (mainRoute === 'users') renderAdminUsersView();
     else if (mainRoute === 'payment-accounts') renderAdminPaymentAccountsView();
     else if (mainRoute === 'branding-settings') renderAdminBrandingView();
+    else if (mainRoute === 'countdown-settings') renderAdminCountdownView();
     else if (mainRoute === 'audit-logs') renderAdminAuditLogsView();
     else if (mainRoute === 'reset-operasional') renderAdminResetOperasionalView();
     else if (mainRoute === 'detail') renderPesertaRegistrationDetail(param);
@@ -4237,6 +4239,181 @@ async function handleBrandingSave(e) {
   }
 }
 
+// --- PENGATURAN COUNTDOWN HOMEPAGE ---
+async function renderAdminCountdownView() {
+  const container = document.getElementById('main-view-slot');
+  const s = state.settings || {};
+
+  const isEnabled = s.countdown_enabled !== 'false';
+  const targetDate = s.countdown_target_date || '2026-10-15T23:59';
+  const dtVal = targetDate.slice(0, 16);
+
+  container.innerHTML = `
+    <div style="max-width: 760px; margin: 0 auto;">
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Pengaturan Countdown Homepage</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Atur judul, tanggal dan jam target hitung mundur yang tampil di banner utama homepage.</p>
+      </div>
+
+      <div id="countdown-save-alert" style="display: none; padding: 12px; border-radius: 8px; margin-bottom: 20px;"></div>
+
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 26px; box-shadow: var(--shadow-sm);">
+        <form onsubmit="handleCountdownSave(event)">
+          
+          <div class="form-group" style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: var(--bg-body); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+            <div>
+              <label for="cd-enabled-switch" style="font-weight: 700; font-size: 0.95rem; color: var(--text-heading); cursor: pointer; display: block;">Status Countdown</label>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Aktifkan untuk menampilkan widget hitung mundur di homepage</div>
+            </div>
+            <input type="checkbox" id="cd-enabled-switch" ${isEnabled ? 'checked' : ''} style="width: 22px; height: 22px; cursor: pointer; accent-color: var(--primary-600);">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 18px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Judul / Label Countdown</label>
+            <input type="text" id="cd-title-input" class="form-control" value="${s.countdown_title || 'HITUNG MUNDUR PENUTUPAN PENDAFTARAN'}" required placeholder="Contoh: HITUNG MUNDUR PENUTUPAN PENDAFTARAN" style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 18px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Tanggal &amp; Waktu Target</label>
+            <input type="datetime-local" id="cd-target-date-input" class="form-control" value="${dtVal}" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+            <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 5px;">Pilih batas waktu penutupan atau waktu pelaksanaan acara.</div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 24px;">
+            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Pesan Saat Waktu Berakhir</label>
+            <input type="text" id="cd-ended-text-input" class="form-control" value="${s.countdown_ended_text || 'Pendaftaran Resmi Ditutup'}" required placeholder="Contoh: Pendaftaran Resmi Ditutup" style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          </div>
+
+          <!-- Preview Info Box -->
+          <div style="margin-bottom: 24px; padding: 16px; background: rgba(99, 102, 241, 0.06); border: 1px dashed var(--border-subtle); border-radius: 12px;">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary-600); text-transform: uppercase; margin-bottom: 6px;"><i class="fa-solid fa-arrows-rotate"></i> Sinkronisasi Otomatis</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+              Perubahan tanggal dan jam akan langsung aktif di widget hitung mundur halaman depan (homepage).
+            </div>
+          </div>
+
+          <button type="submit" id="cd-save-btn" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">
+            <i class="fa-solid fa-check"></i> Simpan Pengaturan Countdown
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function handleCountdownSave(e) {
+  e.preventDefault();
+  const btn = document.getElementById('cd-save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...';
+
+  try {
+    const isEnabled = document.getElementById('cd-enabled-switch').checked;
+    const titleVal = document.getElementById('cd-title-input').value.trim();
+    const targetDateVal = document.getElementById('cd-target-date-input').value;
+    const endedTextVal = document.getElementById('cd-ended-text-input').value.trim();
+
+    const res = await apiRequest('/api/settings', {
+      method: 'POST',
+      body: {
+        countdown_enabled: isEnabled ? 'true' : 'false',
+        countdown_title: titleVal,
+        countdown_target_date: targetDateVal,
+        countdown_ended_text: endedTextVal,
+      },
+    });
+
+    if (res.success) {
+      state.settings = res.data;
+      showBannerAlert('countdown-save-alert', 'Pengaturan countdown berhasil disimpan dan diperbarui.', 'success');
+    }
+  } catch (err) {
+    showBannerAlert('countdown-save-alert', err.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Simpan Pengaturan Countdown';
+  }
+}
+
+// --- HOMEPAGE LIVE COUNTDOWN TIMER ENGINE ---
+let countdownTimerInterval = null;
+
+async function initHomepageCountdown() {
+  const box = document.getElementById('hero-countdown-box');
+  if (!box) return;
+
+  try {
+    let settings = state.settings;
+    if (!settings || !settings.countdown_target_date) {
+      const res = await apiRequest('/api/settings');
+      if (res.success && res.data) {
+        state.settings = res.data;
+        settings = res.data;
+      }
+    }
+
+    if (settings && settings.countdown_enabled === 'false') {
+      box.style.display = 'none';
+      return;
+    }
+
+    const titleTextEl = document.getElementById('countdown-title-text');
+    if (titleTextEl && settings && settings.countdown_title) {
+      titleTextEl.textContent = settings.countdown_title;
+    }
+
+    const targetDateStr = (settings && settings.countdown_target_date) ? settings.countdown_target_date : '2026-10-15T23:59:00';
+    const targetTime = new Date(targetDateStr).getTime();
+
+    if (isNaN(targetTime)) {
+      console.warn('Invalid countdown target date:', targetDateStr);
+      return;
+    }
+
+    const gridEl = document.getElementById('countdown-timer-grid');
+    const expiredEl = document.getElementById('countdown-expired-msg');
+    const dEl = document.getElementById('cd-days');
+    const hEl = document.getElementById('cd-hours');
+    const mEl = document.getElementById('cd-minutes');
+    const sEl = document.getElementById('cd-seconds');
+
+    function updateCountdown() {
+      const now = new Date().getTime();
+      const diff = targetTime - now;
+
+      if (diff <= 0) {
+        if (gridEl) gridEl.style.display = 'none';
+        if (expiredEl) {
+          expiredEl.style.display = 'block';
+          expiredEl.textContent = (settings && settings.countdown_ended_text) ? settings.countdown_ended_text : 'Pendaftaran Resmi Ditutup';
+        }
+        if (countdownTimerInterval) clearInterval(countdownTimerInterval);
+        return;
+      }
+
+      if (gridEl) gridEl.style.display = 'grid';
+      if (expiredEl) expiredEl.style.display = 'none';
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (dEl) dEl.textContent = String(days).padStart(2, '0');
+      if (hEl) hEl.textContent = String(hours).padStart(2, '0');
+      if (mEl) mEl.textContent = String(minutes).padStart(2, '0');
+      if (sEl) sEl.textContent = String(seconds).padStart(2, '0');
+    }
+
+    updateCountdown();
+    if (countdownTimerInterval) clearInterval(countdownTimerInterval);
+    countdownTimerInterval = setInterval(updateCountdown, 1000);
+
+  } catch (err) {
+    console.error('Countdown init error:', err);
+  }
+}
+
 // --- AUDIT LOGS (UNIVERSAL TABLE) ---
 async function renderAdminAuditLogsView() {
   const container = document.getElementById('main-view-slot');
@@ -5012,6 +5189,9 @@ window.toggleAccountStatus = toggleAccountStatus;
 // Super Admin settings & security handlers
 window.handleBrandingSave = handleBrandingSave;
 window.previewBrandingFile = previewBrandingFile;
+window.renderAdminCountdownView = renderAdminCountdownView;
+window.handleCountdownSave = handleCountdownSave;
+window.initHomepageCountdown = initHomepageCountdown;
 window.handleOperationalResetSubmit = handleOperationalResetSubmit;
 window.handlePasswordChangeSubmit = handlePasswordChangeSubmit;
 

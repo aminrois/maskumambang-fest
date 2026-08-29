@@ -302,37 +302,93 @@
       transform: translateY(-3px);
     }
 
-    /* Hero Stats Row */
-    .hero-stats {
+    /* Live Hero Countdown Box */
+    .hero-countdown-box {
+      max-width: 580px;
+      margin: 0 auto;
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 22px 24px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(99, 102, 241, 0.2);
+      animation: fadeSlideUp 0.95s ease both;
+      animation-delay: 0.5s;
+    }
+
+    .countdown-header {
       display: flex;
+      align-items: center;
       justify-content: center;
-      gap: 0;
-      flex-wrap: wrap;
-    }
-
-    .hero-stat-item {
-      padding: 0 32px;
-      border-right: 1px solid rgba(255, 255, 255, 0.1);
-      text-align: center;
-    }
-
-    .hero-stat-item:last-child {
-      border-right: none;
-    }
-
-    .hero-stat-num {
-      font-size: 2rem;
+      gap: 8px;
+      margin-bottom: 16px;
+      font-size: 0.8rem;
       font-weight: 800;
-      color: #fff;
-      display: block;
+      color: #cbd5e1;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
     }
 
-    .hero-stat-label {
-      font-size: 0.78rem;
-      color: rgba(255, 255, 255, 0.5);
-      text-transform: uppercase;
+    .countdown-icon {
+      color: #f59e0b;
+      animation: spinHourglass 4s ease-in-out infinite;
+    }
+
+    @keyframes spinHourglass {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(180deg); }
+    }
+
+    .countdown-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .countdown-card {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 12px 6px;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .countdown-card:hover {
+      background: rgba(255, 255, 255, 0.14);
+      transform: translateY(-2px);
+    }
+
+    .countdown-value {
+      font-size: clamp(1.5rem, 3.5vw, 2.3rem);
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      text-shadow: 0 2px 10px rgba(99, 102, 241, 0.5);
+    }
+
+    .countdown-label {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: #94a3b8;
       letter-spacing: 1px;
-      font-weight: 600;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 480px) {
+      .hero-countdown-box {
+        padding: 16px 14px;
+      }
+      .countdown-grid {
+        gap: 8px;
+      }
+      .countdown-card {
+        padding: 10px 4px;
+      }
     }
 
     /* Wave separator */
@@ -742,6 +798,7 @@
           <li><a href="/" class="nav-link active">Beranda</a></li>
           <li><a href="/cek-peserta.html" class="nav-link">Cek Peserta</a></li>
           <li><a href="/guide.html" class="nav-link">Panduan &amp; Rekening</a></li>
+          <li><a href="/kontak.html" class="nav-link">Kontak</a></li>
           <li id="auth-buttons-nav" style="display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="/login.html" class="btn btn-sm btn-secondary" id="btn-nav-login">Masuk</a>
             <a href="/register.html" class="btn btn-sm btn-primary" id="btn-nav-register">Daftar Akun</a>
@@ -795,23 +852,32 @@
         </a>
       </div>
 
-      <!-- Stats -->
-      <div class="hero-stats" id="hero-stats">
-        <div class="hero-stat-item">
-          <span class="hero-stat-num" id="stat-branches">—</span>
-          <span class="hero-stat-label">Cabang Lomba</span>
+      <!-- Live Countdown Widget -->
+      <div class="hero-countdown-box" id="hero-countdown-box">
+        <div class="countdown-header">
+          <i class="fa-solid fa-hourglass-half countdown-icon"></i>
+          <span id="countdown-title-text">HITUNG MUNDUR PENUTUPAN PENDAFTARAN</span>
         </div>
-        <div class="hero-stat-item">
-          <span class="hero-stat-num" id="stat-categories">5</span>
-          <span class="hero-stat-label">Kategori</span>
+        <div class="countdown-grid" id="countdown-timer-grid">
+          <div class="countdown-card">
+            <div class="countdown-value" id="cd-days">00</div>
+            <div class="countdown-label">HARI</div>
+          </div>
+          <div class="countdown-card">
+            <div class="countdown-value" id="cd-hours">00</div>
+            <div class="countdown-label">JAM</div>
+          </div>
+          <div class="countdown-card">
+            <div class="countdown-value" id="cd-minutes">00</div>
+            <div class="countdown-label">MENIT</div>
+          </div>
+          <div class="countdown-card">
+            <div class="countdown-value" id="cd-seconds">00</div>
+            <div class="countdown-label">DETIK</div>
+          </div>
         </div>
-        <div class="hero-stat-item">
-          <span class="hero-stat-num">2026</span>
-          <span class="hero-stat-label">Tahun Pelaksanaan</span>
-        </div>
-        <div class="hero-stat-item">
-          <span class="hero-stat-num">🏆</span>
-          <span class="hero-stat-label">Nasional</span>
+        <div id="countdown-expired-msg" style="display: none; padding: 10px; font-size: 1.1rem; font-weight: 800; color: #fca5a5; text-align: center;">
+          Pendaftaran Resmi Ditutup
         </div>
       </div>
     </div>
@@ -903,15 +969,18 @@
     </div>
   </footer>
 
-  <script src="/js/app.js?v=20260829_01"></script>
+  <script src="/js/app.js?v=20260829_02"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       initTheme();
       loadBrandingInfo();
+      initHomepageCountdown();
 
-      if (state.token && state.user) {
-        document.getElementById('auth-buttons-nav').style.display = 'none';
-        document.getElementById('user-logged-nav').style.display = 'block';
+      if (state.user) {
+        const authNav = document.getElementById('auth-buttons-nav');
+        const userNav = document.getElementById('user-logged-nav');
+        if (authNav) authNav.style.display = 'none';
+        if (userNav) userNav.style.display = 'block';
       }
 
       // Category icon map by slug
