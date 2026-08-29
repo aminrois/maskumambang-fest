@@ -948,7 +948,7 @@ function renderPesertaRegistrationWizard() {
           </h3>
 
           <div style="background: var(--bg-body); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; margin-bottom: 20px;">
-            <div style="font-size: 0.85rem; color: var(--text-muted);">Biaya Pendaftaran: <strong style="color: var(--primary-600); font-size: 1.2rem; margin-left: 6px;">Rp 150.000</strong></div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Biaya Pendaftaran: <strong id="wiz-pay-fee-label" style="color: var(--primary-600); font-size: 1.2rem; margin-left: 6px;">Rp 0</strong></div>
             <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">Silakan transfer ke salah satu rekening resmi panitia di bawah ini:</div>
           </div>
 
@@ -1080,6 +1080,8 @@ function onWizardBranchSelect() {
 
   if (!branch) return;
 
+  const branchFeeFormatted = formatCurrency(Number(branch.registrationFee) || 0);
+
   partSec.style.display = 'block';
   paySec.style.display = 'block';
   submitBtn.disabled = false;
@@ -1094,10 +1096,15 @@ function onWizardBranchSelect() {
       </div>
       <div>
         <span style="font-size: 0.8rem; color: var(--text-dim);">Biaya:</span>
-        <strong style="color: var(--primary-600); font-size: 1.15rem; margin-left: 4px;">Rp 150.000</strong>
+        <strong style="color: var(--primary-600); font-size: 1.15rem; margin-left: 4px;">${branchFeeFormatted}</strong>
       </div>
     </div>
   `;
+
+  const payFeeLabel = document.getElementById('wiz-pay-fee-label');
+  if (payFeeLabel) {
+    payFeeLabel.textContent = branchFeeFormatted;
+  }
 
   if (branch.participantType === 'INDIVIDUAL') {
     partFields.innerHTML = `
