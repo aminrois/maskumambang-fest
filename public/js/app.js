@@ -2616,20 +2616,38 @@ function renderAdminRegistrationsTable() {
 
 function exportAdminRegistrationsExcel() {
   const data = tableState.adminRegistrations.data || [];
+  if (!data || !data.length) {
+    alert('Tidak ada data peserta untuk diekspor.');
+    return;
+  }
+
   const cols = [
+    { header: 'No.', exportValue: (r, idx) => idx + 1 },
     { header: 'No. Registrasi', key: 'registrationNumber' },
-    { header: 'Nama Peserta / Tim', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.fullName : r.team?.teamName) || '-' },
-    { header: 'Asal Sekolah', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '-' },
-    { header: 'Kategori Lomba', exportValue: r => r.branch?.level?.category?.name || '-' },
-    { header: 'Jenjang', exportValue: r => r.branch?.level?.name || '-' },
-    { header: 'Cabang Lomba', exportValue: r => r.branch?.name || '-' },
-    { header: 'Tipe Kepesertaan', exportValue: r => r.branch?.participantType || '-' },
-    { header: 'Biaya Pendaftaran', exportValue: r => formatCurrency(r.branch?.registrationFee || 0) },
+    { header: 'Tanggal Daftar', exportValue: r => formatDate(r.createdAt) },
     { header: 'Status Pembayaran', key: 'status' },
-    { header: 'Status Check-In', exportValue: r => r.checkIn ? 'SUDAH CHECK-IN' : 'BELUM CHECK-IN' },
-    { header: 'Tanggal Pendaftaran', exportValue: r => formatDate(r.createdAt) },
+    { header: 'Kategori Lomba', exportValue: r => r.branch?.level?.category?.name || '-' },
+    { header: 'Jenjang Lomba', exportValue: r => r.branch?.level?.name || '-' },
+    { header: 'Cabang Lomba', exportValue: r => r.branch?.name || '-' },
+    { header: 'Tipe Kepesertaan', exportValue: r => (r.branch?.participantType === 'TEAM' ? 'BEREGU / TIM' : 'PERORANGAN') },
+    { header: 'Biaya Pendaftaran (Rp)', exportValue: r => r.branch?.registrationFee ? formatCurrency(r.branch.registrationFee) : 'Rp 0' },
+    { header: 'Nama Peserta / Tim', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.fullName : r.team?.teamName) || '-' },
+    { header: 'Jenis Kelamin (Perorangan)', exportValue: r => r.individualParticipant?.gender || '-' },
+    { header: 'Kelas / Jenjang (Perorangan)', exportValue: r => r.individualParticipant?.gradeClass || '-' },
+    { header: 'No. WhatsApp Peserta', exportValue: r => r.individualParticipant?.whatsappNumber || '-' },
+    { header: 'Asal Sekolah', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '-' },
+    { header: 'Alamat Sekolah', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolAddress : r.team?.schoolAddress) || '-' },
+    { header: 'Nama Guru Pembimbing', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.mentorName : r.team?.mentorName) || '-' },
+    { header: 'Ketua Tim (Beregu)', exportValue: r => r.team?.leaderName || '-' },
+    { header: 'Jumlah Anggota Tim', exportValue: r => (r.team?.members ? r.team.members.length : '-') },
+    { header: 'Daftar Anggota Tim', exportValue: r => (r.team?.members && r.team.members.length > 0 ? r.team.members.map((m, i) => `${i + 1}. ${m.memberName}`).join('; ') : '-') },
+    { header: 'Nama Akun Pendaftar', exportValue: r => r.user?.name || '-' },
+    { header: 'Email Akun Pendaftar', exportValue: r => r.user?.email || '-' },
+    { header: 'No. HP Akun Pendaftar', exportValue: r => r.user?.phoneNumber || '-' },
+    { header: 'Check-In Tahap 1 (Kedatangan)', exportValue: r => (r.checkIn?.stage1CheckedIn ? `SUDAH (${formatDate(r.checkIn.stage1CheckedInAt)})` : 'BELUM') },
+    { header: 'Check-In Tahap 2 (Masuk Arena)', exportValue: r => (r.checkIn?.stage2CheckedIn ? `SUDAH (${formatDate(r.checkIn.stage2CheckedInAt)})` : 'BELUM') },
   ];
-  exportTableDataToExcel('data_seluruh_peserta_lomba', cols, data);
+  exportTableDataToExcel('data_lengkap_seluruh_peserta_lomba', cols, data);
 }
 
 function onAdminRegPageChange(p) { tableState.adminRegistrations.page = p; updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable); }

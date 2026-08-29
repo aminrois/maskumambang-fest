@@ -863,9 +863,22 @@ button, input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   appearance: none;
 }
 
-input[type="checkbox"], input[type="radio"] {
-  -webkit-appearance: auto !important;
-  appearance: auto !important;
+input[type="checkbox"] {
+  -webkit-appearance: checkbox !important;
+  appearance: checkbox !important;
+  accent-color: var(--primary-600);
+  cursor: pointer;
+  display: inline-block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+}
+
+input[type="radio"] {
+  -webkit-appearance: radio !important;
+  appearance: radio !important;
   accent-color: var(--primary-600);
   cursor: pointer;
   display: inline-block !important;
