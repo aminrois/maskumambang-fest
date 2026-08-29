@@ -17,7 +17,7 @@ let CompetitionsService = class CompetitionsService {
         this.prisma = prisma;
     }
     async getTree() {
-        return this.prisma.competitionCategory.findMany({
+        const categories = await this.prisma.competitionCategory.findMany({
             where: { isActive: true },
             include: {
                 levels: {
@@ -29,6 +29,10 @@ let CompetitionsService = class CompetitionsService {
                                 _count: {
                                     select: { registrations: true },
                                 },
+                                registrations: {
+                                    where: { status: 'APPROVED' },
+                                    select: { id: true },
+                                },
                             },
                         },
                     },
@@ -37,6 +41,17 @@ let CompetitionsService = class CompetitionsService {
             },
             orderBy: { name: 'asc' },
         });
+        return categories.map(cat => ({
+            ...cat,
+            levels: cat.levels.map(lvl => ({
+                ...lvl,
+                branches: lvl.branches.map(b => ({
+                    ...b,
+                    verifiedCount: b.registrations ? b.registrations.length : 0,
+                    registrations: undefined,
+                })),
+            })),
+        }));
     }
     async getBranchDetail(id) {
         const branch = await this.prisma.competitionBranch.findUnique({

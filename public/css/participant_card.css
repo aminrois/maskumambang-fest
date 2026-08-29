@@ -11,7 +11,9 @@
 /* On-screen preview: scale-down to fit nicely */
 .id-card-official {
   width: 378px;  /* 10cm @ 96dpi */
-  min-height: 529px; /* 14cm @ 96dpi */
+  height: 529px; /* 14cm @ 96dpi */
+  max-width: 378px;
+  max-height: 529px;
   background: #ffffff;
   border-radius: 1rem;
   border: 2px solid #0f172a;
@@ -22,6 +24,11 @@
   color: #0f172a;
   display: flex;
   flex-direction: column;
+  text-transform: uppercase;
+}
+
+.id-card-official * {
+  text-transform: uppercase;
 }
 
 /* Card Header Banner */

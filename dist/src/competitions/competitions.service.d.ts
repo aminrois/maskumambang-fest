@@ -3,13 +3,14 @@ import { CreateCategoryDto, UpdateCategoryDto, CreateLevelDto, UpdateLevelDto, C
 export declare class CompetitionsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    getTree(): Promise<({
-        levels: ({
-            branches: ({
+    getTree(): Promise<{
+        levels: {
+            branches: {
+                verifiedCount: number;
+                registrations: undefined;
                 _count: {
                     registrations: number;
                 };
-            } & {
                 id: string;
                 name: string;
                 isActive: boolean;
@@ -23,22 +24,20 @@ export declare class CompetitionsService {
                 maxTeamMembers: number | null;
                 juknisUrl: string | null;
                 maxRegistrants: number | null;
-            })[];
-        } & {
+            }[];
             id: string;
             name: string;
             createdAt: Date;
             slug: string;
             categoryId: string;
-        })[];
-    } & {
+        }[];
         id: string;
         name: string;
         isActive: boolean;
         createdAt: Date;
         slug: string;
         description: string | null;
-    })[]>;
+    }[]>;
     getBranchDetail(id: string): Promise<{
         level: {
             category: {

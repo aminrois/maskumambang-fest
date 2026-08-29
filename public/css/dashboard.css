@@ -995,11 +995,21 @@
   .topbar-right > * + * { margin-left: 0.75rem; }
 }
 
-/* Fix: Safari button/input font inheritance */
-button, input, select, textarea {
+/* Fix: Safari button/input font inheritance (exclude checkbox & radio so they stay visible) */
+button, input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   font-family: var(--font-primary);
   -webkit-appearance: none;
   appearance: none;
+}
+
+input[type="checkbox"], input[type="radio"] {
+  -webkit-appearance: auto !important;
+  appearance: auto !important;
+  accent-color: var(--primary-600);
+  cursor: pointer;
+  display: inline-block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 /* Fix: Safari table layout */
