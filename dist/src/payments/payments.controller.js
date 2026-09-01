@@ -41,6 +41,21 @@ let PaymentsController = class PaymentsController {
         const updated = await this.paymentsService.updateAccount(id, dto);
         return { success: true, message: 'Rekening pembayaran berhasil diperbarui.', data: updated };
     }
+    async uploadQrisImage(accountId, file) {
+        if (!file || !file.buffer) {
+            throw new common_1.BadRequestException('File gambar QRIS (qris_image) wajib diunggah.');
+        }
+        const result = await this.paymentsService.uploadQrisImage(accountId, file.buffer, file.originalname);
+        return { success: true, message: 'Gambar QRIS berhasil diunggah.', data: result };
+    }
+    async deleteQrisImage(accountId) {
+        await this.paymentsService.deleteQrisImage(accountId);
+        return { success: true, message: 'Gambar QRIS berhasil dihapus.' };
+    }
+    async serveQrisImage(filename, res) {
+        const { filePath } = await this.paymentsService.getQrisImageFile(filename);
+        return res.sendFile(filePath);
+    }
     async deleteAccount(id) {
         const deleted = await this.paymentsService.deleteAccount(id);
         return { success: true, message: 'Rekening pembayaran berhasil dihapus.', data: deleted };
@@ -132,6 +147,33 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "updateAccount", null);
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.SUPER_ADMIN),
+    (0, common_1.Post)('accounts/:id/qris'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('qris_image')),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], PaymentsController.prototype, "uploadQrisImage", null);
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.SUPER_ADMIN),
+    (0, common_1.Delete)('accounts/:id/qris'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], PaymentsController.prototype, "deleteQrisImage", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('accounts/qris/:filename'),
+    __param(0, (0, common_1.Param)('filename')),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], PaymentsController.prototype, "serveQrisImage", null);
 __decorate([
     (0, roles_decorator_1.Roles)(client_1.Role.SUPER_ADMIN),
     (0, common_1.Delete)('accounts/:id'),

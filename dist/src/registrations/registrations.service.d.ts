@@ -26,6 +26,7 @@ export declare class RegistrationsService {
                 bankName: string;
                 accountNumber: string;
                 accountHolder: string;
+                qrisImagePath: string | null;
             } | null;
             verificationLogs: ({
                 verifiedBy: {
@@ -163,6 +164,7 @@ export declare class RegistrationsService {
                 bankName: string;
                 accountNumber: string;
                 accountHolder: string;
+                qrisImagePath: string | null;
             } | null;
             verificationLogs: ({
                 verifiedBy: {
@@ -294,6 +296,7 @@ export declare class RegistrationsService {
                 bankName: string;
                 accountNumber: string;
                 accountHolder: string;
+                qrisImagePath: string | null;
             } | null;
             verificationLogs: {
                 id: string;
@@ -425,6 +428,7 @@ export declare class RegistrationsService {
                 bankName: string;
                 accountNumber: string;
                 accountHolder: string;
+                qrisImagePath: string | null;
             } | null;
             verificationLogs: ({
                 verifiedBy: {

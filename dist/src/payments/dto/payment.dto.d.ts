@@ -21,9 +21,11 @@ export declare class CreatePaymentAccountDto {
     bankName: string;
     accountNumber: string;
     accountHolder: string;
+    qrisImagePath?: string;
 }
 export declare class UpdatePaymentAccountDto {
     bankName?: string;
     accountNumber?: string;
     accountHolder?: string;
+    qrisImagePath?: string;
 }

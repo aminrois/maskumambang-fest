@@ -141,7 +141,7 @@
     </div>
   </footer>
 
-  <script src="/js/app.js?v=20260829_02"></script>
+  <script src="/js/app.js?v=20260901_qris_fixed"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       initTheme();
@@ -158,17 +158,25 @@
         if (res.success && res.data) {
           const container = document.getElementById('accounts-grid');
           container.innerHTML = res.data.map(acc => `
-            <div class="card" style="background: var(--bg-card); border: 2px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <span class="badge badge-primary" style="font-size: 0.75rem;">${acc.bankName}</span>
-                <i class="fa-solid fa-building-columns" style="color: var(--primary-600); font-size: 1.2rem;"></i>
+            <div class="card" style="background: var(--bg-card); border: 2px solid var(--border-subtle); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); display: flex; flex-direction: column;">
+              ${acc.qrisImagePath ? `
+                <div style="background: #fff; padding: 16px; text-align: center; border-bottom: 1px solid var(--border-subtle); position: relative;">
+                  <img src="/api/payments/accounts/qris/${acc.qrisImagePath}" alt="QRIS ${acc.bankName}" style="max-height: 180px; max-width: 100%; object-fit: contain;" onerror="this.parentElement.style.display='none'">
+                  <span style="position: absolute; top: 8px; right: 8px; background: #22c55e; color: #fff; font-size: 0.65rem; font-weight: 800; padding: 2px 8px; border-radius: 20px;">QRIS</span>
+                </div>
+              ` : ''}
+              <div style="padding: 22px; flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <span class="badge badge-primary" style="font-size: 0.75rem;">${acc.bankName}</span>
+                  <i class="fa-solid fa-building-columns" style="color: var(--primary-600); font-size: 1.2rem;"></i>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Nomor Rekening:</div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: var(--primary-600); font-family: monospace; letter-spacing: 0.05em; margin: 4px 0 10px;">
+                  ${acc.accountNumber}
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Atas Nama:</div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-heading);">${acc.accountHolder}</div>
               </div>
-              <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Nomor Rekening:</div>
-              <div style="font-size: 1.25rem; font-weight: 800; color: var(--primary-600); font-family: monospace; letter-spacing: 0.05em; margin: 4px 0 10px;">
-                ${acc.accountNumber}
-              </div>
-              <div style="font-size: 0.8rem; color: var(--text-muted);">Atas Nama:</div>
-              <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-heading);">${acc.accountHolder}</div>
             </div>
           `).join('');
         }

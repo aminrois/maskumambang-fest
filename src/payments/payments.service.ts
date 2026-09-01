@@ -21,6 +21,7 @@ import * as path from 'path';
 @Injectable()
 export class PaymentsService {
   private readonly uploadDir: string;
+  private readonly qrisDir: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -31,6 +32,10 @@ export class PaymentsService {
     this.uploadDir = path.resolve(process.cwd(), baseUpload, 'payment_proofs');
     if (!fs.existsSync(this.uploadDir)) {
       fs.mkdirSync(this.uploadDir, { recursive: true });
+    }
+    this.qrisDir = path.resolve(process.cwd(), baseUpload, 'qris_images');
+    if (!fs.existsSync(this.qrisDir)) {
+      fs.mkdirSync(this.qrisDir, { recursive: true });
     }
   }
 
@@ -55,9 +60,61 @@ export class PaymentsService {
         bankName: dto.bankName.trim(),
         accountNumber: dto.accountNumber.trim(),
         accountHolder: dto.accountHolder.trim(),
+        qrisImagePath: dto.qrisImagePath?.trim() || null,
         isActive: true,
       },
     });
+  }
+
+  async uploadQrisImage(accountId: string, fileBuffer: Buffer, originalFilename?: string): Promise<{ filename: string }> {
+    const account = await this.prisma.paymentAccount.findUnique({ where: { id: accountId } });
+    if (!account) throw new NotFoundException('Rekening pembayaran tidak ditemukan.');
+
+    const validatedFile = FileValidatorUtil.validateImageBuffer(fileBuffer, originalFilename);
+    const diskPath = path.join(this.qrisDir, validatedFile.storageFilename);
+    await fs.promises.writeFile(diskPath, fileBuffer);
+
+    // Hapus file lama jika ada
+    if (account.qrisImagePath) {
+      const oldPath = path.join(this.qrisDir, account.qrisImagePath);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+
+    await this.prisma.paymentAccount.update({
+      where: { id: accountId },
+      data: { qrisImagePath: validatedFile.storageFilename },
+    });
+
+    return { filename: validatedFile.storageFilename };
+  }
+
+  async deleteQrisImage(accountId: string): Promise<void> {
+    const account = await this.prisma.paymentAccount.findUnique({ where: { id: accountId } });
+    if (!account) throw new NotFoundException('Rekening pembayaran tidak ditemukan.');
+    if (!account.qrisImagePath) return;
+
+    const filePath = path.join(this.qrisDir, account.qrisImagePath);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+    await this.prisma.paymentAccount.update({
+      where: { id: accountId },
+      data: { qrisImagePath: null },
+    });
+  }
+
+  async getQrisImageFile(filename: string): Promise<{ filePath: string }> {
+    const sanitized = FileValidatorUtil.sanitizeFilename(filename);
+    const candidatePaths = [
+      path.join(this.qrisDir, sanitized),
+      path.resolve(process.cwd(), 'uploads/qris_images', sanitized),
+      path.resolve(process.cwd(), '../uploads/qris_images', sanitized),
+      path.resolve(process.cwd(), 'uploads', sanitized),
+      path.resolve(process.cwd(), 'public/uploads/qris_images', sanitized),
+    ];
+
+    const filePath = candidatePaths.find((p) => fs.existsSync(p));
+    if (!filePath) throw new NotFoundException('File QRIS tidak ditemukan.');
+    return { filePath };
   }
 
   async updateAccount(id: string, dto: import('./dto/payment.dto').UpdatePaymentAccountDto) {
@@ -72,6 +129,7 @@ export class PaymentsService {
         bankName: dto.bankName?.trim(),
         accountNumber: dto.accountNumber?.trim(),
         accountHolder: dto.accountHolder?.trim(),
+        ...(dto.qrisImagePath !== undefined && { qrisImagePath: dto.qrisImagePath?.trim() || null }),
       },
     });
   }

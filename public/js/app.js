@@ -884,8 +884,15 @@ function onPesertaFilterChange(v) {
 }
 
 // --- FULL-PAGE REGISTRATION WIZARD (NOT POPUP) ---
-function renderPesertaRegistrationWizard() {
+async function renderPesertaRegistrationWizard() {
   const container = document.getElementById('main-view-slot');
+  container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat formulir pendaftaran...</div>';
+
+  try {
+    const accRes = await apiRequest('/api/payments/accounts');
+    if (accRes.success && accRes.data) state.paymentAccounts = accRes.data;
+  } catch (e) {}
+
   container.innerHTML = `
     <div style="max-width: 850px; margin: 0 auto;">
       <div style="margin-bottom: 24px;">
@@ -954,32 +961,79 @@ function renderPesertaRegistrationWizard() {
             <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">Silakan transfer ke salah satu rekening resmi panitia di bawah ini:</div>
           </div>
 
-          <div class="form-group" style="margin-bottom: 16px;">
-            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Rekening Bank Tujuan</label>
-            <select id="wiz-pay-account" class="form-select" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
-              ${state.paymentAccounts.map(acc => `<option value="${acc.id}">${acc.bankName} - ${acc.accountNumber} (a.n. ${acc.accountHolder})</option>`).join('')}
-            </select>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
-            <div class="form-group">
-              <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Bank Pengirim</label>
-              <input type="text" id="wiz-pay-bank" class="form-control" placeholder="Contoh: BCA / Mandiri / BSI" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+          <!-- REKENING BANK TRANSFER -->
+          <div style="margin-bottom: 20px;">
+            <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-building-columns" style="color: var(--primary-500);"></i> Transfer Bank
             </div>
-            <div class="form-group">
-              <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Nama Pemilik Rekening Pengirim</label>
-              <input type="text" id="wiz-pay-sender" class="form-control" placeholder="Nama sesuai buku tabungan" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${state.paymentAccounts.map((acc, idx) => `
+                <label for="wiz-pay-radio-${idx}" style="cursor: pointer;">
+                  <div class="wiz-pay-card" id="wiz-pay-card-${idx}" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 2px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-subtle); transition: border-color 0.15s, background 0.15s;">
+                    <input type="radio" name="wiz-pay-method" id="wiz-pay-radio-${idx}" value="${acc.id}" data-qris="${acc.qrisImagePath || ''}" onchange="onWizPayMethodChange(this, ${idx}, '${acc.qrisImagePath || ''}')" style="accent-color: var(--primary-500); width: 16px; height: 16px; flex-shrink: 0;" ${idx === 0 ? 'checked' : ''}>
+                    <div style="flex: 1; min-width: 0;">
+                      <div style="font-weight: 700; color: var(--text-heading); font-size: 0.9rem;">${acc.bankName}</div>
+                      <div style="font-family: monospace; font-size: 1rem; font-weight: 800; color: var(--primary-600); letter-spacing: 0.04em;">${acc.accountNumber}</div>
+                      <div style="font-size: 0.78rem; color: var(--text-muted);">a.n. ${acc.accountHolder}</div>
+                    </div>
+                    <i class="fa-solid fa-copy" title="Salin nomor rekening" onclick="event.preventDefault(); navigator.clipboard.writeText('${acc.accountNumber}'); this.style.color='var(--success-500)'; setTimeout(()=>this.style.color='',1200);" style="color: var(--text-dim); cursor: pointer; font-size: 0.9rem; flex-shrink: 0;"></i>
+                  </div>
+                </label>
+              `).join('')}
+            </div>
+            <!-- hidden select untuk kompatibilitas submit lama -->
+            <input type="hidden" id="wiz-pay-account" value="${state.paymentAccounts[0]?.id || ''}">
+          </div>
+
+          <!-- QRIS SECTION -->
+          ${state.paymentAccounts.some(a => a.qrisImagePath) ? `
+          <div style="margin-bottom: 20px;">
+            <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-qrcode" style="color: #22c55e;"></i> Bayar via QRIS
+              <span style="font-size: 0.7rem; font-weight: 400; color: var(--text-dim); text-transform: none;">(scan langsung dari HP)</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;">
+              ${state.paymentAccounts.filter(a => a.qrisImagePath).map((acc, qi) => `
+                <div class="wiz-qris-card" id="wiz-qris-card-${qi}" onclick="selectQrisAccount('${acc.id}', ${qi})" style="cursor: pointer; border: 2px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-card); transition: border-color 0.15s, box-shadow 0.15s;">
+                  <div style="background: #fff; padding: 12px; text-align: center;">
+                    <img src="/api/payments/accounts/qris/${acc.qrisImagePath}" alt="QRIS ${acc.bankName}" style="max-height: 160px; max-width: 100%; object-fit: contain;" onerror="this.closest('.wiz-qris-card').style.display='none'">
+                  </div>
+                  <div style="padding: 8px 10px; border-top: 1px solid var(--border-subtle);">
+                    <div style="font-weight: 700; font-size: 0.8rem; color: var(--text-heading);">${acc.bankName}</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted);">a.n. ${acc.accountHolder}</div>
+                    <div id="wiz-qris-check-${qi}" style="display:none; margin-top: 4px; color: #22c55e; font-size: 0.75rem; font-weight: 700;"><i class="fa-solid fa-circle-check"></i> Dipilih</div>
+                  </div>
+                </div>
+              `).join('')}
             </div>
           </div>
+          ` : ''}
 
-          <div class="form-group" style="margin-bottom: 16px;">
-            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Tanggal Transfer</label>
-            <input type="date" id="wiz-pay-date" class="form-control" value="${new Date().toISOString().split('T')[0]}" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
-          </div>
+          <div style="border-top: 1px solid var(--border-subtle); padding-top: 16px; margin-top: 4px;">
+            <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-receipt" style="color: var(--primary-500);"></i> Detail Pembayaran
+            </div>
 
-          <div class="form-group" style="margin-bottom: 16px;">
-            <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">File Bukti Transfer (PNG, JPG, WEBP - Max 5MB)</label>
-            <input type="file" id="wiz-pay-file" class="form-control" accept="image/png, image/jpeg, image/webp" onchange="previewProofImage(this)" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+              <div class="form-group">
+                <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Bank Pengirim <span id="wiz-bank-optional" style="color:var(--text-dim); font-weight:400;">(opsional jika QRIS)</span></label>
+                <input type="text" id="wiz-pay-bank" class="form-control" placeholder="Contoh: BCA / Mandiri / BSI / QRIS" style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Nama Pemilik Rekening Pengirim</label>
+                <input type="text" id="wiz-pay-sender" class="form-control" placeholder="Nama sesuai buku tabungan" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Tanggal Transfer / Pembayaran</label>
+              <input type="date" id="wiz-pay-date" class="form-control" value="${new Date().toISOString().split('T')[0]}" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">File Bukti Transfer / Screenshot QRIS (PNG, JPG, WEBP - Max 5MB)</label>
+              <input type="file" id="wiz-pay-file" class="form-control" accept="image/png, image/jpeg, image/webp" onchange="previewProofImage(this)" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+            </div>
           </div>
 
           <!-- Image Preview Slot -->
@@ -987,6 +1041,7 @@ function renderPesertaRegistrationWizard() {
             <img id="wiz-preview-img" src="" alt="Preview Bukti" style="max-height: 200px; max-width: 100%; object-fit: contain;">
           </div>
         </div>
+
 
         <button type="submit" id="wiz-submit-btn" class="btn btn-primary" style="width: 100%; padding: 14px; font-weight: 700; font-size: 1rem;" disabled>
           <i class="fa-solid fa-check"></i> Simpan Pendaftaran & Unggah Bukti
@@ -1227,6 +1282,69 @@ function addWizTeamMemberRow(maxMembers) {
     </div>
   `;
   container.appendChild(row);
+}
+
+function onWizPayMethodChange(radio, idx, qrisPath) {
+  // Update hidden input
+  const hidden = document.getElementById('wiz-pay-account');
+  if (hidden) hidden.value = radio.value;
+
+  // Highlight selected card, reset others
+  document.querySelectorAll('.wiz-pay-card').forEach((c, i) => {
+    c.style.borderColor = i === idx ? 'var(--primary-500)' : 'var(--border-subtle)';
+    c.style.background = i === idx ? 'var(--bg-highlight, rgba(99,102,241,0.06))' : 'var(--bg-subtle)';
+  });
+
+  // Reset semua QRIS check indicator
+  document.querySelectorAll('[id^="wiz-qris-check-"]').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.wiz-qris-card').forEach(el => {
+    el.style.borderColor = 'var(--border-subtle)';
+    el.style.boxShadow = 'none';
+  });
+
+  // Jika rekening ini punya QRIS, highlight card QRIS-nya juga
+  if (qrisPath) {
+    const bankInput = document.getElementById('wiz-pay-bank');
+    if (bankInput && !bankInput.value) bankInput.placeholder = 'QRIS (opsional)';
+  }
+}
+
+function selectQrisAccount(accountId, qrisIdx) {
+  // Update hidden input
+  const hidden = document.getElementById('wiz-pay-account');
+  if (hidden) hidden.value = accountId;
+
+  // Cari radio button yang sesuai dan centang
+  const radios = document.querySelectorAll('input[name="wiz-pay-method"]');
+  let radioIdx = -1;
+  radios.forEach((r, i) => {
+    if (r.value === accountId) {
+      r.checked = true;
+      radioIdx = i;
+    }
+  });
+
+  // Highlight radio card
+  document.querySelectorAll('.wiz-pay-card').forEach((c, i) => {
+    c.style.borderColor = i === radioIdx ? 'var(--primary-500)' : 'var(--border-subtle)';
+    c.style.background = i === radioIdx ? 'var(--bg-highlight, rgba(99,102,241,0.06))' : 'var(--bg-subtle)';
+  });
+
+  // Highlight QRIS card yang dipilih
+  document.querySelectorAll('.wiz-qris-card').forEach((el, i) => {
+    el.style.borderColor = i === qrisIdx ? '#22c55e' : 'var(--border-subtle)';
+    el.style.boxShadow = i === qrisIdx ? '0 0 0 3px rgba(34,197,94,0.15)' : 'none';
+  });
+  document.querySelectorAll('[id^="wiz-qris-check-"]').forEach((el, i) => {
+    el.style.display = i === qrisIdx ? 'block' : 'none';
+  });
+
+  // Isi otomatis field Bank Pengirim dengan "QRIS"
+  const bankInput = document.getElementById('wiz-pay-bank');
+  if (bankInput && !bankInput.value) {
+    bankInput.value = 'QRIS';
+    bankInput.placeholder = 'QRIS';
+  }
 }
 
 function previewProofImage(input) {
@@ -1658,6 +1776,84 @@ function buildSingleCardHTML(card) {
 }
 
 // --- DEDICATED POPUP PRINT FOR SINGLE CARD (100% RELIABLE, NEVER BLANK, UPPERCASE, PERFECT FIT) ---
+function ensureHtml2CanvasLoaded() {
+  if (typeof html2canvas !== 'undefined') return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('Gagal memuat pustaka html2canvas untuk mengunduh gambar JPG.'));
+    document.head.appendChild(script);
+  });
+}
+
+async function downloadParticipantCardJPG(card) {
+  const targetCard = card || currentActiveCardData;
+  const btn = document.getElementById('btn-download-card') || document.getElementById('btn-download-card-view');
+  const originalHTML = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...';
+  }
+
+  try {
+    await ensureHtml2CanvasLoaded();
+
+    let elementToCapture = document.getElementById('official-card-print');
+    let tempWrapper = null;
+
+    // Jika elemen kartu tidak ada di layar aktif, buat container sementara di luar layar
+    if (!elementToCapture && targetCard) {
+      tempWrapper = document.createElement('div');
+      tempWrapper.style.position = 'fixed';
+      tempWrapper.style.left = '-9999px';
+      tempWrapper.style.top = '0';
+      tempWrapper.style.zIndex = '-1';
+      tempWrapper.innerHTML = buildSingleCardHTML(targetCard);
+      document.body.appendChild(tempWrapper);
+      elementToCapture = tempWrapper.querySelector('#official-card-print') || tempWrapper.firstElementChild;
+    }
+
+    if (!elementToCapture) {
+      throw new Error('Elemen kartu peserta tidak ditemukan.');
+    }
+
+    // Beri jeda sejenak untuk rendering
+    await new Promise(r => setTimeout(r, 120));
+
+    const canvas = await html2canvas(elementToCapture, {
+      scale: 3, // High DPI (300 DPI) agar tajam dan jernih untuk cetak/simpan
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+
+    const regNum = targetCard?.registration_number || 'kartu';
+    const cleanRegNum = regNum.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanName = (targetCard?.participant_name || 'peserta').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
+    const filename = `kartu_peserta_${cleanRegNum}_${cleanName}.jpg`;
+
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = canvas.toDataURL('image/jpeg', 0.95);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    if (tempWrapper) {
+      document.body.removeChild(tempWrapper);
+    }
+  } catch (err) {
+    alert('Gagal mengunduh kartu peserta: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+    }
+  }
+}
+
 function printSingleCardPopup(card) {
   if (!card) {
     if (currentActiveCardData) card = currentActiveCardData;
@@ -1677,6 +1873,7 @@ function printSingleCardPopup(card) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cetak Kartu Peserta - ${card.participant_name} (${card.registration_number})</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>
 <style>
   @page {
     size: 10cm 14cm portrait;
@@ -1716,6 +1913,13 @@ function printSingleCardPopup(card) {
     font-size: 0.875rem;
     cursor: pointer;
     transition: all 0.2s;
+  }
+  .btn-do-download {
+    background: #16a34a;
+    color: #ffffff;
+  }
+  .btn-do-download:hover {
+    background: #15803d;
   }
   .btn-do-print {
     background: #4f46e5;
@@ -1764,13 +1968,29 @@ function printSingleCardPopup(card) {
 </head>
 <body>
   <div class="no-print print-action-bar">
+    <button type="button" class="btn-do-download" onclick="downloadPopupCardJPG()"><i class="fa-solid fa-download"></i> DOWNLOAD (JPG)</button>
     <button type="button" class="btn-do-print" onclick="window.print()"><i class="fa-solid fa-print"></i> CETAK / PRINT</button>
     <button type="button" class="btn-do-close" onclick="window.close()">TUTUP</button>
   </div>
-  <div class="card-outer-wrap">
+  <div class="card-outer-wrap" id="popup-card-wrap">
     ${buildSingleCardHTML(card)}
   </div>
   <script>
+    async function downloadPopupCardJPG() {
+      const el = document.getElementById('popup-card-wrap') || document.getElementById('official-card-print');
+      if (!el) return;
+      try {
+        const canvas = await html2canvas(el, { scale: 3, backgroundColor: '#ffffff', useCORS: true, allowTaint: true });
+        const link = document.createElement('a');
+        link.download = 'kartu_peserta_${(card.registration_number || 'card').replace(/[^a-zA-Z0-9_-]/g, '_')}.jpg';
+        link.href = canvas.toDataURL('image/jpeg', 0.95);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (e) {
+        alert('Gagal mendownload JPG: ' + e.message);
+      }
+    }
     window.onload = function() {
       setTimeout(() => window.print(), 600);
     };
@@ -1798,7 +2018,10 @@ async function renderParticipantCardView(regId) {
           <a href="#overview" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; display: inline-flex; align-items: center; gap: 6px;">
             <i class="fa-solid fa-arrow-left"></i> Kembali ke Dashboard
           </a>
-          <button class="btn btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak / Print Kartu</button>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button type="button" class="btn btn-success" id="btn-download-card-view" onclick="downloadParticipantCardJPG()"><i class="fa-solid fa-download"></i> Download</button>
+            <button type="button" class="btn btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak Kartu</button>
+          </div>
         </div>
         <div class="card-preview-container">
           ${buildSingleCardHTML(card)}
@@ -1834,11 +2057,12 @@ async function openParticipantCardModal(regId) {
     currentActiveCardData = card;
 
     openAppModal(`
-      <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
+      <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px; flex-wrap: wrap; gap: 10px;">
         <h3 style="font-size: 1.1rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-id-card"></i> Kartu Peserta Resmi</h3>
         <div style="display: flex; gap: 8px; align-items: center;">
+          <button type="button" class="btn btn-sm btn-success" id="btn-download-card" onclick="downloadParticipantCardJPG()"><i class="fa-solid fa-download"></i> Download</button>
           <button type="button" class="btn btn-sm btn-primary" onclick="printParticipantCard()"><i class="fa-solid fa-print"></i> Cetak Kartu</button>
-          <button type="button" onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+          <button type="button" onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer; padding-left: 6px;">&times;</button>
         </div>
       </div>
       <div style="display:flex;justify-content:center;overflow:auto;padding-bottom:8px;">
@@ -3923,42 +4147,53 @@ async function renderAdminPaymentAccountsView() {
       <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div>
           <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Rekening Pembayaran Resmi</h2>
-          <p style="color: var(--text-muted); font-size: 0.95rem;">Kelola daftar rekening bank panitia untuk penerimaan transfer biaya pendaftaran.</p>
+          <p style="color: var(--text-muted); font-size: 0.95rem;">Kelola daftar rekening bank panitia. Rekening QRIS dapat dilengkapi gambar barcode untuk kemudahan peserta.</p>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <button class="btn btn-outline-success" onclick="exportAdminPaymentAccountsExcel()" style="border: 1px solid var(--success-500); color: var(--success-600); background: transparent; padding: 8px 14px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">
             <i class="fa-solid fa-file-excel"></i> Export Excel
           </button>
-          <button class="btn btn-primary" onclick="openCreateAccountModal()"><i class="fa-solid fa-plus"></i> Tambah Rekening Bank</button>
+          <button class="btn btn-primary" onclick="openCreateAccountModal()"><i class="fa-solid fa-plus"></i> Tambah Rekening</button>
         </div>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
         ${accounts.map(acc => `
-          <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; justify-content: space-between;">
-            <div>
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <span class="badge badge-primary" style="font-weight: 700;">${acc.bankName}</span>
-                <span class="badge ${acc.isActive ? 'badge-success' : 'badge-danger'}">${acc.isActive ? 'AKTIF' : 'NONAKTIF'}</span>
+          <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 0; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; overflow: hidden;">
+            ${acc.qrisImagePath ? `
+              <div style="position: relative; background: #fff; padding: 16px; text-align: center; border-bottom: 1px solid var(--border-subtle);">
+                <img src="/api/payments/accounts/qris/${acc.qrisImagePath}" alt="QRIS ${acc.bankName}" style="max-height: 180px; max-width: 100%; object-fit: contain; border-radius: 8px;" onerror="this.parentElement.style.display='none'">
+                <span style="position: absolute; top: 8px; right: 8px; background: #4CAF50; color: #fff; font-size: 0.65rem; font-weight: 800; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.05em;">QRIS</span>
               </div>
-              <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Nomor Rekening:</div>
-              <div style="font-size: 1.3rem; font-weight: 800; color: var(--primary-600); font-family: monospace; letter-spacing: 0.05em; margin: 4px 0 8px;">
-                ${acc.accountNumber}
+            ` : ''}
+            <div style="padding: 20px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <span class="badge badge-primary" style="font-weight: 700;">${acc.bankName}</span>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    ${!acc.qrisImagePath ? '<span style="background: var(--bg-subtle); color: var(--text-dim); font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;">NO QRIS</span>' : ''}
+                    <span class="badge ${acc.isActive ? 'badge-success' : 'badge-danger'}">${acc.isActive ? 'AKTIF' : 'NONAKTIF'}</span>
+                  </div>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Nomor Rekening:</div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: var(--primary-600); font-family: monospace; letter-spacing: 0.05em; margin: 4px 0 8px;">
+                  ${acc.accountNumber}
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Atas Nama:</div>
+                <div style="font-weight: 700; color: var(--text-heading); margin-bottom: 16px;">${acc.accountHolder}</div>
               </div>
-              <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Atas Nama:</div>
-              <div style="font-weight: 700; color: var(--text-heading); margin-bottom: 16px;">${acc.accountHolder}</div>
-            </div>
 
-            <div style="display: flex; gap: 8px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
-              <button class="btn btn-sm btn-secondary" style="flex: 1;" onclick="openEditAccountModal('${acc.id}', '${acc.bankName.replace(/'/g, "\\'")}', '${acc.accountNumber.replace(/'/g, "\\'")}', '${acc.accountHolder.replace(/'/g, "\\'")}')">
-                <i class="fa-solid fa-pen-to-square"></i> Edit
-              </button>
-              <button class="btn btn-sm ${acc.isActive ? 'btn-outline-danger' : 'btn-outline-success'}" style="flex: 1;" onclick="toggleAccountStatus('${acc.id}')">
-                ${acc.isActive ? '<i class="fa-solid fa-ban"></i> Nonaktif' : '<i class="fa-solid fa-check"></i> Aktifkan'}
-              </button>
-              <button class="btn btn-sm btn-danger" style="padding: 4px 10px;" title="Hapus Rekening" onclick="executeDeleteAccount('${acc.id}', '${acc.bankName.replace(/'/g, "\\'")}')">
-                <i class="fa-solid fa-trash-can"></i>
-              </button>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
+                <button class="btn btn-sm btn-secondary" style="flex: 1;" onclick="openEditAccountModal('${acc.id}', '${acc.bankName.replace(/'/g, "\\'")}', '${acc.accountNumber.replace(/'/g, "\\'")}', '${acc.accountHolder.replace(/'/g, "\\'")}', ${acc.qrisImagePath ? `'${acc.qrisImagePath}'` : 'null'})">
+                  <i class="fa-solid fa-pen-to-square"></i> Edit
+                </button>
+                <button class="btn btn-sm ${acc.isActive ? 'btn-outline-danger' : 'btn-outline-success'}" style="flex: 1;" onclick="toggleAccountStatus('${acc.id}')">
+                  ${acc.isActive ? '<i class="fa-solid fa-ban"></i> Nonaktif' : '<i class="fa-solid fa-check"></i> Aktifkan'}
+                </button>
+                <button class="btn btn-sm btn-danger" style="padding: 4px 10px;" title="Hapus Rekening" onclick="executeDeleteAccount('${acc.id}', '${acc.bankName.replace(/'/g, "\\'")}')">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
             </div>
           </div>
         `).join('')}
@@ -4008,26 +4243,50 @@ function openCreateAccountModal() {
       <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-plus"></i> Tambah Rekening Bank</h3>
       <button onclick="closeAppModal()" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer;">&times;</button>
     </div>
-    <form onsubmit="submitCreateAccount(event)">
+    <form onsubmit="submitCreateAccount(event)" id="form-create-account">
       <div class="form-group" style="margin-bottom: 14px;">
-        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Bank</label>
-        <input type="text" id="acc-bank-input" class="form-control" placeholder="Contoh: Bank Central Asia (BCA)" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Bank / Metode Pembayaran</label>
+        <input type="text" id="acc-bank-input" class="form-control" placeholder="Contoh: Bank Central Asia (BCA) atau QRIS Panitia" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
       </div>
       <div class="form-group" style="margin-bottom: 14px;">
-        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nomor Rekening</label>
-        <input type="text" id="acc-num-input" class="form-control" placeholder="Nomor rekening" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nomor Rekening / ID QRIS</label>
+        <input type="text" id="acc-num-input" class="form-control" placeholder="Nomor rekening atau nomor QRIS" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
       </div>
-      <div class="form-group" style="margin-bottom: 16px;">
-        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Pemilik Rekening</label>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Pemilik Rekening / Merchant</label>
         <input type="text" id="acc-holder-input" class="form-control" placeholder="Contoh: Panitia Lomba Nasional 2026" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
       </div>
-      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Rekening Bank</button>
+
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">
+          <i class="fa-solid fa-qrcode" style="color: var(--primary-500);"></i> Gambar Barcode QRIS <span style="color: var(--text-dim); font-weight: 400;">(opsional)</span>
+        </label>
+        <div id="qris-upload-area-create" style="border: 2px dashed var(--border-subtle); border-radius: var(--radius-md); padding: 20px; text-align: center; cursor: pointer; transition: border-color 0.2s; background: var(--bg-subtle);" onclick="document.getElementById('acc-qris-input').click()" ondragover="event.preventDefault(); this.style.borderColor='var(--primary-500)'" ondragleave="this.style.borderColor='var(--border-subtle)'" ondrop="handleQrisFileDrop(event, 'create')">
+          <div id="qris-preview-create" style="display:none; margin-bottom: 10px;">
+            <img id="qris-preview-img-create" src="" alt="Preview QRIS" style="max-height: 150px; max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          </div>
+          <div id="qris-placeholder-create">
+            <i class="fa-solid fa-qrcode" style="font-size: 2rem; color: var(--text-dim); margin-bottom: 8px;"></i>
+            <div style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 4px;">Klik atau drag & drop gambar QRIS</div>
+            <div style="font-size: 0.75rem; color: var(--text-dim);">Format: JPG, PNG, WEBP (maks. 5MB)</div>
+          </div>
+          <input type="file" id="acc-qris-input" accept="image/jpeg,image/png,image/webp" style="display: none;" onchange="previewQrisImage(this, 'create')">
+        </div>
+        <button type="button" id="btn-clear-qris-create" onclick="clearQrisPreview('create')" style="display:none; margin-top: 8px; background: none; border: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.8rem; padding: 4px 12px; border-radius: var(--radius-sm); cursor: pointer;">
+          <i class="fa-solid fa-xmark"></i> Hapus gambar
+        </button>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Rekening</button>
     </form>
   `);
 }
 
 async function submitCreateAccount(e) {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...';
   try {
     const res = await apiRequest('/api/payments/accounts', {
       method: 'POST',
@@ -4038,16 +4297,30 @@ async function submitCreateAccount(e) {
       },
     });
     if (res.success) {
+      const newAccountId = res.data.id;
+      // Upload QRIS image jika ada
+      const qrisFile = document.getElementById('acc-qris-input')?.files?.[0];
+      if (qrisFile) {
+        const fd = new FormData();
+        fd.append('qris_image', qrisFile);
+        await apiRequest(`/api/payments/accounts/${newAccountId}/qris`, {
+          method: 'POST',
+          body: fd,
+        });
+      }
       alert(res.message);
       closeAppModal();
       renderAdminPaymentAccountsView();
     }
   } catch (err) {
     alert(err.message);
+    btn.disabled = false;
+    btn.innerHTML = 'Simpan Rekening';
   }
 }
 
-function openEditAccountModal(id, bankName, accountNumber, accountHolder) {
+function openEditAccountModal(id, bankName, accountNumber, accountHolder, qrisImagePath) {
+  const qrisFilename = (qrisImagePath && qrisImagePath !== 'null') ? qrisImagePath : null;
   openAppModal(`
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-pen-to-square"></i> Edit Rekening Bank</h3>
@@ -4055,24 +4328,58 @@ function openEditAccountModal(id, bankName, accountNumber, accountHolder) {
     </div>
     <form onsubmit="submitEditAccount(event, '${id}')">
       <div class="form-group" style="margin-bottom: 14px;">
-        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Bank</label>
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Bank / Metode Pembayaran</label>
         <input type="text" id="edit-acc-bank" class="form-control" value="${bankName}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
       </div>
       <div class="form-group" style="margin-bottom: 14px;">
-        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nomor Rekening</label>
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nomor Rekening / ID QRIS</label>
         <input type="text" id="edit-acc-num" class="form-control" value="${accountNumber}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
       </div>
-      <div class="form-group" style="margin-bottom: 16px;">
-        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Pemilik Rekening</label>
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Nama Pemilik Rekening / Merchant</label>
         <input type="text" id="edit-acc-holder" class="form-control" value="${accountHolder}" required style="width: 100%; padding: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
       </div>
-      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Perubahan Rekening</button>
+
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">
+          <i class="fa-solid fa-qrcode" style="color: var(--primary-500);"></i> Gambar Barcode QRIS
+        </label>
+        ${qrisFilename ? `
+          <div id="qris-current-edit" style="background: #fff; border-radius: 8px; padding: 12px; text-align: center; margin-bottom: 10px; border: 1px solid var(--border-subtle);">
+            <img src="/api/payments/accounts/qris/${qrisFilename}" alt="QRIS saat ini" style="max-height: 140px; max-width: 100%; object-fit: contain; border-radius: 6px;" onerror="this.parentElement.innerHTML='<span style=color:var(--text-dim)>Gambar tidak ditemukan</span>'">
+            <div style="margin-top: 8px;">
+              <button type="button" onclick="executeDeleteAccountQris('${id}')" style="background: none; border: 1px solid #ef4444; color: #ef4444; font-size: 0.8rem; padding: 4px 12px; border-radius: var(--radius-sm); cursor: pointer;">
+                <i class="fa-solid fa-trash-can"></i> Hapus QRIS
+              </button>
+            </div>
+          </div>
+        ` : ''}
+        <div id="qris-upload-area-edit" style="border: 2px dashed var(--border-subtle); border-radius: var(--radius-md); padding: 20px; text-align: center; cursor: pointer; transition: border-color 0.2s; background: var(--bg-subtle);" onclick="document.getElementById('edit-qris-input').click()" ondragover="event.preventDefault(); this.style.borderColor='var(--primary-500)'" ondragleave="this.style.borderColor='var(--border-subtle)'" ondrop="handleQrisFileDrop(event, 'edit')">
+          <div id="qris-preview-edit" style="display:none; margin-bottom: 10px;">
+            <img id="qris-preview-img-edit" src="" alt="Preview QRIS" style="max-height: 140px; max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          </div>
+          <div id="qris-placeholder-edit">
+            <i class="fa-solid fa-arrow-up-from-bracket" style="font-size: 1.5rem; color: var(--text-dim); margin-bottom: 6px;"></i>
+            <div style="font-size: 0.875rem; color: var(--text-muted);">${qrisFilename ? 'Ganti' : 'Upload'} gambar QRIS</div>
+            <div style="font-size: 0.75rem; color: var(--text-dim);">JPG, PNG, WEBP (maks. 5MB)</div>
+          </div>
+          <input type="file" id="edit-qris-input" accept="image/jpeg,image/png,image/webp" style="display: none;" onchange="previewQrisImage(this, 'edit')">
+        </div>
+        <button type="button" id="btn-clear-qris-edit" onclick="clearQrisPreview('edit')" style="display:none; margin-top: 8px; background: none; border: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.8rem; padding: 4px 12px; border-radius: var(--radius-sm); cursor: pointer;">
+          <i class="fa-solid fa-xmark"></i> Batal ganti
+        </button>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Simpan Perubahan</button>
     </form>
   `);
 }
 
 async function submitEditAccount(e, id) {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...';
   try {
     const res = await apiRequest(`/api/payments/accounts/${id}`, {
       method: 'PATCH',
@@ -4083,12 +4390,90 @@ async function submitEditAccount(e, id) {
       },
     });
     if (res.success) {
+      // Upload QRIS baru jika ada file dipilih
+      const qrisFile = document.getElementById('edit-qris-input')?.files?.[0];
+      if (qrisFile) {
+        const fd = new FormData();
+        fd.append('qris_image', qrisFile);
+        await apiRequest(`/api/payments/accounts/${id}/qris`, {
+          method: 'POST',
+          body: fd,
+        });
+      }
       alert(res.message);
       closeAppModal();
       renderAdminPaymentAccountsView();
     }
   } catch (err) {
     alert(err.message);
+    btn.disabled = false;
+    btn.innerHTML = 'Simpan Perubahan';
+  }
+}
+
+async function executeDeleteAccountQris(accountId) {
+  if (!confirm('Hapus gambar QRIS dari rekening ini?')) return;
+  try {
+    const res = await apiRequest(`/api/payments/accounts/${accountId}/qris`, { method: 'DELETE' });
+    if (res.success) {
+      alert(res.message);
+      closeAppModal();
+      renderAdminPaymentAccountsView();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function previewQrisImage(input, mode) {
+  const file = input.files?.[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Ukuran file maksimal 5MB.');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = document.getElementById(`qris-preview-img-${mode}`);
+    const preview = document.getElementById(`qris-preview-${mode}`);
+    const placeholder = document.getElementById(`qris-placeholder-${mode}`);
+    const clearBtn = document.getElementById(`btn-clear-qris-${mode}`);
+    if (img) img.src = e.target.result;
+    if (preview) preview.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'inline-block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearQrisPreview(mode) {
+  const input = document.getElementById(mode === 'create' ? 'acc-qris-input' : 'edit-qris-input');
+  const preview = document.getElementById(`qris-preview-${mode}`);
+  const placeholder = document.getElementById(`qris-placeholder-${mode}`);
+  const clearBtn = document.getElementById(`btn-clear-qris-${mode}`);
+  if (input) input.value = '';
+  if (preview) preview.style.display = 'none';
+  if (placeholder) placeholder.style.display = 'block';
+  if (clearBtn) clearBtn.style.display = 'none';
+}
+
+function handleQrisFileDrop(event, mode) {
+  event.preventDefault();
+  const area = event.currentTarget;
+  area.style.borderColor = 'var(--border-subtle)';
+  const file = event.dataTransfer?.files?.[0];
+  if (!file || !file.type.startsWith('image/')) {
+    alert('Hanya file gambar (JPG, PNG, WEBP) yang diperbolehkan.');
+    return;
+  }
+  const inputId = mode === 'create' ? 'acc-qris-input' : 'edit-qris-input';
+  const input = document.getElementById(inputId);
+  if (input) {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    previewQrisImage(input, mode);
   }
 }
 
@@ -4687,6 +5072,7 @@ window.onAdminBranchFilterChange = onAdminBranchFilterChange;
 // Participant Card & Modal Handlers
 window.openParticipantCardModal = openParticipantCardModal;
 window.printParticipantCard = printParticipantCard;
+window.downloadParticipantCardJPG = downloadParticipantCardJPG;
 
 // ============================================================================
 // CETAK KARTU PESERTA MASSAL (SUPERADMIN)

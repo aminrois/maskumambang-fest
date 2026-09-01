@@ -76,6 +76,11 @@ export class CreatePaymentAccountDto {
   @IsNotEmpty({ message: 'Nama pemilik rekening wajib diisi.' })
   @MaxLength(150)
   accountHolder!: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  qrisImagePath?: string;
 }
 
 export class UpdatePaymentAccountDto {
@@ -93,4 +98,9 @@ export class UpdatePaymentAccountDto {
   @IsOptional()
   @MaxLength(150)
   accountHolder?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  qrisImagePath?: string;
 }

@@ -14,6 +14,7 @@ export declare class PaymentsController {
             bankName: string;
             accountNumber: string;
             accountHolder: string;
+            qrisImagePath: string | null;
         }[];
     }>;
     getAllAccounts(): Promise<{
@@ -25,6 +26,7 @@ export declare class PaymentsController {
             bankName: string;
             accountNumber: string;
             accountHolder: string;
+            qrisImagePath: string | null;
         }[];
     }>;
     createAccount(dto: CreatePaymentAccountDto): Promise<{
@@ -37,6 +39,7 @@ export declare class PaymentsController {
             bankName: string;
             accountNumber: string;
             accountHolder: string;
+            qrisImagePath: string | null;
         };
     }>;
     updateAccount(id: string, dto: import('./dto/payment.dto').UpdatePaymentAccountDto): Promise<{
@@ -49,8 +52,21 @@ export declare class PaymentsController {
             bankName: string;
             accountNumber: string;
             accountHolder: string;
+            qrisImagePath: string | null;
         };
     }>;
+    uploadQrisImage(accountId: string, file?: Express.Multer.File): Promise<{
+        success: boolean;
+        message: string;
+        data: {
+            filename: string;
+        };
+    }>;
+    deleteQrisImage(accountId: string): Promise<{
+        success: boolean;
+        message: string;
+    }>;
+    serveQrisImage(filename: string, res: Response): Promise<void>;
     deleteAccount(id: string): Promise<{
         success: boolean;
         message: string;
@@ -61,6 +77,7 @@ export declare class PaymentsController {
             bankName: string;
             accountNumber: string;
             accountHolder: string;
+            qrisImagePath: string | null;
         };
     }>;
     toggleAccount(id: string): Promise<{
@@ -73,6 +90,7 @@ export declare class PaymentsController {
             bankName: string;
             accountNumber: string;
             accountHolder: string;
+            qrisImagePath: string | null;
         };
     }>;
     uploadPayment(userId: string, dto: UploadPaymentDto, file?: Express.Multer.File): Promise<{
@@ -120,6 +138,7 @@ export declare class PaymentsController {
                 bankName: string;
                 accountNumber: string;
                 accountHolder: string;
+                qrisImagePath: string | null;
             } | null;
             registration: {
                 user: {

@@ -8,6 +8,7 @@ export declare class PaymentsService {
     private readonly auditService;
     private readonly configService;
     private readonly uploadDir;
+    private readonly qrisDir;
     constructor(prisma: PrismaService, auditService: AuditService, configService: ConfigService);
     getActiveAccounts(): Promise<{
         id: string;
@@ -16,6 +17,7 @@ export declare class PaymentsService {
         bankName: string;
         accountNumber: string;
         accountHolder: string;
+        qrisImagePath: string | null;
     }[]>;
     getAllAccounts(): Promise<{
         id: string;
@@ -24,6 +26,7 @@ export declare class PaymentsService {
         bankName: string;
         accountNumber: string;
         accountHolder: string;
+        qrisImagePath: string | null;
     }[]>;
     createAccount(dto: CreatePaymentAccountDto): Promise<{
         id: string;
@@ -32,6 +35,14 @@ export declare class PaymentsService {
         bankName: string;
         accountNumber: string;
         accountHolder: string;
+        qrisImagePath: string | null;
+    }>;
+    uploadQrisImage(accountId: string, fileBuffer: Buffer, originalFilename?: string): Promise<{
+        filename: string;
+    }>;
+    deleteQrisImage(accountId: string): Promise<void>;
+    getQrisImageFile(filename: string): Promise<{
+        filePath: string;
     }>;
     updateAccount(id: string, dto: import('./dto/payment.dto').UpdatePaymentAccountDto): Promise<{
         id: string;
@@ -40,6 +51,7 @@ export declare class PaymentsService {
         bankName: string;
         accountNumber: string;
         accountHolder: string;
+        qrisImagePath: string | null;
     }>;
     deleteAccount(id: string): Promise<{
         id: string;
@@ -48,6 +60,7 @@ export declare class PaymentsService {
         bankName: string;
         accountNumber: string;
         accountHolder: string;
+        qrisImagePath: string | null;
     }>;
     toggleAccount(id: string): Promise<{
         id: string;
@@ -56,6 +69,7 @@ export declare class PaymentsService {
         bankName: string;
         accountNumber: string;
         accountHolder: string;
+        qrisImagePath: string | null;
     }>;
     uploadPayment(userId: string, dto: UploadPaymentDto, fileBuffer: Buffer, originalFilename?: string): Promise<{
         id: string;
@@ -94,6 +108,7 @@ export declare class PaymentsService {
                 bankName: string;
                 accountNumber: string;
                 accountHolder: string;
+                qrisImagePath: string | null;
             } | null;
             registration: {
                 user: {

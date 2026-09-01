@@ -109,6 +109,12 @@ __decorate([
     (0, class_validator_1.MaxLength)(150),
     __metadata("design:type", String)
 ], CreatePaymentAccountDto.prototype, "accountHolder", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], CreatePaymentAccountDto.prototype, "qrisImagePath", void 0);
 class UpdatePaymentAccountDto {
 }
 exports.UpdatePaymentAccountDto = UpdatePaymentAccountDto;
@@ -130,4 +136,10 @@ __decorate([
     (0, class_validator_1.MaxLength)(150),
     __metadata("design:type", String)
 ], UpdatePaymentAccountDto.prototype, "accountHolder", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], UpdatePaymentAccountDto.prototype, "qrisImagePath", void 0);
 //# sourceMappingURL=payment.dto.js.map

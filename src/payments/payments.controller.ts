@@ -64,6 +64,37 @@ export class PaymentsController {
   }
 
   @Roles(Role.SUPER_ADMIN)
+  @Post('accounts/:id/qris')
+  @UseInterceptors(FileInterceptor('qris_image'))
+  async uploadQrisImage(
+    @Param('id') accountId: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('File gambar QRIS (qris_image) wajib diunggah.');
+    }
+    const result = await this.paymentsService.uploadQrisImage(accountId, file.buffer, file.originalname);
+    return { success: true, message: 'Gambar QRIS berhasil diunggah.', data: result };
+  }
+
+  @Roles(Role.SUPER_ADMIN)
+  @Delete('accounts/:id/qris')
+  async deleteQrisImage(@Param('id') accountId: string) {
+    await this.paymentsService.deleteQrisImage(accountId);
+    return { success: true, message: 'Gambar QRIS berhasil dihapus.' };
+  }
+
+  @Public()
+  @Get('accounts/qris/:filename')
+  async serveQrisImage(
+    @Param('filename') filename: string,
+    @Res() res: Response,
+  ) {
+    const { filePath } = await this.paymentsService.getQrisImageFile(filename);
+    return res.sendFile(filePath);
+  }
+
+  @Roles(Role.SUPER_ADMIN)
   @Delete('accounts/:id')
   async deleteAccount(@Param('id') id: string) {
     const deleted = await this.paymentsService.deleteAccount(id);
