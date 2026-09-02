@@ -9,15 +9,18 @@ export declare class AuthService {
     private readonly auditService;
     constructor(prisma: PrismaService, jwtService: JwtService, auditService: AuditService);
     register(dto: RegisterDto): Promise<{
-        id: string;
-        email: string;
-        name: string;
-        phoneNumber: string;
-        role: import(".prisma/client").$Enums.Role;
-        isActive: boolean;
-        sessionVersion: number;
-        createdAt: Date;
-        updatedAt: Date;
+        accessToken: string;
+        user: {
+            id: string;
+            email: string;
+            name: string;
+            phoneNumber: string;
+            role: import(".prisma/client").$Enums.Role;
+            isActive: boolean;
+            sessionVersion: number;
+            createdAt: Date;
+            updatedAt: Date;
+        };
     }>;
     login(dto: LoginDto, ipAddress?: string, userAgent?: string): Promise<{
         accessToken: string;

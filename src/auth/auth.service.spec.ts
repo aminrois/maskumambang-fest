@@ -58,7 +58,7 @@ describe('AuthService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should create new user and return safe user object', async () => {
+    it('should create new user and return accessToken and safe user object', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({
         id: 'new-uuid',
@@ -68,6 +68,7 @@ describe('AuthService', () => {
         passwordHash: 'hashed_password',
         role: Role.PESERTA,
         isActive: true,
+        sessionVersion: 1,
       });
 
       const res = await service.register({
@@ -78,8 +79,9 @@ describe('AuthService', () => {
       });
 
       expect(res).toBeDefined();
-      expect(res.email).toBe('ahmad@lomba.id');
-      expect((res as any).passwordHash).toBeUndefined();
+      expect(res.accessToken).toBe('mock_jwt_token');
+      expect(res.user.email).toBe('ahmad@lomba.id');
+      expect((res.user as any).passwordHash).toBeUndefined();
     });
   });
 

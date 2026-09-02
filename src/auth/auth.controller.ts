@@ -15,12 +15,27 @@ export class AuthController {
 
   @Public()
   @Post('register')
-  async register(@Body() dto: RegisterDto) {
-    const user = await this.authService.register(dto);
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.register(dto);
+
+    res.cookie(COOKIE_NAME, result.accessToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+    });
+
     return {
       success: true,
-      message: 'Pendaftaran akun berhasil! Silakan login untuk melanjutkan.',
-      data: user,
+      message: 'Pendaftaran akun berhasil!',
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+      },
     };
   }
 

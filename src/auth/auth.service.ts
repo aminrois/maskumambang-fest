@@ -45,8 +45,20 @@ export class AuthService {
       details: `Pendaftaran akun peserta baru: ${newUser.email}`,
     });
 
+    const payload = {
+      sub: newUser.id,
+      email: newUser.email,
+      role: newUser.role,
+      sessionVersion: newUser.sessionVersion,
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+
     const { passwordHash: _, ...safeUser } = newUser;
-    return safeUser;
+    return {
+      accessToken,
+      user: safeUser,
+    };
   }
 
   async login(dto: LoginDto, ipAddress?: string, userAgent?: string) {

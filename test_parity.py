@@ -67,14 +67,15 @@ s, reg_user = req('/api/auth/register', method='POST', data={
     'phoneNumber': '081234567890'
 })
 assert s == 201 and reg_user['success'] is True
-print('  [PASS] User registration successful')
+# Register sekarang langsung mengembalikan accessToken (auto-login)
+peserta_token = reg_user['data']['accessToken']
+peserta_headers = {'Authorization': f'Bearer {peserta_token}'}
+print('  [PASS] User registration successful, JWT token issued (auto-login)')
 
-# Login
+# Verifikasi login terpisah juga masih bisa
 s, login = req('/api/auth/login', method='POST', data={'email': email, 'password': 'password123'})
 assert s == 200 and login['success'] is True
-peserta_token = login['data']['accessToken']
-peserta_headers = {'Authorization': f'Bearer {peserta_token}'}
-print('  [PASS] User login successful, JWT token issued')
+print('  [PASS] Separate login also works')
 
 # Get tree & accounts
 s, tree = req('/api/competitions/tree')

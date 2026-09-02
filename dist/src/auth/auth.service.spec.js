@@ -48,7 +48,7 @@ describe('AuthService', () => {
                 password: 'password123',
             })).rejects.toThrow(common_1.ConflictException);
         });
-        it('should create new user and return safe user object', async () => {
+        it('should create new user and return accessToken and safe user object', async () => {
             mockPrisma.user.findUnique.mockResolvedValue(null);
             mockPrisma.user.create.mockResolvedValue({
                 id: 'new-uuid',
@@ -58,6 +58,7 @@ describe('AuthService', () => {
                 passwordHash: 'hashed_password',
                 role: client_1.Role.PESERTA,
                 isActive: true,
+                sessionVersion: 1,
             });
             const res = await service.register({
                 name: 'Ahmad Fauzi',
@@ -66,8 +67,9 @@ describe('AuthService', () => {
                 password: 'password123',
             });
             expect(res).toBeDefined();
-            expect(res.email).toBe('ahmad@lomba.id');
-            expect(res.passwordHash).toBeUndefined();
+            expect(res.accessToken).toBe('mock_jwt_token');
+            expect(res.user.email).toBe('ahmad@lomba.id');
+            expect(res.user.passwordHash).toBeUndefined();
         });
     });
     describe('login', () => {

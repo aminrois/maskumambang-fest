@@ -125,10 +125,16 @@
         });
 
         if (res.success) {
-          showBannerAlert('register-alert', 'Akun berhasil dibuat! Mengalihkan ke halaman masuk...', 'success');
+          // Auto-login: simpan data user ke state & localStorage
+          // Cookie session sudah di-set oleh server (HttpOnly)
+          if (res.data && res.data.user) {
+            setSession(res.data.accessToken, res.data.user);
+          }
+          showBannerAlert('register-alert', 'Akun berhasil dibuat! Mengalihkan ke dashboard...', 'success');
+          // Redirect langsung ke dashboard dan buka form Daftar Lomba Baru
           setTimeout(() => {
-            window.location.href = '/login.html';
-          }, 1200);
+            window.location.href = '/dashboard.html#daftar';
+          }, 800);
         }
       } catch (err) {
         showBannerAlert('register-alert', err.message, 'danger');

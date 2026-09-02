@@ -5,19 +5,22 @@ import { Request, Response } from 'express';
 export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
-    register(dto: RegisterDto): Promise<{
+    register(dto: RegisterDto, req: Request, res: Response): Promise<{
         success: boolean;
         message: string;
         data: {
-            id: string;
-            email: string;
-            name: string;
-            phoneNumber: string;
-            role: import(".prisma/client").$Enums.Role;
-            isActive: boolean;
-            sessionVersion: number;
-            createdAt: Date;
-            updatedAt: Date;
+            user: {
+                id: string;
+                email: string;
+                name: string;
+                phoneNumber: string;
+                role: import(".prisma/client").$Enums.Role;
+                isActive: boolean;
+                sessionVersion: number;
+                createdAt: Date;
+                updatedAt: Date;
+            };
+            accessToken: string;
         };
     }>;
     login(dto: LoginDto, req: Request, res: Response): Promise<{

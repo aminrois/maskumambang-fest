@@ -24,12 +24,21 @@ let AuthController = class AuthController {
     constructor(authService) {
         this.authService = authService;
     }
-    async register(dto) {
-        const user = await this.authService.register(dto);
+    async register(dto, req, res) {
+        const result = await this.authService.register(dto);
+        res.cookie(COOKIE_NAME, result.accessToken, {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+            path: '/',
+        });
         return {
             success: true,
-            message: 'Pendaftaran akun berhasil! Silakan login untuk melanjutkan.',
-            data: user,
+            message: 'Pendaftaran akun berhasil!',
+            data: {
+                user: result.user,
+                accessToken: result.accessToken,
+            },
         };
     }
     async login(dto, req, res) {
@@ -61,8 +70,10 @@ __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('register'),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [register_dto_1.RegisterDto]),
+    __metadata("design:paramtypes", [register_dto_1.RegisterDto, Object, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "register", null);
 __decorate([
