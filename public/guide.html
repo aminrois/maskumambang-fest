@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +8,8 @@
   <link rel="icon" type="image/webp" id="app-favicon" href="/static/img/favicon_87007b6344.webp">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/dashboard.css">
@@ -27,17 +29,21 @@
     }
   </style>
 </head>
+
 <body class="public-layout">
 
   <!-- Public Header Navbar -->
   <header class="public-navbar">
     <div class="nav-container">
       <a href="/" class="brand-logo" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
-        <img id="nav-logo" src="/static/img/logo_e7a8b6a95d.webp" alt="Logo" style="height: 38px; width: auto; border-radius: 6px;" onerror="this.style.display='none'">
-        <span class="brand-logo-title" id="nav-title" style="font-weight: 800; font-size: 1.15rem; color: var(--text-heading);">MASKUMAMBANG FEST #4</span>
+        <img id="nav-logo" src="/static/img/logo_e7a8b6a95d.webp" alt="Logo"
+          style="height: 38px; width: auto; border-radius: 6px;" onerror="this.style.display='none'">
+        <span class="brand-logo-title" id="nav-title"
+          style="font-weight: 800; font-size: 1.15rem; color: var(--text-heading);">MASKUMAMBANG FEST #4</span>
       </a>
 
-      <button type="button" class="btn-toggle-public-menu" id="btn-toggle-public-menu" onclick="togglePublicMenu(event)" aria-label="Menu Navigasi" style="cursor: pointer;">
+      <button type="button" class="btn-toggle-public-menu" id="btn-toggle-public-menu" onclick="togglePublicMenu(event)"
+        aria-label="Menu Navigasi" style="cursor: pointer;">
         <i class="fa-solid fa-bars"></i>
       </button>
 
@@ -52,7 +58,8 @@
             <a href="/register.html" class="btn btn-sm btn-primary">Daftar Akun</a>
           </li>
           <li id="user-logged-nav" style="display: none;">
-            <a href="/dashboard.html" class="btn btn-sm btn-primary"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+            <a href="/dashboard.html" class="btn btn-sm btn-primary"><i class="fa-solid fa-gauge-high"></i>
+              Dashboard</a>
           </li>
         </ul>
       </nav>
@@ -62,18 +69,22 @@
   <!-- Main Content -->
   <main class="main-wrapper" style="flex: 1; padding: 40px 20px;">
     <div class="container" style="max-width: 1100px; margin: 0 auto;">
-      
+
       <div style="text-align: center; margin-bottom: 40px;">
-        <span class="role-badge-pill role-PESERTA" style="margin-bottom: 10px;"><i class="fa-solid fa-book-open"></i> PANDUAN LENGKAP</span>
-        <h1 style="font-size: 2.2rem; color: var(--text-heading); margin-bottom: 10px;">Panduan Pendaftaran & Rekening Resmi</h1>
+        <span class="role-badge-pill role-PESERTA" style="margin-bottom: 10px;"><i class="fa-solid fa-book-open"></i>
+          PANDUAN LENGKAP</span>
+        <h1 style="font-size: 2.2rem; color: var(--text-heading); margin-bottom: 10px;">Panduan Pendaftaran & Rekening
+          Resmi</h1>
         <p style="color: var(--text-muted); font-size: 1rem; max-width: 700px; margin: 0 auto;">
           Ikuti langkah-langkah pendaftaran di bawah ini dan pastikan melakukan transfer ke rekening resmi panitia.
         </p>
       </div>
 
       <!-- 4 Langkah Pendaftaran Grid -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 50px;">
-        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 50px;">
+        <div class="card"
+          style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
           <div style="font-size: 1.8rem; font-weight: 800; color: var(--primary-600); margin-bottom: 10px;">01</div>
           <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 8px;">Daftar Akun</h3>
           <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.5;">
@@ -81,7 +92,8 @@
           </p>
         </div>
 
-        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+        <div class="card"
+          style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
           <div style="font-size: 1.8rem; font-weight: 800; color: var(--accent-600); margin-bottom: 10px;">02</div>
           <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 8px;">Pilih Cabang Lomba</h3>
           <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.5;">
@@ -89,7 +101,8 @@
           </p>
         </div>
 
-        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+        <div class="card"
+          style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
           <div style="font-size: 1.8rem; font-weight: 800; color: var(--warning-600); margin-bottom: 10px;">03</div>
           <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 8px;">Transfer & Upload Bukti</h3>
           <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.5;">
@@ -97,7 +110,8 @@
           </p>
         </div>
 
-        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+        <div class="card"
+          style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
           <div style="font-size: 1.8rem; font-weight: 800; color: var(--success-600); margin-bottom: 10px;">04</div>
           <h3 style="font-size: 1.15rem; color: var(--text-heading); margin-bottom: 8px;">Cetak Kartu Peserta</h3>
           <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.5;">
@@ -108,12 +122,17 @@
 
       <!-- Rekening Pembayaran Resmi Section -->
       <div style="margin-bottom: 50px;">
-        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 8px; text-align: center;">Rekening Resmi Panitia</h2>
-        <p style="color: var(--text-muted); text-align: center; margin-bottom: 28px;">Hanya lakukan transfer ke rekening bank resmi berikut atas nama <strong>Panitia Lomba Nasional 2026</strong>:</p>
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 8px; text-align: center;">Rekening
+          Resmi Panitia</h2>
+        <p style="color: var(--text-muted); text-align: center; margin-bottom: 28px;">Hanya lakukan transfer ke rekening
+          bank resmi berikut atas nama <strong>Maskumambang Fest <br>Biaya pendaftaran murni
+            digunakan untuk akomodasi pelaksanaan dan bukan untuk hadiah.</strong></p>
 
-        <div id="accounts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div id="accounts-grid"
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
           <!-- Populated from /api/payments/accounts -->
-          <div style="text-align: center; padding: 20px; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Memuat rekening bank...</div>
+          <div style="text-align: center; padding: 20px; color: var(--text-muted);"><i
+              class="fa-solid fa-spinner fa-spin"></i> Memuat rekening bank...</div>
         </div>
       </div>
 
@@ -127,9 +146,11 @@
   </main>
 
   <!-- Footer -->
-  <footer class="footer" style="background: var(--bg-card); border-top: 1px solid var(--border-subtle); padding: 30px 20px; text-align: center;">
+  <footer class="footer"
+    style="background: var(--bg-card); border-top: 1px solid var(--border-subtle); padding: 30px 20px; text-align: center;">
     <div class="container" style="max-width: 1100px; margin: 0 auto;">
-      <div style="font-weight: 700; color: var(--text-heading); font-size: 1rem; margin-bottom: 0.35rem;" id="footer-title">
+      <div style="font-weight: 700; color: var(--text-heading); font-size: 1rem; margin-bottom: 0.35rem;"
+        id="footer-title">
         MASKUMAMBANG FEST #4
       </div>
       <p style="color: var(--text-muted); font-size: 0.875rem;" id="footer-desc">
@@ -186,4 +207,5 @@
     });
   </script>
 </body>
+
 </html>

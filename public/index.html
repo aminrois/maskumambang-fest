@@ -337,8 +337,15 @@
     }
 
     @keyframes spinHourglass {
-      0%, 100% { transform: rotate(0deg); }
-      50% { transform: rotate(180deg); }
+
+      0%,
+      100% {
+        transform: rotate(0deg);
+      }
+
+      50% {
+        transform: rotate(180deg);
+      }
     }
 
     .countdown-grid {
@@ -384,9 +391,11 @@
       .hero-countdown-box {
         padding: 16px 14px;
       }
+
       .countdown-grid {
         gap: 8px;
       }
+
       .countdown-card {
         padding: 10px 4px;
       }
@@ -877,7 +886,8 @@
             <div class="countdown-label">DETIK</div>
           </div>
         </div>
-        <div id="countdown-expired-msg" style="display: none; padding: 10px; font-size: 1.1rem; font-weight: 800; color: #fca5a5; text-align: center;">
+        <div id="countdown-expired-msg"
+          style="display: none; padding: 10px; font-size: 1.1rem; font-weight: 800; color: #fca5a5; text-align: center;">
           Pendaftaran Resmi Ditutup
         </div>
       </div>
@@ -1097,7 +1107,7 @@
                   </div>
                 </div>
                 ${quotaBar}
-
+                <p><span class="branch-fee-label">Biaya tersebut murni digunakan untuk akomodasi pelaksanaan dan bukan untuk hadiah.</span></p>
                 <!-- Action buttons -->
                 <div class="branch-actions" style="margin-top:14px;">
                   ${juknisBtn}
