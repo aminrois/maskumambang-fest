@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/dashboard.css">
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
   <style>
     .auth-page-wrapper {
       min-height: 100vh;
@@ -47,6 +48,17 @@
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+    .recaptcha-container {
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      transform-origin: center;
+    }
+    @media (max-width: 400px) {
+      .recaptcha-container {
+        transform: scale(0.88);
+      }
     }
   </style>
 </head>
@@ -82,10 +94,15 @@
           <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">3. Kata Sandi (Minimal 6 Karakter)</label>
           <input type="password" id="reg-password" class="form-control" placeholder="••••••••" required minlength="6" autocomplete="new-password" style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
         </div>
-        <div class="form-group" style="margin-bottom: 22px;">
+        <div class="form-group" style="margin-bottom: 20px;">
           <label class="form-label" style="display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">4. Nomor WhatsApp Aktif</label>
           <input type="text" id="reg-phone" class="form-control" placeholder="Contoh: 081234567890" required style="width: 100%; padding: 11px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md);">
         </div>
+
+        <div class="recaptcha-container">
+          <div class="g-recaptcha" data-sitekey="6LcNx7AtAAAAAB3M-N6Qp_7H2FBu5Qrn4GN6erAV"></div>
+        </div>
+
         <button type="submit" id="register-submit-btn" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.95rem; font-weight: 700;">
           <i class="fa-solid fa-check"></i> Buat Akun Peserta
         </button>
@@ -109,6 +126,16 @@
 
     async function handleRegisterSubmit(e) {
       e.preventDefault();
+
+      let recaptchaToken = '';
+      if (typeof grecaptcha !== 'undefined') {
+        recaptchaToken = grecaptcha.getResponse();
+        if (!recaptchaToken) {
+          showBannerAlert('register-alert', 'Silakan centang reCAPTCHA terlebih dahulu.', 'warning');
+          return;
+        }
+      }
+
       const btn = document.getElementById('register-submit-btn');
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
@@ -121,7 +148,7 @@
 
         const res = await apiRequest('/api/auth/register', {
           method: 'POST',
-          body: { name, email, password, phoneNumber },
+          body: { name, email, password, phoneNumber, recaptchaToken },
         });
 
         if (res.success) {
@@ -137,6 +164,9 @@
           }, 800);
         }
       } catch (err) {
+        if (typeof grecaptcha !== 'undefined') {
+          try { grecaptcha.reset(); } catch (e) {}
+        }
         showBannerAlert('register-alert', err.message, 'danger');
       } finally {
         btn.disabled = false;

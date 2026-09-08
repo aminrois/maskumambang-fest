@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { HashUtil } from '../common/utils/hash.util';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RecaptchaService } from './recaptcha.service';
 import { Role } from '@prisma/client';
 
 @Injectable()
@@ -13,9 +14,12 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly auditService: AuditService,
+    private readonly recaptchaService: RecaptchaService,
   ) {}
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, remoteIp?: string) {
+    await this.recaptchaService.verify(dto.recaptchaToken, remoteIp);
+
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email.trim().toLowerCase() },
     });
@@ -62,6 +66,8 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, ipAddress?: string, userAgent?: string) {
+    await this.recaptchaService.verify(dto.recaptchaToken, ipAddress);
+
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.trim().toLowerCase() },
     });

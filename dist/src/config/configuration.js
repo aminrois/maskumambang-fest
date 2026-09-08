@@ -25,5 +25,10 @@ exports.default = () => ({
         ttl: parseInt(process.env.THROTTLE_TTL || '60000', 10),
         limit: parseInt(process.env.THROTTLE_LIMIT || '60', 10),
     },
+    recaptcha: {
+        siteKey: process.env.RECAPTCHA_SITE_KEY || '6LcNx7AtAAAAAB3M-N6Qp_7H2FBu5Qrn4GN6erAV',
+        secretKey: process.env.RECAPTCHA_SECRET_KEY || '6LcNx7AtAAAAALe3Rn0nQn_o_Hxd4YQHmMwCINA-',
+        enabled: process.env.RECAPTCHA_ENABLED === 'false' ? false : true,
+    },
 });
 //# sourceMappingURL=configuration.js.map

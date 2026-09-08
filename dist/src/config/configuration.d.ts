@@ -23,5 +23,10 @@ declare const _default: () => {
         ttl: number;
         limit: number;
     };
+    recaptcha: {
+        siteKey: string;
+        secretKey: string;
+        enabled: boolean;
+    };
 };
 export default _default;

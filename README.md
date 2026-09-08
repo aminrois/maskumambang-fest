@@ -83,6 +83,10 @@ DATABASE_URL="postgresql://lomba_user:PASSWORD_ANDA@localhost:5432/lomba_db?sche
 # Generate secret dengan perintah di bawah
 JWT_SECRET=isi_dengan_string_random_64_karakter
 QR_SECRET_SALT=isi_dengan_string_random_64_karakter_berbeda
+# Google reCAPTCHA v2 (opsional, sudah ada default)
+RECAPTCHA_ENABLED=true
+RECAPTCHA_SITE_KEY=6LcNx7AtAAAAAB3M-N6Qp_7H2FBu5Qrn4GN6erAV
+RECAPTCHA_SECRET_KEY=6LcNx7AtAAAAALe3Rn0nQn_o_Hxd4YQHmMwCINA-
 ```
 
 **Generate secret otomatis (jalankan 2x, hasil berbeda):**
@@ -170,7 +174,24 @@ server {
     listen 80;
     server_name domain-anda.com www.domain-anda.com;
 
-    client_max_body_size 10M;
+    client_max_body_size 12M;
+
+    # Gzip Compression
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml application/json application/javascript application/rss+xml application/atom+xml image/svg+xml image/x-icon font/woff font/woff2;
+    gzip_min_length 256;
+
+    # Static Assets Cache (7 Hari)
+    location ~* \.(css|js|jpg|jpeg|png|gif|ico|webp|svg|woff|woff2|ttf|eot)$ {
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800, immutable";
+        access_log off;
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+    }
 
     location / {
         proxy_pass http://localhost:3000;
@@ -182,6 +203,8 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 90;
+        proxy_connect_timeout 90;
     }
 }
 ```

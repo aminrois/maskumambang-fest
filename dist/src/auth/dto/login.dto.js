@@ -25,4 +25,9 @@ __decorate([
     (0, class_validator_1.MinLength)(6, { message: 'Kata sandi minimal 6 karakter.' }),
     __metadata("design:type", String)
 ], LoginDto.prototype, "password", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)({ message: 'Token reCAPTCHA tidak valid.' }),
+    __metadata("design:type", String)
+], LoginDto.prototype, "recaptchaToken", void 0);
 //# sourceMappingURL=login.dto.js.map

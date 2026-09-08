@@ -3,12 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RecaptchaService } from './recaptcha.service';
 export declare class AuthService {
     private readonly prisma;
     private readonly jwtService;
     private readonly auditService;
-    constructor(prisma: PrismaService, jwtService: JwtService, auditService: AuditService);
-    register(dto: RegisterDto): Promise<{
+    private readonly recaptchaService;
+    constructor(prisma: PrismaService, jwtService: JwtService, auditService: AuditService, recaptchaService: RecaptchaService);
+    register(dto: RegisterDto, remoteIp?: string): Promise<{
         accessToken: string;
         user: {
             id: string;

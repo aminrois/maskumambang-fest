@@ -7,6 +7,7 @@ const jwt_1 = require("@nestjs/jwt");
 const audit_service_1 = require("../audit/audit.service");
 const common_1 = require("@nestjs/common");
 const hash_util_1 = require("../common/utils/hash.util");
+const recaptcha_service_1 = require("./recaptcha.service");
 const client_1 = require("@prisma/client");
 describe('AuthService', () => {
     let service;
@@ -23,6 +24,9 @@ describe('AuthService', () => {
     const mockAudit = {
         log: jest.fn().mockResolvedValue(undefined),
     };
+    const mockRecaptcha = {
+        verify: jest.fn().mockResolvedValue(true),
+    };
     beforeEach(async () => {
         const module = await testing_1.Test.createTestingModule({
             providers: [
@@ -30,6 +34,7 @@ describe('AuthService', () => {
                 { provide: prisma_service_1.PrismaService, useValue: mockPrisma },
                 { provide: jwt_1.JwtService, useValue: mockJwt },
                 { provide: audit_service_1.AuditService, useValue: mockAudit },
+                { provide: recaptcha_service_1.RecaptchaService, useValue: mockRecaptcha },
             ],
         }).compile();
         service = module.get(auth_service_1.AuthService);

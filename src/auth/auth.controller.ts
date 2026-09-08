@@ -20,7 +20,8 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.register(dto);
+    const ip = req.ip || req.socket.remoteAddress;
+    const result = await this.authService.register(dto, ip);
 
     res.cookie(COOKIE_NAME, result.accessToken, {
       httpOnly: true,

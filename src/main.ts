@@ -4,6 +4,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
+import * as compression from 'compression';
 import * as path from 'path';
 import * as fs from 'fs';
 import { AppModule } from './app.module';
@@ -16,6 +17,9 @@ async function bootstrap() {
 
   const nodeEnv = configService.get<string>('NODE_ENV') || 'development';
   const isProduction = nodeEnv === 'production';
+
+  // Gzip Compression
+  app.use(compression());
 
   // Security Headers via Helmet
   // NOTE: HSTS is DISABLED on HTTP (development). Enable only on HTTPS production.
@@ -34,6 +38,8 @@ async function bootstrap() {
             'https://cdnjs.cloudflare.com',
             'https://unpkg.com',
             'https://cdn.jsdelivr.net',
+            'https://www.google.com',
+            'https://www.gstatic.com',
           ],
           scriptSrcAttr: ["'unsafe-inline'"],
           styleSrc: [
@@ -48,8 +54,9 @@ async function bootstrap() {
             'https://fonts.gstatic.com',
             'https://cdnjs.cloudflare.com',
           ],
-          imgSrc: ["'self'", 'data:', 'blob:'],
-          connectSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https://www.google.com', 'https://www.gstatic.com'],
+          connectSrc: ["'self'", 'https://www.google.com', 'https://www.gstatic.com'],
+          frameSrc: ["'self'", 'https://www.google.com', 'https://recaptcha.google.com'],
           mediaSrc: ["'self'", 'blob:'],
           // Do NOT upgrade insecure requests on HTTP servers - breaks Safari navigation
           upgradeInsecureRequests: null,
@@ -70,12 +77,24 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRFToken', 'X-Requested-With'],
   });
 
-  // Serve static frontend assets from public/ directory
+  // Serve static frontend assets from public/ directory with 7-day browser caching
   const publicDir = path.resolve(process.cwd(), 'public');
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
   }
-  app.useStaticAssets(publicDir);
+  app.useStaticAssets(publicDir, {
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 hari (604800000 ms)
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      // Untuk file HTML, jangan di-cache lama agar pembaruan UI langsung termutakhirkan
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+      }
+    },
+  });
 
   // Global Prefix: /api (excluding /health)
   const apiPrefix = configService.get<string>('apiPrefix') || '/api';

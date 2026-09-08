@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { AuditService } from '../audit/audit.service';
 import { UnauthorizedException, ConflictException } from '@nestjs/common';
 import { HashUtil } from '../common/utils/hash.util';
+import { RecaptchaService } from './recaptcha.service';
 import { Role } from '@prisma/client';
 
 describe('AuthService', () => {
@@ -26,6 +27,10 @@ describe('AuthService', () => {
     log: jest.fn().mockResolvedValue(undefined),
   };
 
+  const mockRecaptcha = {
+    verify: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -33,6 +38,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: AuditService, useValue: mockAudit },
+        { provide: RecaptchaService, useValue: mockRecaptcha },
       ],
     }).compile();
 
