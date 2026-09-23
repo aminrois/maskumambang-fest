@@ -177,7 +177,6 @@
               <table class="table" style="width: 100%; border-collapse: collapse; text-align: left;">
                 <thead>
                   <tr style="background: var(--table-header-bg); border-bottom: 1px solid var(--border-subtle);">
-                    <th style="padding: 14px 16px; font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">No. Registrasi</th>
                     <th style="padding: 14px 16px; font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">Nama Peserta / Tim</th>
                     <th style="padding: 14px 16px; font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">Asal Sekolah / Madrasah</th>
                     <th style="padding: 14px 16px; font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">Kategori & Jenjang</th>
@@ -188,7 +187,6 @@
                 <tbody>
                   ${res.results.map(r => `
                     <tr style="border-bottom: 1px solid var(--border-subtle);">
-                      <td style="padding: 14px 16px;"><code style="font-weight: 800; color: var(--primary-600);">${r.registration_number}</code></td>
                       <td style="padding: 14px 16px; font-weight: 700; color: var(--text-heading);">${r.participant_name}</td>
                       <td style="padding: 14px 16px; color: var(--text-muted);">${r.school_name}</td>
                       <td style="padding: 14px 16px;"><span class="badge badge-primary" style="font-size: 0.75rem;">${r.category_name} (${r.level_name})</span></td>
