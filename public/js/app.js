@@ -19,6 +19,17 @@ const safeStorage = {
   },
 };
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
 // Global Application State
 const state = {
   token: null, // Token dikelola via HttpOnly Cookie oleh server, tidak disimpan di JS
@@ -1603,6 +1614,12 @@ async function renderPesertaRegistrationDetail(regId) {
                 </a>
               </div>
             </div>
+            ${(state.user?.role === 'SUPER_ADMIN' || state.user?.role === 'BENDAHARA') && reg.status === 'WAITING_VERIFICATION' ? `
+              <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-subtle); display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" class="btn btn-outline-danger" onclick="promptRejectPayment('${latestPayment.id}')"><i class="fa-solid fa-circle-xmark"></i> Tolak Pembayaran</button>
+                <button type="button" class="btn btn-success" onclick="executeApprovePayment('${latestPayment.id}')"><i class="fa-solid fa-circle-check"></i> Setujui Pembayaran</button>
+              </div>
+            ` : ''}
           ` : `
             <p style="color: var(--text-muted);">Belum ada riwayat pembayaran.</p>
           `}
@@ -2098,7 +2115,7 @@ async function renderBendaharaPaymentsView() {
   container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat daftar pembayaran...</div>';
 
   try {
-    const res = await apiRequest('/api/payments/list');
+    const res = await apiRequest('/api/payments/list?perPage=1000');
     tableState.bendaharaPayments.data = res.success ? res.payments : [];
 
     container.innerHTML = `
@@ -2161,7 +2178,7 @@ function renderBendaharaPaymentsTable() {
         sticky: true,
         sortable: false,
         render: p => `
-          <button class="btn btn-sm btn-primary" style="padding: 4px 10px;" onclick="openPaymentVerifyModal('${p.id}', '${p.proofImagePath}', '${p.registration?.registrationNumber}', '${p.registration?.individualParticipant?.fullName || p.registration?.team?.teamName}', ${p.amount}, '${p.status}')">
+          <button class="btn btn-sm btn-primary" style="padding: 4px 10px;" onclick="openPaymentVerifyModal('${p.id}')">
             <i class="fa-solid fa-eye"></i> Periksa Bukti
           </button>
         `,
@@ -2235,6 +2252,21 @@ function onBendaharaFilterChange(v) {
 }
 
 function openPaymentVerifyModal(paymentId, filename, regNum, participantName, amount, status) {
+  const p = (tableState.bendaharaPayments.data || []).find(x => x.id === paymentId);
+  if (p) {
+    filename = p.proofImagePath || filename || '';
+    regNum = p.registration?.registrationNumber || regNum || '-';
+    participantName = p.registration?.individualParticipant?.fullName || p.registration?.team?.teamName || participantName || '-';
+    amount = p.amount || amount || 0;
+    status = p.status || status || 'WAITING_VERIFICATION';
+  } else {
+    filename = filename || '';
+    regNum = regNum || '-';
+    participantName = participantName || '-';
+    amount = amount || 0;
+    status = status || 'WAITING_VERIFICATION';
+  }
+
   openAppModal(`
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-file-invoice-dollar"></i> Verifikasi Pembayaran</h3>
@@ -2244,9 +2276,9 @@ function openPaymentVerifyModal(paymentId, filename, regNum, participantName, am
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
       <div>
         <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Nomor Registrasi:</div>
-        <code style="font-size: 1.1rem; font-weight: 800; color: var(--primary-600);">${regNum}</code>
+        <code style="font-size: 1.1rem; font-weight: 800; color: var(--primary-600);">${escapeHtml(regNum)}</code>
         <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-top: 10px;">Nama Peserta:</div>
-        <div style="font-weight: 700; font-size: 1rem;">${participantName}</div>
+        <div style="font-weight: 700; font-size: 1rem;">${escapeHtml(participantName)}</div>
         <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-top: 10px;">Nominal:</div>
         <div style="font-weight: 800; color: var(--accent-600); font-size: 1.15rem;">${formatCurrency(amount)}</div>
         <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-top: 10px;">Status:</div>
@@ -2271,22 +2303,54 @@ function openPaymentVerifyModal(paymentId, filename, regNum, participantName, am
     <div id="verify-modal-alert" style="display: none; padding: 12px; border-radius: 8px; margin-bottom: 16px;"></div>
 
     <div style="display: flex; gap: 10px; justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
-      <button class="btn btn-outline-danger" onclick="promptRejectPayment('${paymentId}')"><i class="fa-solid fa-circle-xmark"></i> Tolak Pembayaran</button>
-      <button class="btn btn-success" onclick="executeApprovePayment('${paymentId}')"><i class="fa-solid fa-circle-check"></i> Setujui Pembayaran</button>
+      <button type="button" id="modal-reject-pay-btn" class="btn btn-outline-danger" onclick="promptRejectPayment('${paymentId}')"><i class="fa-solid fa-circle-xmark"></i> Tolak Pembayaran</button>
+      <button type="button" id="modal-approve-pay-btn" class="btn btn-success" onclick="executeApprovePayment('${paymentId}')"><i class="fa-solid fa-circle-check"></i> Setujui Pembayaran</button>
     </div>
   `);
 }
 
 async function executeApprovePayment(paymentId) {
+  const approveBtn = document.getElementById('modal-approve-pay-btn');
+  const rejectBtn = document.getElementById('modal-reject-pay-btn');
+  if (approveBtn) {
+    approveBtn.disabled = true;
+    approveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
+  }
+  if (rejectBtn) rejectBtn.disabled = true;
+
   try {
     const res = await apiRequest(`/api/payments/${paymentId}/approve`, { method: 'POST' });
     if (res.success) {
-      alert('Pembayaran berhasil disetujui!');
+      alert('Pembayaran berhasil disetujui! Kartu peserta kini aktif.');
       closeAppModal();
-      renderBendaharaPaymentsView();
+      
+      // Update data in-memory jika ada di tableState
+      if (tableState.bendaharaPayments && tableState.bendaharaPayments.data) {
+        const item = tableState.bendaharaPayments.data.find(x => x.id === paymentId);
+        if (item) {
+          item.status = 'APPROVED';
+          if (item.registration) item.registration.status = 'APPROVED';
+        }
+      }
+      
+      // Refresh tampilan aktif
+      const hash = (window.location.hash || '').replace(/^#/, '');
+      if (hash.startsWith('detail/')) {
+        const regId = hash.split('/')[1];
+        renderPesertaRegistrationDetail(regId);
+      } else if (hash === 'daftar-peserta') {
+        renderAdminRegistrationsView();
+      } else {
+        renderBendaharaPaymentsView();
+      }
     }
   } catch (err) {
-    alert(err.message);
+    alert(err.message || 'Gagal menyetujui pembayaran.');
+    if (approveBtn) {
+      approveBtn.disabled = false;
+      approveBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Setujui Pembayaran';
+    }
+    if (rejectBtn) rejectBtn.disabled = false;
   }
 }
 
@@ -2301,6 +2365,14 @@ function promptRejectPayment(paymentId) {
 }
 
 async function executeRejectPayment(paymentId, rejectionReason) {
+  const rejectBtn = document.getElementById('modal-reject-pay-btn');
+  const approveBtn = document.getElementById('modal-approve-pay-btn');
+  if (rejectBtn) {
+    rejectBtn.disabled = true;
+    rejectBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
+  }
+  if (approveBtn) approveBtn.disabled = true;
+
   try {
     const res = await apiRequest(`/api/payments/${paymentId}/reject`, {
       method: 'POST',
@@ -2309,10 +2381,32 @@ async function executeRejectPayment(paymentId, rejectionReason) {
     if (res.success) {
       alert('Pembayaran telah ditolak.');
       closeAppModal();
-      renderBendaharaPaymentsView();
+
+      if (tableState.bendaharaPayments && tableState.bendaharaPayments.data) {
+        const item = tableState.bendaharaPayments.data.find(x => x.id === paymentId);
+        if (item) {
+          item.status = 'REJECTED';
+          if (item.registration) item.registration.status = 'PAYMENT_REJECTED';
+        }
+      }
+
+      const hash = (window.location.hash || '').replace(/^#/, '');
+      if (hash.startsWith('detail/')) {
+        const regId = hash.split('/')[1];
+        renderPesertaRegistrationDetail(regId);
+      } else if (hash === 'daftar-peserta') {
+        renderAdminRegistrationsView();
+      } else {
+        renderBendaharaPaymentsView();
+      }
     }
   } catch (err) {
-    alert(err.message);
+    alert(err.message || 'Gagal menolak pembayaran.');
+    if (rejectBtn) {
+      rejectBtn.disabled = false;
+      rejectBtn.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Tolak Pembayaran';
+    }
+    if (approveBtn) approveBtn.disabled = false;
   }
 }
 

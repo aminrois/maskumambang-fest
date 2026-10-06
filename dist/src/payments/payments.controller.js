@@ -90,8 +90,8 @@ let PaymentsController = class PaymentsController {
             data: payment,
         };
     }
-    async listPayments(status, search, page = '1', perPage = '25') {
-        const data = await this.paymentsService.listPayments(status, search, parseInt(page, 10) || 1, parseInt(perPage, 10) || 25);
+    async listPayments(status, search, page = '1', perPage = '500') {
+        const data = await this.paymentsService.listPayments(status, search, parseInt(page, 10) || 1, parseInt(perPage, 10) || 500);
         return { success: true, ...data };
     }
     async approvePayment(paymentId, staffId) {

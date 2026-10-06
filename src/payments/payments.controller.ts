@@ -174,13 +174,13 @@ export class PaymentsController {
     @Query('status') status?: PaymentStatus,
     @Query('search') search?: string,
     @Query('page') page = '1',
-    @Query('perPage') perPage = '25',
+    @Query('perPage') perPage = '500',
   ) {
     const data = await this.paymentsService.listPayments(
       status,
       search,
       parseInt(page, 10) || 1,
-      parseInt(perPage, 10) || 25,
+      parseInt(perPage, 10) || 500,
     );
     return { success: true, ...data };
   }

@@ -119,16 +119,20 @@
 
   <script src="/js/app.js?v=20260829_02"></script>
   <script>
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     document.addEventListener('DOMContentLoaded', () => {
       initTheme();
       loadBrandingInfo();
+      if (isLocalhost) {
+        document.querySelectorAll('.recaptcha-container').forEach(el => el.style.display = 'none');
+      }
     });
 
     async function handleRegisterSubmit(e) {
       e.preventDefault();
 
       let recaptchaToken = '';
-      if (typeof grecaptcha !== 'undefined') {
+      if (!isLocalhost && typeof grecaptcha !== 'undefined') {
         recaptchaToken = grecaptcha.getResponse();
         if (!recaptchaToken) {
           showBannerAlert('register-alert', 'Silakan centang reCAPTCHA terlebih dahulu.', 'warning');
