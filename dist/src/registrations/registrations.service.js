@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const audit_service_1 = require("../audit/audit.service");
 const config_1 = require("@nestjs/config");
+const hash_util_1 = require("../common/utils/hash.util");
 const client_1 = require("@prisma/client");
 const crypto = require("crypto");
 let RegistrationsService = class RegistrationsService {
@@ -431,6 +432,195 @@ let RegistrationsService = class RegistrationsService {
             details: `Data pendaftaran ${reg.registrationNumber} diperbarui oleh Super Admin.`,
         });
         return this.getRegistrationById(id, adminId, client_1.Role.SUPER_ADMIN);
+    }
+    async bulkImport(adminId, dto) {
+        if (!dto.items || dto.items.length === 0) {
+            throw new common_1.BadRequestException('Daftar peserta untuk diimpor tidak boleh kosong.');
+        }
+        let schoolUser;
+        const plainPassword = dto.schoolAccount.password?.trim() || 'fest2026';
+        if (dto.schoolAccount.mode === 'new') {
+            const email = (dto.schoolAccount.email || '').trim().toLowerCase();
+            if (!email) {
+                throw new common_1.BadRequestException('Email sekolah wajib diisi untuk pembuatan akun baru.');
+            }
+            const existing = await this.prisma.user.findUnique({ where: { email } });
+            if (existing) {
+                if (existing.role === client_1.Role.PESERTA) {
+                    schoolUser = existing;
+                }
+                else {
+                    throw new common_1.ConflictException(`Email ${email} sudah terdaftar dengan hak akses staff/admin.`);
+                }
+            }
+            else {
+                const passwordHash = await hash_util_1.HashUtil.hashPassword(plainPassword);
+                schoolUser = await this.prisma.user.create({
+                    data: {
+                        name: (dto.schoolAccount.schoolName || dto.schoolAccount.mentorName || 'Sekolah Peserta').trim(),
+                        email,
+                        phoneNumber: (dto.schoolAccount.phoneNumber || '080000000000').trim(),
+                        passwordHash,
+                        role: client_1.Role.PESERTA,
+                        isActive: true,
+                    },
+                });
+            }
+        }
+        else {
+            if (!dto.schoolAccount.existingUserId) {
+                throw new common_1.BadRequestException('ID akun sekolah wajib dipilih.');
+            }
+            schoolUser = await this.prisma.user.findUnique({
+                where: { id: dto.schoolAccount.existingUserId },
+            });
+            if (!schoolUser) {
+                throw new common_1.NotFoundException('Akun sekolah yang dipilih tidak ditemukan.');
+            }
+        }
+        const allBranches = await this.prisma.competitionBranch.findMany({
+            include: {
+                level: {
+                    include: {
+                        category: true,
+                    },
+                },
+            },
+        });
+        const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const findBranch = (item) => {
+            if (item.branchId) {
+                const b = allBranches.find((br) => br.id === item.branchId);
+                if (b)
+                    return b;
+            }
+            const bName = norm(item.branchName);
+            const lName = norm(item.levelName || '');
+            const cName = norm(item.categoryName || '');
+            let match = allBranches.find((b) => {
+                const bMatch = norm(b.name) === bName;
+                const lMatch = !lName || norm(b.level.name) === lName || norm(b.level.name).includes(lName) || lName.includes(norm(b.level.name));
+                const cMatch = !cName || norm(b.level.category.name) === cName || norm(b.level.category.name).includes(cName);
+                return bMatch && (lMatch || cMatch);
+            });
+            if (!match) {
+                match = allBranches.find((b) => {
+                    const bMatch = norm(b.name).includes(bName) || bName.includes(norm(b.name));
+                    const lMatch = !lName || norm(b.level.name).includes(lName) || lName.includes(norm(b.level.name));
+                    return bMatch && lMatch;
+                });
+            }
+            if (!match) {
+                const byBranch = allBranches.filter((b) => norm(b.name) === bName);
+                if (byBranch.length === 1)
+                    match = byBranch[0];
+            }
+            return match;
+        };
+        const resolvedItems = [];
+        for (let i = 0; i < dto.items.length; i++) {
+            const item = dto.items[i];
+            if (!item.fullName || !item.fullName.trim()) {
+                throw new common_1.BadRequestException(`Baris ${i + 1}: Nama peserta tidak boleh kosong.`);
+            }
+            const branch = findBranch(item);
+            if (!branch) {
+                throw new common_1.BadRequestException(`Baris ${i + 1} (${item.fullName}): Cabang lomba "${item.branchName}" (Jenjang: ${item.levelName || '-'}) tidak cocok dengan data cabang lomba di sistem.`);
+            }
+            resolvedItems.push({ item, branch });
+        }
+        const createdRegs = await this.prisma.$transaction(async (tx) => {
+            const results = [];
+            for (const { item, branch } of resolvedItems) {
+                const isIndividual = branch.participantType === client_1.ParticipantType.INDIVIDUAL;
+                const regId = crypto.randomUUID();
+                const regNumber = this.generateRegistrationNumber(isIndividual ? 'IND' : 'TIM');
+                const qrToken = this.generateQrToken(regId, regNumber);
+                const reg = await tx.registration.create({
+                    data: {
+                        id: regId,
+                        registrationNumber: regNumber,
+                        userId: schoolUser.id,
+                        branchId: branch.id,
+                        status: dto.status,
+                        qrCodeToken: qrToken,
+                    },
+                });
+                if (isIndividual) {
+                    await tx.individualParticipant.create({
+                        data: {
+                            registrationId: reg.id,
+                            fullName: item.fullName.trim(),
+                            gender: item.gender,
+                            gradeClass: (item.gradeClass || '-').trim(),
+                            schoolName: (item.schoolName || schoolUser.name).trim(),
+                            schoolAddress: (item.schoolAddress || '-').trim(),
+                            mentorName: (item.mentorName || dto.schoolAccount.mentorName || schoolUser.name).trim(),
+                            whatsappNumber: (item.whatsappNumber || dto.schoolAccount.phoneNumber || schoolUser.phoneNumber).trim(),
+                        },
+                    });
+                }
+                else {
+                    const team = await tx.team.create({
+                        data: {
+                            registrationId: reg.id,
+                            teamName: item.fullName.trim(),
+                            schoolName: (item.schoolName || schoolUser.name).trim(),
+                            schoolAddress: (item.schoolAddress || '-').trim(),
+                            mentorName: (item.mentorName || dto.schoolAccount.mentorName || schoolUser.name).trim(),
+                            whatsappNumber: (item.whatsappNumber || dto.schoolAccount.phoneNumber || schoolUser.phoneNumber).trim(),
+                            leaderName: item.fullName.trim(),
+                        },
+                    });
+                    await tx.teamMember.create({
+                        data: {
+                            teamId: team.id,
+                            memberName: item.fullName.trim(),
+                            gender: item.gender,
+                            gradeClass: (item.gradeClass || '-').trim(),
+                            positionRole: 'Ketua Tim',
+                        },
+                    });
+                }
+                if (dto.status === client_1.RegistrationStatus.APPROVED) {
+                    await tx.payment.create({
+                        data: {
+                            registrationId: reg.id,
+                            amount: branch.registrationFee,
+                            proofImagePath: 'bulk_import_admin.png',
+                            paymentDate: new Date(),
+                            status: client_1.PaymentStatus.APPROVED,
+                            notes: `Import Kolektif Sekolah: ${schoolUser.name} (${dto.notes || 'Disetujui Admin'})`,
+                        },
+                    });
+                }
+                results.push({
+                    id: reg.id,
+                    registrationNumber: reg.registrationNumber,
+                    fullName: item.fullName,
+                    branchName: branch.name,
+                    levelName: branch.level.name,
+                });
+            }
+            return results;
+        });
+        await this.auditService.log({
+            userId: adminId,
+            action: 'BULK_IMPORT_REGISTRATIONS',
+            targetTable: 'registrations',
+            details: `Import massal ${createdRegs.length} peserta untuk sekolah "${schoolUser.name}" (${schoolUser.email}) dengan status ${dto.status}.`,
+        });
+        return {
+            importedCount: createdRegs.length,
+            schoolUser: {
+                id: schoolUser.id,
+                name: schoolUser.name,
+                email: schoolUser.email,
+                phoneNumber: schoolUser.phoneNumber,
+                plainPassword: dto.schoolAccount.mode === 'new' ? plainPassword : null,
+            },
+            registrations: createdRegs,
+        };
     }
 };
 exports.RegistrationsService = RegistrationsService;

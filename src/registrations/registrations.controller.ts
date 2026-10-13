@@ -3,6 +3,7 @@ import { RegistrationsService } from './registrations.service';
 import { CreateIndividualRegistrationDto } from './dto/create-individual.dto';
 import { CreateTeamRegistrationDto } from './dto/create-team.dto';
 import { UpdateRegistrationDto } from './dto/update-registration.dto';
+import { BulkImportRegistrationDto } from './dto/bulk-import.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role, RegistrationStatus } from '@prisma/client';
@@ -91,6 +92,20 @@ export class RegistrationsController {
     return {
       success: true,
       message: 'Data peserta berhasil diperbarui.',
+      data,
+    };
+  }
+
+  @Roles(Role.SUPER_ADMIN)
+  @Post('bulk-import')
+  async bulkImport(
+    @CurrentUser('id') adminId: string,
+    @Body() dto: BulkImportRegistrationDto,
+  ) {
+    const data = await this.registrationsService.bulkImport(adminId, dto);
+    return {
+      success: true,
+      message: `Berhasil mengimpor ${data.importedCount} peserta.`,
       data,
     };
   }

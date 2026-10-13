@@ -18,6 +18,7 @@ const registrations_service_1 = require("./registrations.service");
 const create_individual_dto_1 = require("./dto/create-individual.dto");
 const create_team_dto_1 = require("./dto/create-team.dto");
 const update_registration_dto_1 = require("./dto/update-registration.dto");
+const bulk_import_dto_1 = require("./dto/bulk-import.dto");
 const roles_decorator_1 = require("../common/decorators/roles.decorator");
 const current_user_decorator_1 = require("../common/decorators/current-user.decorator");
 const client_1 = require("@prisma/client");
@@ -64,6 +65,14 @@ let RegistrationsController = class RegistrationsController {
         return {
             success: true,
             message: 'Data peserta berhasil diperbarui.',
+            data,
+        };
+    }
+    async bulkImport(adminId, dto) {
+        const data = await this.registrationsService.bulkImport(adminId, dto);
+        return {
+            success: true,
+            message: `Berhasil mengimpor ${data.importedCount} peserta.`,
             data,
         };
     }
@@ -125,6 +134,15 @@ __decorate([
     __metadata("design:paramtypes", [String, String, update_registration_dto_1.UpdateRegistrationDto]),
     __metadata("design:returntype", Promise)
 ], RegistrationsController.prototype, "updateRegistration", null);
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.SUPER_ADMIN),
+    (0, common_1.Post)('bulk-import'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, bulk_import_dto_1.BulkImportRegistrationDto]),
+    __metadata("design:returntype", Promise)
+], RegistrationsController.prototype, "bulkImport", null);
 exports.RegistrationsController = RegistrationsController = __decorate([
     (0, common_1.Controller)('registrations'),
     __metadata("design:paramtypes", [registrations_service_1.RegistrationsService])

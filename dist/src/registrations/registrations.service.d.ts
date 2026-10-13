@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { CreateIndividualRegistrationDto } from './dto/create-individual.dto';
 import { CreateTeamRegistrationDto } from './dto/create-team.dto';
 import { UpdateRegistrationDto } from './dto/update-registration.dto';
+import { BulkImportRegistrationDto } from './dto/bulk-import.dto';
 import { RegistrationStatus, Role } from '@prisma/client';
 export declare class RegistrationsService {
     private readonly prisma;
@@ -805,5 +806,22 @@ export declare class RegistrationsService {
         userId: string;
         branchId: string;
         status: import(".prisma/client").$Enums.RegistrationStatus;
+    }>;
+    bulkImport(adminId: string, dto: BulkImportRegistrationDto): Promise<{
+        importedCount: number;
+        schoolUser: {
+            id: any;
+            name: any;
+            email: any;
+            phoneNumber: any;
+            plainPassword: string | null;
+        };
+        registrations: {
+            id: string;
+            registrationNumber: string;
+            fullName: string;
+            branchName: any;
+            levelName: any;
+        }[];
     }>;
 }

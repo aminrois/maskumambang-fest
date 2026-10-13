@@ -2,6 +2,7 @@ import { RegistrationsService } from './registrations.service';
 import { CreateIndividualRegistrationDto } from './dto/create-individual.dto';
 import { CreateTeamRegistrationDto } from './dto/create-team.dto';
 import { UpdateRegistrationDto } from './dto/update-registration.dto';
+import { BulkImportRegistrationDto } from './dto/bulk-import.dto';
 import { Role, RegistrationStatus } from '@prisma/client';
 export declare class RegistrationsController {
     private readonly registrationsService;
@@ -817,6 +818,27 @@ export declare class RegistrationsController {
             userId: string;
             branchId: string;
             status: import(".prisma/client").$Enums.RegistrationStatus;
+        };
+    }>;
+    bulkImport(adminId: string, dto: BulkImportRegistrationDto): Promise<{
+        success: boolean;
+        message: string;
+        data: {
+            importedCount: number;
+            schoolUser: {
+                id: any;
+                name: any;
+                email: any;
+                phoneNumber: any;
+                plainPassword: string | null;
+            };
+            registrations: {
+                id: string;
+                registrationNumber: string;
+                fullName: string;
+                branchName: any;
+                levelName: any;
+            }[];
         };
     }>;
 }

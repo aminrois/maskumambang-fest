@@ -580,6 +580,7 @@ function buildRoleSidebar(role) {
       <div class="nav-section-title">MENU UTAMA</div>
       <a href="#overview" id="nav-overview" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-chart-pie"></i></span><span class="nav-label">Dashboard</span></a>
       <a href="#daftar-peserta" id="nav-daftar-peserta" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-clipboard-list"></i></span><span class="nav-label">Daftar Peserta</span></a>
+      <a href="#import-peserta" id="nav-import-peserta" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-file-excel"></i></span><span class="nav-label">Import Peserta</span></a>
       <a href="#verifikasi-pembayaran" id="nav-verifikasi-pembayaran" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-credit-card"></i></span><span class="nav-label">Pembayaran</span></a>
       <a href="#checkin-scanner" id="nav-checkin-scanner" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span><span class="nav-label">Check-In QR</span></a>
       <a href="#cetak-kartu" id="nav-cetak-kartu" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-print"></i></span><span class="nav-label">Cetak Kartu Peserta</span></a>
@@ -685,6 +686,7 @@ function handleDashboardRoute() {
     else renderBendaharaDashboard();
   } else if (role === 'SUPER_ADMIN') {
     if (mainRoute === 'daftar-peserta') renderAdminRegistrationsView();
+    else if (mainRoute === 'import-peserta') renderAdminImportPesertaView();
     else if (mainRoute === 'verifikasi-pembayaran') renderBendaharaPaymentsView();
     else if (mainRoute === 'checkin-scanner') renderCheckInScannerView();
     else if (mainRoute === 'cetak-kartu') renderCetakKartuView();
@@ -2992,9 +2994,16 @@ async function renderAdminRegistrationsView() {
     tableState.adminRegistrations.data = res.success ? res.registrations : [];
 
     container.innerHTML = `
-      <div style="margin-bottom: 24px;">
-        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Daftar Seluruh Peserta Lomba</h2>
-        <p style="color: var(--text-muted); font-size: 0.95rem;">Data pendaftar resmi di seluruh 22 cabang lomba tingkat nasional.</p>
+      <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h2 style="font-size: 1.6rem; color: var(--text-heading); margin-bottom: 4px;">Daftar Seluruh Peserta Lomba</h2>
+          <p style="color: var(--text-muted); font-size: 0.95rem;">Data pendaftar resmi di seluruh 22 cabang lomba tingkat nasional.</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <a href="#import-peserta" class="btn btn-sm btn-success" style="background: #10b981; color: #fff; border: none; padding: 9px 16px; border-radius: 8px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; box-shadow: 0 2px 4px rgba(16,185,129,0.2);">
+            <i class="fa-solid fa-file-excel"></i> Import Peserta (Excel)
+          </a>
+        </div>
       </div>
 
       <div id="admin-registrations-table-slot">
@@ -6047,6 +6056,13 @@ window.exportAdminUsersExcel = exportAdminUsersExcel;
 window.exportAdminBranchesExcel = exportAdminBranchesExcel;
 window.exportAdminAuditExcel = exportAdminAuditExcel;
 window.exportAdminBranchStatsExcel = exportAdminBranchStatsExcel;
+// Super Admin Excel / CSV Export Handlers
+window.exportTableDataToExcel = exportTableDataToExcel;
+window.exportAdminRegistrationsExcel = exportAdminRegistrationsExcel;
+window.exportAdminUsersExcel = exportAdminUsersExcel;
+window.exportAdminBranchesExcel = exportAdminBranchesExcel;
+window.exportAdminAuditExcel = exportAdminAuditExcel;
+window.exportAdminBranchStatsExcel = exportAdminBranchStatsExcel;
 window.exportAdminPaymentAccountsExcel = exportAdminPaymentAccountsExcel;
 window.exportBendaharaPaymentsExcel = exportBendaharaPaymentsExcel;
 window.exportCheckInLogsExcel = exportCheckInLogsExcel;
@@ -6058,6 +6074,16 @@ window.saveEditRegistration = saveEditRegistration;
 window.onEditCategoryChange = onEditCategoryChange;
 window.onEditLevelChange = onEditLevelChange;
 window.addEditMemberRow = addEditMemberRow;
+
+// Bulk Import Peserta (Super Admin)
+window.renderAdminImportPesertaView = renderAdminImportPesertaView;
+window.downloadImportTemplateExcel = downloadImportTemplateExcel;
+window.toggleImportAccountMode = toggleImportAccountMode;
+window.handleImportFileSelect = handleImportFileSelect;
+window.renderImportPreviewTable = renderImportPreviewTable;
+window.removeImportRow = removeImportRow;
+window.resetImportPreview = resetImportPreview;
+window.submitBulkImport = submitBulkImport;
 
 // UI & Responsive Drawer Navigation Handlers
 window.togglePublicMenu = togglePublicMenu;
@@ -6075,4 +6101,685 @@ document.addEventListener('click', function (e) {
     closePublicMenu();
   }
 });
+
+// =============================================================================
+// BULK IMPORT PESERTA KOLEKTIF (SEKOLAH / LEMBAGA) - SUPER ADMIN
+// =============================================================================
+let _importParsedRows = [];
+let _importExistingUsers = [];
+
+async function renderAdminImportPesertaView() {
+  const container = document.getElementById('main-view-slot');
+  if (!container) return;
+
+  _importParsedRows = [];
+  container.innerHTML = `
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <div style="font-size: 0.85rem; color: var(--primary-600); font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">
+          <i class="fa-solid fa-users-rays"></i> Pendaftaran Kolektif Sekolah
+        </div>
+        <h2 style="font-size: 1.6rem; color: var(--text-heading); margin: 0 0 4px 0;">Import Peserta Lomba (Excel)</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">
+          Daftarkan puluhan peserta dari satu sekolah sekaligus (misal: Olimpiade, Little Champions). Sekolah akan memiliki akun sendiri untuk mencetak kartu peserta.
+        </p>
+      </div>
+      <div>
+        <button type="button" class="btn btn-outline-primary" onclick="downloadImportTemplateExcel()" style="padding: 9px 18px; border-radius: 8px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; border: 1.5px solid var(--primary-600); color: var(--primary-600); background: transparent; cursor: pointer;">
+          <i class="fa-solid fa-file-arrow-down" style="font-size: 1.1rem;"></i> Download Template Excel (.xlsx)
+        </button>
+      </div>
+    </div>
+
+    <!-- Grid Card Container -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-bottom: 24px;">
+      
+      <!-- Card 1: Pengaturan Akun Sekolah -->
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl, 16px); padding: 24px; box-shadow: var(--shadow-sm);">
+        <h3 style="font-size: 1.1rem; color: var(--text-heading); margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px;">
+          <span style="width: 28px; height: 28px; border-radius: 50%; background: var(--primary-50, #eff6ff); color: var(--primary-600); display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 800;">1</span>
+          Akun Sekolah / Lembaga Pendaftar
+        </h3>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">
+            Tipe Akun Sekolah
+          </label>
+          <div style="display: flex; gap: 16px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer;">
+              <input type="radio" name="importAccountMode" value="new" checked onchange="toggleImportAccountMode('new')">
+              <strong>Buat Akun Baru</strong>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer;">
+              <input type="radio" name="importAccountMode" value="existing" onchange="toggleImportAccountMode('existing')">
+              <span>Gunakan Akun Terdaftar</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Form Akun Baru -->
+        <div id="import-new-account-fields" style="display: flex; flex-direction: column; gap: 14px;">
+          <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Nama Sekolah / Lembaga <span style="color:red;">*</span></label>
+            <input type="text" id="imp-school-name" class="form-control" placeholder="Contoh: SDIT Al Hikmah Surabaya" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-card); color: var(--text-main);">
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Nama Guru / PIC <span style="color:red;">*</span></label>
+              <input type="text" id="imp-mentor-name" class="form-control" placeholder="Contoh: Ust. Ahmad Fajar, S.Pd" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-card); color: var(--text-main);">
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">No. WhatsApp PIC <span style="color:red;">*</span></label>
+              <input type="text" id="imp-school-phone" class="form-control" placeholder="081234567890" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-card); color: var(--text-main);">
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Email Akun Login <span style="color:red;">*</span></label>
+              <input type="email" id="imp-school-email" class="form-control" placeholder="sdit.alhikmah@gmail.com" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-card); color: var(--text-main);">
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Password Akun</label>
+              <input type="text" id="imp-school-password" class="form-control" value="fest2026" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-card); color: var(--text-main);">
+              <small style="color: var(--text-muted); font-size: 0.72rem;">Default: fest2026</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Akun Terdaftar (Hidden initially) -->
+        <div id="import-existing-account-fields" style="display: none; flex-direction: column; gap: 14px;">
+          <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Pilih Akun Sekolah <span style="color:red;">*</span></label>
+            <select id="imp-existing-user-id" class="form-control" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-card); color: var(--text-main);">
+              <option value="">-- Memuat daftar akun... --</option>
+            </select>
+            <small style="color: var(--text-muted); font-size: 0.75rem;">Hanya menampilkan akun dengan peran PESERTA</small>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Card 2: Pengaturan Status & File Upload -->
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl, 16px); padding: 24px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <h3 style="font-size: 1.1rem; color: var(--text-heading); margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: var(--primary-50, #eff6ff); color: var(--primary-600); display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 800;">2</span>
+            Status Pembayaran & Upload File
+          </h3>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+                Status Pendaftaran
+              </label>
+              <select id="imp-status" class="form-control" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-card); color: var(--text-main); font-weight: 600;">
+                <option value="APPROVED" selected>✅ Disetujui (Lunas / Approved)</option>
+                <option value="WAITING_VERIFICATION">⏳ Menunggu Verifikasi</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+                Catatan Transaksi
+              </label>
+              <input type="text" id="imp-notes" class="form-control" placeholder="Contoh: Lunas via transfer BSI" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-card); color: var(--text-main);">
+            </div>
+          </div>
+
+          <label style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+            Pilih File Excel (.xlsx / .csv)
+          </label>
+          <div id="imp-dropzone" style="border: 2px dashed var(--primary-300, #93c5fd); border-radius: 12px; padding: 24px; text-align: center; background: rgba(59, 130, 246, 0.03); cursor: pointer; transition: all 0.2s;" onclick="document.getElementById('imp-file-input').click()">
+            <i class="fa-solid fa-cloud-arrow-up" style="font-size: 2rem; color: var(--primary-500); margin-bottom: 8px;"></i>
+            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-heading);" id="imp-file-label">
+              Klik di sini untuk memilih file Excel
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+              Mendukung file .xlsx, .xls, .csv (Format sesuai Template)
+            </div>
+            <input type="file" id="imp-file-input" accept=".xlsx,.xls,.csv" style="display: none;" onchange="handleImportFileSelect(event)">
+          </div>
+        </div>
+
+        <div style="margin-top: 16px; padding: 12px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 8px; font-size: 0.825rem; color: var(--success-700, #047857);">
+          <i class="fa-solid fa-lightbulb"></i> <strong>Tips:</strong> Pastikan Anda menggunakan file yang diunduh dari tombol <em>"Download Template Excel"</em> agar kolom terbaca dengan tepat.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: PREVIEW TABEL DATA (Akan muncul setelah file dipilih) -->
+    <div id="import-preview-section" style="display: none; margin-top: 28px;">
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl, 16px); padding: 24px; box-shadow: var(--shadow-md);">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 16px;">
+          <div>
+            <h3 style="font-size: 1.25rem; color: var(--text-heading); margin: 0 0 4px 0; display: flex; align-items: center; gap: 8px;">
+              <span style="width: 28px; height: 28px; border-radius: 50%; background: var(--success-50, #ecfdf5); color: var(--success-600); display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 800;">3</span>
+              Preview Data Peserta Sebelum Disimpan
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">
+              Periksa baris data siswa di bawah ini. Anda dapat menghapus baris yang tidak diinginkan sebelum disimpan.
+            </p>
+          </div>
+
+          <div id="import-preview-stats" style="display: flex; gap: 10px;">
+            <!-- Injected preview stats -->
+          </div>
+        </div>
+
+        <!-- Tabel Preview -->
+        <div style="overflow-x: auto; max-height: 480px; margin-bottom: 20px; border: 1px solid var(--border-subtle); border-radius: 10px;">
+          <table class="table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;" id="import-preview-table">
+            <thead style="position: sticky; top: 0; background: var(--bg-hover, #f8fafc); border-bottom: 2px solid var(--border-subtle); z-index: 2;">
+              <tr>
+                <th style="padding: 10px 12px; text-align: center; width: 40px;">#</th>
+                <th style="padding: 10px 12px; text-align: left;">Nama Peserta</th>
+                <th style="padding: 10px 12px; text-align: center; width: 60px;">L/P</th>
+                <th style="padding: 10px 12px; text-align: left;">Cabang Lomba</th>
+                <th style="padding: 10px 12px; text-align: left;">Jenjang</th>
+                <th style="padding: 10px 12px; text-align: left;">Kelas</th>
+                <th style="padding: 10px 12px; text-align: left;">Tgl Lahir</th>
+                <th style="padding: 10px 12px; text-align: left;">Sekolah</th>
+                <th style="padding: 10px 12px; text-align: center; width: 110px;">Validasi</th>
+                <th style="padding: 10px 12px; text-align: center; width: 60px;">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="import-preview-tbody">
+              <!-- Injected rows -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <button type="button" class="btn btn-secondary" onclick="resetImportPreview()" style="padding: 10px 20px; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border-subtle); background: var(--bg-hover); cursor: pointer;">
+            <i class="fa-solid fa-rotate-left"></i> Ganti File / Batal
+          </button>
+
+          <button type="button" id="btn-submit-bulk-import" class="btn btn-success" onclick="submitBulkImport()" style="padding: 12px 28px; border-radius: 8px; font-weight: 800; font-size: 1rem; display: inline-flex; align-items: center; gap: 10px; background: #10b981; color: #fff; border: none; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.4);">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Konfirmasi & Simpan Peserta ke Database
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  loadImportExistingUsers();
+  if (!state.competitionTree || state.competitionTree.length === 0) {
+    loadCompetitionTree();
+  }
+}
+
+async function loadImportExistingUsers() {
+  const sel = document.getElementById('imp-existing-user-id');
+  if (!sel) return;
+  try {
+    const res = await apiRequest('/api/users?role=PESERTA&perPage=500');
+    _importExistingUsers = res.users || [];
+    if (_importExistingUsers.length === 0) {
+      sel.innerHTML = '<option value="">-- Belum ada akun peserta --</option>';
+    } else {
+      sel.innerHTML = '<option value="">-- Pilih Akun Sekolah / Peserta --</option>' +
+        _importExistingUsers.map(u => `<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.email)} - ${escapeHtml(u.phoneNumber || '')})</option>`).join('');
+    }
+  } catch (e) {
+    sel.innerHTML = '<option value="">Gagal memuat akun</option>';
+  }
+}
+
+function toggleImportAccountMode(mode) {
+  const newFields = document.getElementById('import-new-account-fields');
+  const existFields = document.getElementById('import-existing-account-fields');
+  if (mode === 'new') {
+    if (newFields) newFields.style.display = 'flex';
+    if (existFields) existFields.style.display = 'none';
+  } else {
+    if (newFields) newFields.style.display = 'none';
+    if (existFields) existFields.style.display = 'flex';
+  }
+}
+
+function downloadImportTemplateExcel() {
+  if (typeof XLSX === 'undefined') {
+    alert('Modul Excel sedang dimuat, silakan coba beberapa detik lagi.');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Template Data Peserta
+  const headers = [
+    'No',
+    'Nama Lengkap',
+    'Jenis Kelamin (L/P)',
+    'Cabang Lomba',
+    'Kategori / Jenjang',
+    'Kelas / Tingkat',
+    'Tanggal Lahir (YYYY-MM-DD)',
+    'Asal Sekolah',
+    'Nama Guru Pembimbing',
+    'No WhatsApp Guru',
+  ];
+
+  const sampleData = [
+    headers,
+    [1, 'Ahmad Zaki Pratama', 'L', 'Matematika', 'SD/MI', 'Kelas 5', '2014-04-12', 'SDIT Al Hikmah', 'Ust. Fajar, S.Pd', '081234567890'],
+    [2, 'Nur Aisyah Putri', 'P', 'Sains', 'SD/MI', 'Kelas 4', '2015-08-20', 'SDIT Al Hikmah', 'Ust. Fajar, S.Pd', '081234567890'],
+    [3, 'Muhammad Rayyan', 'L', 'Kids Warrior', 'TK / RA - Tingkat B', 'TK B', '2019-11-05', 'TK IT Al Hikmah', 'Usth. Sarah, S.Pd', '081234567890'],
+    [4, 'Fatima Zahra', 'P', 'Mewarnai', 'TK / RA - Tingkat A', 'TK A', '2020-02-14', 'TK IT Al Hikmah', 'Usth. Sarah, S.Pd', '081234567890'],
+    [5, 'Bilal Ramadhan', 'L', 'Bahasa Arab', 'SMP/MTs', 'Kelas 8', '2011-06-18', 'SMP IT Al Hikmah', 'Ust. Fajar, S.Pd', '081234567890'],
+  ];
+
+  const wsData = XLSX.utils.aoa_to_sheet(sampleData);
+
+  wsData['!cols'] = [
+    { wch: 6 },
+    { wch: 25 },
+    { wch: 20 },
+    { wch: 24 },
+    { wch: 22 },
+    { wch: 16 },
+    { wch: 26 },
+    { wch: 25 },
+    { wch: 25 },
+    { wch: 20 },
+  ];
+
+  XLSX.utils.book_append_sheet(wb, wsData, 'DATA_PESERTA');
+
+  // Sheet 2: Referensi Cabang Lomba
+  const branchHeaders = ['No', 'Nama Cabang Lomba', 'Kategori / Jenjang', 'Kategori Event', 'Tipe'];
+  const branchesList = (state.competitionTree || []).flatMap(cat => 
+    (cat.levels || []).flatMap(lvl => 
+      (lvl.branches || []).map(b => [b.name, lvl.name, cat.name, b.participantType === 'INDIVIDUAL' ? 'Individu' : 'Beregu'])
+    )
+  );
+
+  const branchRows = [branchHeaders];
+  let idx = 1;
+  branchesList.forEach(r => {
+    branchRows.push([idx++, ...r]);
+  });
+
+  const wsBranches = XLSX.utils.aoa_to_sheet(branchRows);
+  wsBranches['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, wsBranches, 'REF_CABANG_LOMBA');
+
+  XLSX.writeFile(wb, 'Template_Import_Peserta_MaskumambangFest.xlsx');
+}
+
+function handleImportFileSelect(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  if (typeof XLSX === 'undefined') {
+    alert('Library Excel belum siap. Silakan refresh halaman dan coba kembali.');
+    return;
+  }
+
+  const label = document.getElementById('imp-file-label');
+  if (label) label.innerHTML = `<i class="fa-solid fa-file-excel" style="color: #10b981;"></i> ${escapeHtml(file.name)}`;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    try {
+      const data = new Uint8Array(evt.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      const sheetName = workbook.SheetNames.includes('DATA_PESERTA') ? 'DATA_PESERTA' : workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+      if (!rawRows || rawRows.length < 2) {
+        alert('File Excel kosong atau tidak memiliki baris data.');
+        return;
+      }
+
+      const headers = rawRows[0].map(h => String(h || '').trim().toLowerCase());
+      
+      const findColIdx = (patterns) => {
+        return headers.findIndex(h => patterns.some(p => h.includes(p)));
+      };
+
+      const colNama = findColIdx(['nama lengkap', 'nama peserta', 'nama', 'peserta']);
+      const colJk = findColIdx(['jenis kelamin', 'kelamin', 'gender', 'jk', 'l/p']);
+      const colCabang = findColIdx(['cabang lomba', 'cabang', 'lomba']);
+      const colJenjang = findColIdx(['kategori / jenjang', 'jenjang', 'kategori', 'tingkat']);
+      const colKelas = findColIdx(['kelas / tingkat', 'kelas']);
+      const colTglLahir = findColIdx(['tanggal lahir', 'tgl lahir', 'birthdate']);
+      const colSekolah = findColIdx(['asal sekolah', 'sekolah']);
+      const colGuru = findColIdx(['nama guru', 'pembimbing', 'mentor', 'guru']);
+      const colWa = findColIdx(['no whatsapp', 'whatsapp', 'no wa', 'telepon', 'hp']);
+
+      const allBranches = (state.competitionTree || []).flatMap(cat => 
+        (cat.levels || []).flatMap(lvl => 
+          (lvl.branches || []).map(b => ({
+            ...b,
+            levelName: lvl.name,
+            categoryName: cat.name
+          }))
+        )
+      );
+
+      const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      const parsed = [];
+      for (let i = 1; i < rawRows.length; i++) {
+        const row = rawRows[i];
+        if (!row || row.every(cell => !cell || String(cell).trim() === '')) continue;
+
+        const fullName = colNama >= 0 ? String(row[colNama] || '').trim() : '';
+        if (!fullName) continue;
+
+        let rawGender = colJk >= 0 ? String(row[colJk] || '').trim().toUpperCase() : 'L';
+        let gender = rawGender.startsWith('P') || rawGender.startsWith('W') ? 'P' : 'L';
+
+        const branchName = colCabang >= 0 ? String(row[colCabang] || '').trim() : '';
+        const levelName = colJenjang >= 0 ? String(row[colJenjang] || '').trim() : '';
+        const gradeClass = colKelas >= 0 ? String(row[colKelas] || '').trim() : '-';
+        
+        let birthDate = colTglLahir >= 0 ? String(row[colTglLahir] || '').trim() : '';
+        if (typeof row[colTglLahir] === 'number') {
+          try {
+            const dateObj = new Date(Math.round((row[colTglLahir] - 25569) * 86400 * 1000));
+            birthDate = dateObj.toISOString().split('T')[0];
+          } catch(e) {}
+        }
+
+        const schoolName = colSekolah >= 0 ? String(row[colSekolah] || '').trim() : '';
+        const mentorName = colGuru >= 0 ? String(row[colGuru] || '').trim() : '';
+        const whatsappNumber = colWa >= 0 ? String(row[colWa] || '').trim() : '';
+
+        let matchedBranch = null;
+        if (allBranches.length > 0 && branchName) {
+          const bNorm = norm(branchName);
+          const lNorm = norm(levelName);
+
+          matchedBranch = allBranches.find(b => {
+            const bMatch = norm(b.name) === bNorm;
+            const lMatch = !lNorm || norm(b.levelName) === lNorm || norm(b.levelName).includes(lNorm) || lNorm.includes(norm(b.levelName));
+            return bMatch && lMatch;
+          });
+
+          if (!matchedBranch) {
+            matchedBranch = allBranches.find(b => {
+              const bMatch = norm(b.name).includes(bNorm) || bNorm.includes(norm(b.name));
+              const lMatch = !lNorm || norm(b.levelName).includes(lNorm) || lNorm.includes(norm(b.levelName));
+              return bMatch && lMatch;
+            });
+          }
+
+          if (!matchedBranch) {
+            const byB = allBranches.filter(b => norm(b.name) === bNorm);
+            if (byB.length === 1) matchedBranch = byB[0];
+          }
+        }
+
+        parsed.push({
+          idx: parsed.length + 1,
+          fullName,
+          gender,
+          branchName,
+          levelName,
+          gradeClass,
+          birthDate,
+          schoolName,
+          mentorName,
+          whatsappNumber,
+          matchedBranch,
+          isValid: Boolean(matchedBranch)
+        });
+      }
+
+      if (parsed.length === 0) {
+        alert('Tidak ada baris peserta yang dapat dibaca dari file Excel. Pastikan kolom Nama Lengkap terisi.');
+        return;
+      }
+
+      _importParsedRows = parsed;
+      renderImportPreviewTable();
+    } catch (err) {
+      alert('Gagal membaca file Excel: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderImportPreviewTable() {
+  const section = document.getElementById('import-preview-section');
+  const tbody = document.getElementById('import-preview-tbody');
+  const stats = document.getElementById('import-preview-stats');
+  if (!section || !tbody) return;
+
+  section.style.display = 'block';
+
+  const total = _importParsedRows.length;
+  const validCount = _importParsedRows.filter(r => r.isValid).length;
+  const invalidCount = total - validCount;
+
+  if (stats) {
+    stats.innerHTML = `
+      <span class="badge" style="background: rgba(16,185,129,0.15); color: #059669; font-weight: 700; padding: 6px 14px; border-radius: 9999px; font-size: 0.85rem;">
+        <i class="fa-solid fa-circle-check"></i> ${validCount} Siap Import
+      </span>
+      ${invalidCount > 0 ? `
+        <span class="badge" style="background: rgba(239,68,68,0.15); color: #dc2626; font-weight: 700; padding: 6px 14px; border-radius: 9999px; font-size: 0.85rem;">
+          <i class="fa-solid fa-triangle-exclamation"></i> ${invalidCount} Perlu Cek Cabang
+        </span>
+      ` : ''}
+    `;
+  }
+
+  tbody.innerHTML = _importParsedRows.map((r, i) => `
+    <tr style="border-bottom: 1px solid var(--border-subtle); ${!r.isValid ? 'background: rgba(239,68,68,0.04);' : ''}">
+      <td style="padding: 10px 12px; text-align: center; color: var(--text-muted); font-weight: 600;">${i + 1}</td>
+      <td style="padding: 10px 12px;"><strong>${escapeHtml(r.fullName)}</strong></td>
+      <td style="padding: 10px 12px; text-align: center;">
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem; background: ${r.gender === 'L' ? '#dbeafe' : '#fce7f3'}; color: ${r.gender === 'L' ? '#1e40af' : '#9d174d'};">
+          ${r.gender}
+        </span>
+      </td>
+      <td style="padding: 10px 12px;">
+        ${r.matchedBranch ? `
+          <strong style="color: var(--primary-600);">${escapeHtml(r.matchedBranch.name)}</strong>
+        ` : `
+          <span style="color: #dc2626; text-decoration: line-through;">${escapeHtml(r.branchName || '-')}</span>
+        `}
+      </td>
+      <td style="padding: 10px 12px;">
+        ${r.matchedBranch ? `<span class="member-chip">${escapeHtml(r.matchedBranch.levelName)}</span>` : `<span style="color: #dc2626;">${escapeHtml(r.levelName || '-')}</span>`}
+      </td>
+      <td style="padding: 10px 12px;">${escapeHtml(r.gradeClass)}</td>
+      <td style="padding: 10px 12px; font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(r.birthDate || '-')}</td>
+      <td style="padding: 10px 12px;">${escapeHtml(r.schoolName || document.getElementById('imp-school-name')?.value || '-')}</td>
+      <td style="padding: 10px 12px; text-align: center;">
+        ${r.isValid ? `
+          <span style="color: #10b981; font-weight: 700; font-size: 0.8rem;"><i class="fa-solid fa-check"></i> Valid</span>
+        ` : `
+          <span style="color: #ef4444; font-weight: 700; font-size: 0.75rem;" title="Cabang lomba tidak ditemukan di sistem"><i class="fa-solid fa-xmark"></i> Cek Cabang</span>
+        `}
+      </td>
+      <td style="padding: 10px 12px; text-align: center;">
+        <button type="button" onclick="removeImportRow(${i})" class="btn btn-sm" style="color: #ef4444; background: none; border: none; cursor: pointer; padding: 4px;" title="Hapus baris ini">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+
+  section.scrollIntoView({ behavior: 'smooth' });
+}
+
+function removeImportRow(idx) {
+  _importParsedRows.splice(idx, 1);
+  if (_importParsedRows.length === 0) {
+    resetImportPreview();
+  } else {
+    renderImportPreviewTable();
+  }
+}
+
+function resetImportPreview() {
+  _importParsedRows = [];
+  const section = document.getElementById('import-preview-section');
+  if (section) section.style.display = 'none';
+  const input = document.getElementById('imp-file-input');
+  if (input) input.value = '';
+  const label = document.getElementById('imp-file-label');
+  if (label) label.textContent = 'Klik di sini untuk memilih file Excel';
+}
+
+async function submitBulkImport() {
+  if (!_importParsedRows || _importParsedRows.length === 0) {
+    alert('Tidak ada data peserta untuk diimpor.');
+    return;
+  }
+
+  const mode = document.querySelector('input[name="importAccountMode"]:checked')?.value || 'new';
+  const schoolAccount = { mode };
+
+  if (mode === 'new') {
+    const schoolName = document.getElementById('imp-school-name')?.value?.trim();
+    const mentorName = document.getElementById('imp-mentor-name')?.value?.trim();
+    const phoneNumber = document.getElementById('imp-school-phone')?.value?.trim();
+    const email = document.getElementById('imp-school-email')?.value?.trim();
+    const password = document.getElementById('imp-school-password')?.value?.trim() || 'fest2026';
+
+    if (!schoolName) { alert('Nama Sekolah wajib diisi.'); return; }
+    if (!mentorName) { alert('Nama Guru / PIC wajib diisi.'); return; }
+    if (!phoneNumber) { alert('Nomor WhatsApp wajib diisi.'); return; }
+    if (!email) { alert('Email akun sekolah wajib diisi.'); return; }
+
+    schoolAccount.schoolName = schoolName;
+    schoolAccount.mentorName = mentorName;
+    schoolAccount.phoneNumber = phoneNumber;
+    schoolAccount.email = email;
+    schoolAccount.password = password;
+  } else {
+    const existingUserId = document.getElementById('imp-existing-user-id')?.value;
+    if (!existingUserId) {
+      alert('Silakan pilih salah satu Akun Sekolah Terdaftar.');
+      return;
+    }
+    schoolAccount.existingUserId = existingUserId;
+  }
+
+  const status = document.getElementById('imp-status')?.value || 'APPROVED';
+  const notes = document.getElementById('imp-notes')?.value?.trim() || '';
+
+  const invalidRows = _importParsedRows.filter(r => !r.isValid);
+  if (invalidRows.length > 0) {
+    const proceed = confirm(`Perhatian: Ada ${invalidRows.length} peserta yang cabang lombanya tidak dikenali oleh sistem. Apakah Anda ingin tetap melanjutkan untuk ${_importParsedRows.length - invalidRows.length} peserta yang valid?`);
+    if (!proceed) return;
+  }
+
+  const validItems = _importParsedRows.filter(r => r.isValid).map(r => ({
+    fullName: r.fullName,
+    gender: r.gender,
+    branchName: r.matchedBranch ? r.matchedBranch.name : r.branchName,
+    branchId: r.matchedBranch ? r.matchedBranch.id : undefined,
+    levelName: r.matchedBranch ? r.matchedBranch.levelName : r.levelName,
+    categoryName: r.matchedBranch ? r.matchedBranch.categoryName : undefined,
+    gradeClass: r.gradeClass,
+    birthDate: r.birthDate || undefined,
+    schoolName: r.schoolName || schoolAccount.schoolName || undefined,
+    mentorName: r.mentorName || schoolAccount.mentorName || undefined,
+    whatsappNumber: r.whatsappNumber || schoolAccount.phoneNumber || undefined,
+  }));
+
+  if (validItems.length === 0) {
+    alert('Tidak ada peserta valid untuk disimpan.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-submit-bulk-import');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan Peserta ke Database...';
+  }
+
+  try {
+    const payload = {
+      schoolAccount,
+      status,
+      notes,
+      items: validItems
+    };
+
+    const res = await apiRequest('/api/registrations/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+    if (res.success) {
+      showImportSuccessModal(res.data);
+    } else {
+      alert('Gagal import: ' + (res.message || 'Terjadi kesalahan sistem.'));
+    }
+  } catch (err) {
+    alert('Terjadi kesalahan saat mengimpor data: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Konfirmasi & Simpan Peserta ke Database';
+    }
+  }
+}
+
+function showImportSuccessModal(data) {
+  const old = document.getElementById('import-success-modal-overlay');
+  if (old) old.remove();
+
+  const school = data.schoolUser || {};
+  const count = data.importedCount || 0;
+  const pwd = school.plainPassword || '(Password akun yang digunakan)';
+
+  const waMessage = `Assalamu'alaikum Wr. Wb.%0A%0AHalo Bapak/Ibu dari *${encodeURIComponent(school.name)}*, pendaftaran rombongan Maskumambang Fest #4 telah berhasil diproses oleh Admin!%0A%0A*Total Peserta Terdaftar:* ${count} Siswa%0A*Status:* Lunas / Disetujui%0A%0AAkses Login untuk Memantau & Cetak Kartu Peserta:%0APortal: https://fest.maskumambang.ac.id/login%0AEmail: ${encodeURIComponent(school.email)}%0APassword: ${encodeURIComponent(pwd)}%0A%0ASilakan login untuk memeriksa data siswa Anda dan mencetak kartu peserta. Terima kasih!`;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'import-success-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px);';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-card,#fff);color:var(--text-main,#1e293b);border-radius:16px;max-width:560px;width:100%;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);overflow:hidden;animation:modalIn 0.25s ease;">
+      <div style="padding:24px;text-align:center;background:linear-gradient(135deg, #10b981 0%, #059669 100%);color:#fff;">
+        <div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-flex;align-items:center;justify-content:center;font-size:2rem;margin-bottom:12px;">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <h3 style="margin:0;font-size:1.4rem;font-weight:800;">Import Peserta Berhasil!</h3>
+        <p style="margin:4px 0 0 0;font-size:0.9rem;opacity:0.95;">Sebanyak <strong>${count} siswa</strong> telah resmi didaftarkan.</p>
+      </div>
+
+      <div style="padding:24px;">
+        <div style="background:var(--bg-hover,#f8fafc);border:1px solid var(--border-subtle,#e2e8f0);border-radius:12px;padding:16px;margin-bottom:20px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--text-muted,#64748b);text-transform:uppercase;margin-bottom:8px;">
+            Akses Login Pihak Sekolah:
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:0.9rem;">
+            <div><strong>Sekolah / PIC:</strong> ${escapeHtml(school.name)}</div>
+            <div><strong>Email Login:</strong> <code style="background:var(--primary-50,#eff6ff);color:var(--primary-700,#1d4ed8);padding:2px 6px;border-radius:4px;font-weight:700;">${escapeHtml(school.email)}</code></div>
+            <div><strong>Password:</strong> <code style="background:var(--primary-50,#eff6ff);color:var(--primary-700,#1d4ed8);padding:2px 6px;border-radius:4px;font-weight:700;">${escapeHtml(pwd)}</code></div>
+            <div><strong>Portal Login:</strong> <a href="https://fest.maskumambang.ac.id/login" target="_blank" style="color:var(--primary-600);text-decoration:none;">fest.maskumambang.ac.id/login</a></div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <a href="https://wa.me/${(school.phoneNumber || '').replace(/^0/, '62').replace(/[^0-9]/g, '')}?text=${waMessage}" target="_blank" class="btn" style="width:100%;background:#25d366;color:#fff;padding:12px;border-radius:8px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-size:0.95rem;">
+            <i class="fa-brands fa-whatsapp" style="font-size:1.2rem;"></i> Kirim Akun via WhatsApp ke Guru
+          </a>
+
+          <div style="display:flex;gap:10px;">
+            <button type="button" onclick="navigator.clipboard.writeText(decodeURIComponent('${waMessage}'.replace(/%0A/g, '\\n'))); alert('Teks informasi akun berhasil disalin!');" class="btn btn-secondary" style="flex:1;padding:10px;border-radius:8px;font-weight:600;border:1px solid var(--border-subtle);background:var(--bg-hover);cursor:pointer;">
+              <i class="fa-solid fa-copy"></i> Salin Teks
+            </button>
+            <button type="button" onclick="document.getElementById('import-success-modal-overlay').remove(); window.location.hash='#daftar-peserta';" class="btn btn-primary" style="flex:1;padding:10px;border-radius:8px;font-weight:700;background:var(--primary-600);color:#fff;border:none;cursor:pointer;">
+              Lihat Daftar Peserta <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
 
