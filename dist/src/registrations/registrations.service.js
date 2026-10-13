@@ -323,6 +323,115 @@ let RegistrationsService = class RegistrationsService {
             },
         };
     }
+    async updateRegistration(id, adminId, dto) {
+        const reg = await this.prisma.registration.findUnique({
+            where: { id },
+            include: {
+                branch: { include: { level: { include: { category: true } } } },
+                individualParticipant: true,
+                team: { include: { members: true } },
+            },
+        });
+        if (!reg) {
+            throw new common_1.NotFoundException('Data pendaftaran tidak ditemukan.');
+        }
+        let targetBranch = reg.branch;
+        if (dto.branchId && dto.branchId !== reg.branchId) {
+            const newBranch = await this.prisma.competitionBranch.findUnique({
+                where: { id: dto.branchId },
+                include: { level: { include: { category: true } } },
+            });
+            if (!newBranch)
+                throw new common_1.NotFoundException('Cabang lomba tujuan tidak ditemukan.');
+            targetBranch = newBranch;
+        }
+        const isIndiv = targetBranch.participantType === 'INDIVIDUAL';
+        await this.prisma.$transaction(async (tx) => {
+            await tx.registration.update({
+                where: { id },
+                data: {
+                    ...(dto.branchId ? { branchId: dto.branchId } : {}),
+                    ...(dto.status ? { status: dto.status } : {}),
+                },
+            });
+            if (isIndiv) {
+                const indivData = {};
+                if (dto.fullName !== undefined)
+                    indivData.fullName = dto.fullName.trim();
+                if (dto.gender !== undefined)
+                    indivData.gender = dto.gender;
+                if (dto.gradeClass !== undefined)
+                    indivData.gradeClass = dto.gradeClass.trim();
+                if (dto.schoolName !== undefined)
+                    indivData.schoolName = dto.schoolName.trim();
+                if (dto.schoolAddress !== undefined)
+                    indivData.schoolAddress = dto.schoolAddress.trim();
+                if (dto.mentorName !== undefined)
+                    indivData.mentorName = dto.mentorName.trim();
+                if (dto.whatsappNumber !== undefined)
+                    indivData.whatsappNumber = dto.whatsappNumber.trim();
+                if (Object.keys(indivData).length > 0) {
+                    if (reg.individualParticipant) {
+                        await tx.individualParticipant.update({
+                            where: { registrationId: id },
+                            data: indivData,
+                        });
+                    }
+                    else {
+                        await tx.individualParticipant.create({
+                            data: { registrationId: id, ...indivData },
+                        });
+                    }
+                }
+            }
+            else {
+                const teamData = {};
+                if (dto.teamName !== undefined)
+                    teamData.teamName = dto.teamName.trim();
+                if (dto.schoolName !== undefined)
+                    teamData.schoolName = dto.schoolName.trim();
+                if (dto.schoolAddress !== undefined)
+                    teamData.schoolAddress = dto.schoolAddress.trim();
+                if (dto.mentorName !== undefined)
+                    teamData.mentorName = dto.mentorName.trim();
+                if (dto.whatsappNumber !== undefined)
+                    teamData.whatsappNumber = dto.whatsappNumber.trim();
+                if (dto.leaderName !== undefined)
+                    teamData.leaderName = dto.leaderName.trim();
+                let teamId;
+                if (reg.team) {
+                    await tx.team.update({ where: { registrationId: id }, data: teamData });
+                    teamId = reg.team.id;
+                }
+                else {
+                    const newTeam = await tx.team.create({ data: { registrationId: id, ...teamData } });
+                    teamId = newTeam.id;
+                }
+                if (dto.members !== undefined) {
+                    await tx.teamMember.deleteMany({ where: { teamId } });
+                    if (dto.members.length > 0) {
+                        await tx.teamMember.createMany({
+                            data: dto.members.map((m) => ({
+                                teamId,
+                                memberName: m.memberName.trim(),
+                                gender: m.gender,
+                                gradeClass: m.gradeClass.trim(),
+                                positionRole: m.positionRole ? m.positionRole.trim() : 'Anggota',
+                            })),
+                        });
+                    }
+                }
+            }
+        });
+        await this.auditService.log({
+            userId: adminId,
+            action: 'UPDATE_REGISTRATION',
+            targetTable: 'registrations',
+            targetId: id,
+            details: `Data pendaftaran ${reg.registrationNumber} diperbarui oleh Super Admin.`,
+        });
+        return this.getRegistrationById(id, adminId, client_1.Role.SUPER_ADMIN);
+    }
 };
 exports.RegistrationsService = RegistrationsService;
 exports.RegistrationsService = RegistrationsService = __decorate([

@@ -1,7 +1,8 @@
-import { Controller, Post, Get, Body, Param, Query } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Patch } from '@nestjs/common';
 import { RegistrationsService } from './registrations.service';
 import { CreateIndividualRegistrationDto } from './dto/create-individual.dto';
 import { CreateTeamRegistrationDto } from './dto/create-team.dto';
+import { UpdateRegistrationDto } from './dto/update-registration.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role, RegistrationStatus } from '@prisma/client';
@@ -75,6 +76,21 @@ export class RegistrationsController {
     const data = await this.registrationsService.getRegistrationById(id, userId, role);
     return {
       success: true,
+      data,
+    };
+  }
+
+  @Roles(Role.SUPER_ADMIN)
+  @Patch(':id')
+  async updateRegistration(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: UpdateRegistrationDto,
+  ) {
+    const data = await this.registrationsService.updateRegistration(id, adminId, dto);
+    return {
+      success: true,
+      message: 'Data peserta berhasil diperbarui.',
       data,
     };
   }

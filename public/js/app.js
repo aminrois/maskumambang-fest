@@ -3052,6 +3052,9 @@ function renderAdminRegistrationsTable() {
         sortable: false,
         render: r => {
           let btns = `<a href="#detail/${r.id}" class="btn btn-sm btn-secondary" style="padding: 4px 10px;"><i class="fa-solid fa-eye"></i> Detail</a> `;
+          if (state.user?.role === 'SUPER_ADMIN') {
+            btns += `<button type="button" class="btn btn-sm btn-warning" style="padding: 4px 10px; background: #f59e0b; color: #fff; border: none;" onclick="openEditRegistrationModal('${r.id}')" title="Edit Data Peserta"><i class="fa-solid fa-pen-to-square"></i> Edit</button> `;
+          }
           if (r.status === 'APPROVED') {
             btns += `<button type="button" class="btn btn-sm btn-success" style="padding: 4px 10px;" onclick="openParticipantCardModal('${r.id}')" title="Lihat & Cetak Kartu"><i class="fa-solid fa-id-card"></i> Kartu</button>`;
           }
@@ -3146,8 +3149,370 @@ function onAdminRegFilterChange(v) {
   updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
 }
 
+// =============================================================================
+// EDIT PESERTA - SUPER ADMIN ONLY (Modal + Cascading Dropdowns + Save)
+// =============================================================================
+let _editRegData = null; // holds registration being edited
+
+async function openEditRegistrationModal(regId) {
+  // Find from existing tableState first for speed
+  let reg = (tableState.adminRegistrations.data || []).find(r => r.id === regId);
+  if (!reg) {
+    try {
+      const res = await apiRequest(`/api/registrations/${regId}`);
+      if (res.success) reg = res.data;
+    } catch (e) { alert('Gagal memuat data peserta: ' + e.message); return; }
+  }
+  _editRegData = reg;
+
+  // Remove old modal if any
+  const old = document.getElementById('edit-reg-modal-overlay');
+  if (old) old.remove();
+
+  const isIndiv = reg.branch?.participantType === 'INDIVIDUAL';
+  const p = isIndiv ? reg.individualParticipant : null;
+  const t = !isIndiv ? reg.team : null;
+
+  // Build category options from state.competitionTree
+  const categories = state.competitionTree || [];
+  const catOptions = categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+
+  // Find current category/level
+  const curCatId = reg.branch?.level?.category?.id || '';
+  const curLvlId = reg.branch?.level?.id || '';
+  const curBranchId = reg.branch?.id || '';
+
+  const overlay = document.createElement('div');
+  overlay.id = 'edit-reg-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-card,#fff);border-radius:12px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;box-shadow:0 25px 60px rgba(0,0,0,0.4);">
+      <div style="padding:20px 24px;border-bottom:1px solid var(--border-subtle,#e2e8f0);display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h3 style="margin:0;font-size:1.2rem;color:var(--text-heading,#1e293b);">Edit Data Peserta</h3>
+          <div style="font-size:0.8rem;color:var(--text-muted,#64748b);margin-top:2px;">No. Reg: <strong>${escapeHtml(reg.registrationNumber)}</strong></div>
+        </div>
+        <button type="button" onclick="document.getElementById('edit-reg-modal-overlay').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted,#64748b);">&times;</button>
+      </div>
+      <form id="edit-reg-form" onsubmit="saveEditRegistration(event, '${reg.id}')" style="padding:20px 24px;">
+        <div id="edit-reg-alert" style="display:none;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:0.875rem;"></div>
+
+        <!-- Status Pembayaran -->
+        <div class="form-group" style="margin-bottom:14px;">
+          <label style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:6px;text-transform:uppercase;color:var(--text-muted,#64748b);">Status Pembayaran</label>
+          <select id="edit-status" name="status" class="form-control" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+            <option value="WAITING_VERIFICATION" ${reg.status === 'WAITING_VERIFICATION' ? 'selected' : ''}>Menunggu Verifikasi</option>
+            <option value="APPROVED" ${reg.status === 'APPROVED' ? 'selected' : ''}>Disetujui (Approved)</option>
+            <option value="PAYMENT_REJECTED" ${reg.status === 'PAYMENT_REJECTED' ? 'selected' : ''}>Ditolak (Rejected)</option>
+          </select>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border-subtle,#e2e8f0);margin:16px 0;">
+        <div style="font-size:0.8rem;font-weight:700;text-transform:uppercase;color:var(--primary-600,#7c3aed);margin-bottom:12px;"><i class="fa-solid fa-trophy"></i> Informasi Lomba</div>
+
+        <!-- Cascading: Kategori → Jenjang → Cabang -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+          <div>
+            <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Kategori Lomba</label>
+            <select id="edit-cat-id" onchange="onEditCategoryChange()" class="form-control" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+              <option value="">-- Pilih Kategori --</option>
+              ${catOptions}
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Jenjang</label>
+            <select id="edit-lvl-id" onchange="onEditLevelChange()" class="form-control" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);" disabled>
+              <option value="">-- Pilih Jenjang --</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Cabang Lomba</label>
+          <select id="edit-branch-id" class="form-control" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);" disabled>
+            <option value="">-- Pilih Cabang --</option>
+          </select>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border-subtle,#e2e8f0);margin:16px 0;">
+        <div style="font-size:0.8rem;font-weight:700;text-transform:uppercase;color:var(--primary-600,#7c3aed);margin-bottom:12px;"><i class="fa-solid fa-user"></i> Data ${isIndiv ? 'Peserta' : 'Tim'}</div>
+
+        <!-- Dynamic Participant Fields -->
+        <div id="edit-participant-fields">
+          ${isIndiv ? renderEditIndivFields(p) : renderEditTeamFields(t)}
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-subtle,#e2e8f0);">
+          <button type="button" onclick="document.getElementById('edit-reg-modal-overlay').remove()" class="btn btn-secondary">Batal</button>
+          <button type="submit" id="edit-reg-save-btn" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan</button>
+        </div>
+      </form>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Pre-select current category/level/branch in dropdowns
+  const catSel = document.getElementById('edit-cat-id');
+  if (catSel && curCatId) {
+    catSel.value = curCatId;
+    onEditCategoryChange(curLvlId, curBranchId);
+  }
+}
+
+function renderEditIndivFields(p) {
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div>
+        <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Nama Lengkap Peserta *</label>
+        <input type="text" id="edit-fullName" class="form-control" value="${escapeHtml(p?.fullName || '')}" placeholder="Nama lengkap" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+      </div>
+      <div>
+        <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Jenis Kelamin *</label>
+        <select id="edit-gender" class="form-control" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+          <option value="L" ${p?.gender === 'L' ? 'selected' : ''}>Laki-laki (L)</option>
+          <option value="P" ${p?.gender === 'P' ? 'selected' : ''}>Perempuan (P)</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div>
+        <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Kelas / Tingkat *</label>
+        <input type="text" id="edit-gradeClass" class="form-control" value="${escapeHtml(p?.gradeClass || '')}" placeholder="Contoh: Kelas 10 / 1 SMP" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+      </div>
+      <div>
+        <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">No. WhatsApp *</label>
+        <input type="text" id="edit-whatsappNumber" class="form-control" value="${escapeHtml(p?.whatsappNumber || '')}" placeholder="08xxxxxxxxxx" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Asal Sekolah *</label>
+      <input type="text" id="edit-schoolName" class="form-control" value="${escapeHtml(p?.schoolName || '')}" placeholder="Nama sekolah" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Alamat Sekolah *</label>
+      <textarea id="edit-schoolAddress" class="form-control" rows="2" placeholder="Alamat lengkap sekolah" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);resize:vertical;">${escapeHtml(p?.schoolAddress || '')}</textarea>
+    </div>
+    <div style="margin-bottom:4px;">
+      <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Nama Guru Pembimbing *</label>
+      <input type="text" id="edit-mentorName" class="form-control" value="${escapeHtml(p?.mentorName || '')}" placeholder="Nama guru pembimbing" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+    </div>
+  `;
+}
+
+function renderEditTeamFields(t) {
+  const membersHtml = (t?.members || []).map((m, i) => renderEditMemberRow(i, m)).join('');
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div>
+        <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Nama Tim *</label>
+        <input type="text" id="edit-teamName" class="form-control" value="${escapeHtml(t?.teamName || '')}" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+      </div>
+      <div>
+        <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Nama Ketua Tim *</label>
+        <input type="text" id="edit-leaderName" class="form-control" value="${escapeHtml(t?.leaderName || '')}" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Asal Sekolah *</label>
+      <input type="text" id="edit-schoolName" class="form-control" value="${escapeHtml(t?.schoolName || '')}" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Alamat Sekolah *</label>
+      <textarea id="edit-schoolAddress" class="form-control" rows="2" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);resize:vertical;">${escapeHtml(t?.schoolAddress || '')}</textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div>
+        <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">Guru Pembimbing *</label>
+        <input type="text" id="edit-mentorName" class="form-control" value="${escapeHtml(t?.mentorName || '')}" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+      </div>
+      <div>
+        <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:5px;">No. WhatsApp Tim *</label>
+        <input type="text" id="edit-whatsappNumber" class="form-control" value="${escapeHtml(t?.whatsappNumber || '')}" style="width:100%;padding:9px 12px;border:1px solid var(--input-border,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);">
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <label style="font-size:0.8rem;font-weight:700;text-transform:uppercase;color:var(--text-muted,#64748b);">Anggota Tim</label>
+        <button type="button" onclick="addEditMemberRow()" class="btn btn-sm btn-secondary" style="padding:4px 10px;font-size:0.8rem;"><i class="fa-solid fa-plus"></i> Tambah Anggota</button>
+      </div>
+      <div id="edit-members-container">
+        ${membersHtml}
+      </div>
+    </div>
+  `;
+}
+
+function renderEditMemberRow(index, member) {
+  return `
+    <div class="edit-member-row" data-idx="${index}" style="background:var(--bg-body,#f8fafc);border:1px solid var(--border-subtle,#e2e8f0);border-radius:8px;padding:12px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:0.8rem;font-weight:700;color:var(--text-muted,#64748b);">Anggota ${index + 1}</span>
+        <button type="button" onclick="this.closest('.edit-member-row').remove()" style="background:none;border:none;color:var(--danger-500,#ef4444);cursor:pointer;font-size:1rem;"><i class="fa-solid fa-trash"></i></button>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;">
+        <div>
+          <label style="display:block;font-size:0.75rem;font-weight:600;margin-bottom:4px;">Nama Anggota</label>
+          <input type="text" class="form-control member-name" value="${escapeHtml(member?.memberName || '')}" placeholder="Nama lengkap" style="width:100%;padding:7px 10px;border:1px solid var(--input-border,#cbd5e1);border-radius:6px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);font-size:0.85rem;">
+        </div>
+        <div>
+          <label style="display:block;font-size:0.75rem;font-weight:600;margin-bottom:4px;">Jenis Kelamin</label>
+          <select class="form-control member-gender" style="width:100%;padding:7px 10px;border:1px solid var(--input-border,#cbd5e1);border-radius:6px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);font-size:0.85rem;">
+            <option value="L" ${member?.gender === 'L' ? 'selected' : ''}>Laki-laki (L)</option>
+            <option value="P" ${member?.gender === 'P' ? 'selected' : ''}>Perempuan (P)</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.75rem;font-weight:600;margin-bottom:4px;">Kelas / Tingkat</label>
+          <input type="text" class="form-control member-grade" value="${escapeHtml(member?.gradeClass || '')}" placeholder="Kelas 10" style="width:100%;padding:7px 10px;border:1px solid var(--input-border,#cbd5e1);border-radius:6px;background:var(--input-bg,#fff);color:var(--text-main,#1e293b);font-size:0.85rem;">
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function addEditMemberRow() {
+  const container = document.getElementById('edit-members-container');
+  if (!container) return;
+  const idx = container.querySelectorAll('.edit-member-row').length;
+  const div = document.createElement('div');
+  div.innerHTML = renderEditMemberRow(idx, null);
+  container.appendChild(div.firstElementChild);
+}
+
+function onEditCategoryChange(preselectLvlId, preselectBranchId) {
+  const catId = document.getElementById('edit-cat-id')?.value;
+  const lvlSel = document.getElementById('edit-lvl-id');
+  const branchSel = document.getElementById('edit-branch-id');
+  if (!lvlSel || !branchSel) return;
+
+  lvlSel.innerHTML = '<option value="">-- Pilih Jenjang --</option>';
+  branchSel.innerHTML = '<option value="">-- Pilih Cabang --</option>';
+  branchSel.disabled = true;
+
+  const cat = (state.competitionTree || []).find(c => c.id === catId);
+  if (!cat || !cat.levels || cat.levels.length === 0) {
+    lvlSel.disabled = true;
+    return;
+  }
+
+  lvlSel.disabled = false;
+  cat.levels.forEach(lv => {
+    const opt = document.createElement('option');
+    opt.value = lv.id;
+    opt.textContent = lv.name;
+    lvlSel.appendChild(opt);
+  });
+
+  if (preselectLvlId) {
+    lvlSel.value = preselectLvlId;
+    onEditLevelChange(preselectBranchId);
+  }
+}
+
+function onEditLevelChange(preselectBranchId) {
+  const catId = document.getElementById('edit-cat-id')?.value;
+  const lvlId = document.getElementById('edit-lvl-id')?.value;
+  const branchSel = document.getElementById('edit-branch-id');
+  if (!branchSel) return;
+
+  branchSel.innerHTML = '<option value="">-- Pilih Cabang --</option>';
+
+  const cat = (state.competitionTree || []).find(c => c.id === catId);
+  const lv = cat?.levels?.find(l => l.id === lvlId);
+  if (!lv || !lv.branches || lv.branches.length === 0) {
+    branchSel.disabled = true;
+    return;
+  }
+
+  branchSel.disabled = false;
+  lv.branches.forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b.id;
+    opt.textContent = `${b.name} (${b.participantType === 'TEAM' ? 'Beregu' : 'Perorangan'} • Rp ${Number(b.registrationFee || 0).toLocaleString('id-ID')})`;
+    branchSel.appendChild(opt);
+  });
+
+  if (preselectBranchId) branchSel.value = preselectBranchId;
+}
+
+async function saveEditRegistration(e, regId) {
+  e.preventDefault();
+  const btn = document.getElementById('edit-reg-save-btn');
+  const alertEl = document.getElementById('edit-reg-alert');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...'; }
+
+  const showAlert = (msg, isErr) => {
+    if (!alertEl) return;
+    alertEl.style.display = 'block';
+    alertEl.style.background = isErr ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)';
+    alertEl.style.border = `1px solid ${isErr ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)'}`;
+    alertEl.style.color = isErr ? 'var(--danger-600,#dc2626)' : 'var(--success-600,#16a34a)';
+    alertEl.innerHTML = msg;
+  };
+
+  try {
+    const reg = _editRegData;
+    const currentBranchId = document.getElementById('edit-branch-id')?.value || reg?.branchId || '';
+    const isIndiv = (document.getElementById('edit-gender') !== null); // if gender field present → individual
+
+    const payload = {
+      status: document.getElementById('edit-status')?.value,
+      branchId: currentBranchId || undefined,
+    };
+
+    if (isIndiv) {
+      payload.fullName = document.getElementById('edit-fullName')?.value?.trim();
+      payload.gender = document.getElementById('edit-gender')?.value;
+      payload.gradeClass = document.getElementById('edit-gradeClass')?.value?.trim();
+      payload.schoolName = document.getElementById('edit-schoolName')?.value?.trim();
+      payload.schoolAddress = document.getElementById('edit-schoolAddress')?.value?.trim();
+      payload.mentorName = document.getElementById('edit-mentorName')?.value?.trim();
+      payload.whatsappNumber = document.getElementById('edit-whatsappNumber')?.value?.trim();
+    } else {
+      payload.teamName = document.getElementById('edit-teamName')?.value?.trim();
+      payload.leaderName = document.getElementById('edit-leaderName')?.value?.trim();
+      payload.schoolName = document.getElementById('edit-schoolName')?.value?.trim();
+      payload.schoolAddress = document.getElementById('edit-schoolAddress')?.value?.trim();
+      payload.mentorName = document.getElementById('edit-mentorName')?.value?.trim();
+      payload.whatsappNumber = document.getElementById('edit-whatsappNumber')?.value?.trim();
+      // Collect members
+      const memberRows = document.querySelectorAll('#edit-members-container .edit-member-row');
+      payload.members = Array.from(memberRows).map(row => ({
+        memberName: row.querySelector('.member-name')?.value?.trim() || '',
+        gender: row.querySelector('.member-gender')?.value || 'L',
+        gradeClass: row.querySelector('.member-grade')?.value?.trim() || '',
+        positionRole: 'Anggota',
+      })).filter(m => m.memberName);
+    }
+
+    const res = await apiRequest(`/api/registrations/${regId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.success) {
+      showAlert('<i class="fa-solid fa-circle-check"></i> Data peserta berhasil diperbarui!', false);
+      // Update local data in tableState
+      const idx = (tableState.adminRegistrations.data || []).findIndex(r => r.id === regId);
+      if (idx !== -1 && res.data) tableState.adminRegistrations.data[idx] = res.data;
+      updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
+      setTimeout(() => {
+        const overlay = document.getElementById('edit-reg-modal-overlay');
+        if (overlay) overlay.remove();
+      }, 1200);
+    } else {
+      showAlert(res.message || 'Gagal menyimpan perubahan.', true);
+    }
+  } catch (err) {
+    showAlert(err.message || 'Terjadi kesalahan.', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan'; }
+  }
+}
+
 // --- ADMIN USER MANAGEMENT (UNIVERSAL TABLE + DROPDOWN ACTIONS + BULK DELETE) ---
 const selectedAdminUserIds = new Set();
+
 
 function escapeQuotes(str) {
   if (!str) return '';
@@ -5686,6 +6051,13 @@ window.exportAdminPaymentAccountsExcel = exportAdminPaymentAccountsExcel;
 window.exportBendaharaPaymentsExcel = exportBendaharaPaymentsExcel;
 window.exportCheckInLogsExcel = exportCheckInLogsExcel;
 window.loadLiveCheckInLogs = loadLiveCheckInLogs;
+
+// Edit Peserta (Super Admin)
+window.openEditRegistrationModal = openEditRegistrationModal;
+window.saveEditRegistration = saveEditRegistration;
+window.onEditCategoryChange = onEditCategoryChange;
+window.onEditLevelChange = onEditLevelChange;
+window.addEditMemberRow = addEditMemberRow;
 
 // UI & Responsive Drawer Navigation Handlers
 window.togglePublicMenu = togglePublicMenu;

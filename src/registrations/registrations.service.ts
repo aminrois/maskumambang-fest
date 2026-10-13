@@ -8,7 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateIndividualRegistrationDto } from './dto/create-individual.dto';
-import { CreateTeamRegistrationDto } from './dto/create-team.dto';
+import { CreateTeamRegistrationDto, TeamMemberDto } from './dto/create-team.dto';
+import { UpdateRegistrationDto } from './dto/update-registration.dto';
 import { ParticipantType, RegistrationStatus, Role } from '@prisma/client';
 import * as crypto from 'crypto';
 
@@ -400,5 +401,117 @@ export class RegistrationsService {
         totalPages: Math.ceil(total / perPage),
       },
     };
+  }
+
+  /**
+   * Updates an existing registration by Super Admin.
+   * Handles both individual and team registrations atomically.
+   */
+  async updateRegistration(id: string, adminId: string, dto: UpdateRegistrationDto) {
+    const reg = await this.prisma.registration.findUnique({
+      where: { id },
+      include: {
+        branch: { include: { level: { include: { category: true } } } },
+        individualParticipant: true,
+        team: { include: { members: true } },
+      },
+    });
+
+    if (!reg) {
+      throw new NotFoundException('Data pendaftaran tidak ditemukan.');
+    }
+
+    // Determine target branch (may change if dto.branchId provided)
+    let targetBranch = reg.branch;
+    if (dto.branchId && dto.branchId !== reg.branchId) {
+      const newBranch = await this.prisma.competitionBranch.findUnique({
+        where: { id: dto.branchId },
+        include: { level: { include: { category: true } } },
+      });
+      if (!newBranch) throw new NotFoundException('Cabang lomba tujuan tidak ditemukan.');
+      targetBranch = newBranch;
+    }
+
+    const isIndiv = targetBranch.participantType === 'INDIVIDUAL';
+
+    await this.prisma.$transaction(async (tx) => {
+      // Update registration base record (branch + status)
+      await tx.registration.update({
+        where: { id },
+        data: {
+          ...(dto.branchId ? { branchId: dto.branchId } : {}),
+          ...(dto.status ? { status: dto.status } : {}),
+        },
+      });
+
+      if (isIndiv) {
+        // Upsert individual participant data
+        const indivData: any = {};
+        if (dto.fullName !== undefined) indivData.fullName = dto.fullName.trim();
+        if (dto.gender !== undefined) indivData.gender = dto.gender;
+        if (dto.gradeClass !== undefined) indivData.gradeClass = dto.gradeClass.trim();
+        if (dto.schoolName !== undefined) indivData.schoolName = dto.schoolName.trim();
+        if (dto.schoolAddress !== undefined) indivData.schoolAddress = dto.schoolAddress.trim();
+        if (dto.mentorName !== undefined) indivData.mentorName = dto.mentorName.trim();
+        if (dto.whatsappNumber !== undefined) indivData.whatsappNumber = dto.whatsappNumber.trim();
+
+        if (Object.keys(indivData).length > 0) {
+          if (reg.individualParticipant) {
+            await tx.individualParticipant.update({
+              where: { registrationId: id },
+              data: indivData,
+            });
+          } else {
+            await tx.individualParticipant.create({
+              data: { registrationId: id, ...indivData },
+            });
+          }
+        }
+      } else {
+        // Upsert team data
+        const teamData: any = {};
+        if (dto.teamName !== undefined) teamData.teamName = dto.teamName.trim();
+        if (dto.schoolName !== undefined) teamData.schoolName = dto.schoolName.trim();
+        if (dto.schoolAddress !== undefined) teamData.schoolAddress = dto.schoolAddress.trim();
+        if (dto.mentorName !== undefined) teamData.mentorName = dto.mentorName.trim();
+        if (dto.whatsappNumber !== undefined) teamData.whatsappNumber = dto.whatsappNumber.trim();
+        if (dto.leaderName !== undefined) teamData.leaderName = dto.leaderName.trim();
+
+        let teamId: string;
+        if (reg.team) {
+          await tx.team.update({ where: { registrationId: id }, data: teamData });
+          teamId = reg.team.id;
+        } else {
+          const newTeam = await tx.team.create({ data: { registrationId: id, ...teamData } });
+          teamId = newTeam.id;
+        }
+
+        // Replace members if provided
+        if (dto.members !== undefined) {
+          await tx.teamMember.deleteMany({ where: { teamId } });
+          if (dto.members.length > 0) {
+            await tx.teamMember.createMany({
+              data: dto.members.map((m: TeamMemberDto) => ({
+                teamId,
+                memberName: m.memberName.trim(),
+                gender: m.gender,
+                gradeClass: m.gradeClass.trim(),
+                positionRole: m.positionRole ? m.positionRole.trim() : 'Anggota',
+              })),
+            });
+          }
+        }
+      }
+    });
+
+    await this.auditService.log({
+      userId: adminId,
+      action: 'UPDATE_REGISTRATION',
+      targetTable: 'registrations',
+      targetId: id,
+      details: `Data pendaftaran ${reg.registrationNumber} diperbarui oleh Super Admin.`,
+    });
+
+    return this.getRegistrationById(id, adminId, Role.SUPER_ADMIN);
   }
 }
