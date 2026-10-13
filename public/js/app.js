@@ -584,10 +584,10 @@ function buildRoleSidebar(role) {
       <div class="nav-section-title">MENU UTAMA</div>
       <a href="#overview" id="nav-overview" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-chart-pie"></i></span><span class="nav-label">Dashboard</span></a>
       <a href="#daftar-peserta" id="nav-daftar-peserta" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-clipboard-list"></i></span><span class="nav-label">Daftar Peserta</span></a>
-      <a href="#import-peserta" id="nav-import-peserta" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-file-excel"></i></span><span class="nav-label">Import Peserta</span></a>
       <a href="#verifikasi-pembayaran" id="nav-verifikasi-pembayaran" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-credit-card"></i></span><span class="nav-label">Pembayaran</span></a>
       <a href="#checkin-scanner" id="nav-checkin-scanner" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span><span class="nav-label">Check-In QR</span></a>
       <a href="#cetak-kartu" id="nav-cetak-kartu" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-print"></i></span><span class="nav-label">Cetak Kartu Peserta</span></a>
+      <a href="#import-peserta" id="nav-import-peserta" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-file-excel"></i></span><span class="nav-label">Import Peserta</span></a>
 
       <div class="nav-section-title">MASTER LOMBA</div>
       <a href="#master-kategori" id="nav-master-kategori" class="sidebar-nav-item"><span class="nav-icon"><i class="fa-solid fa-folder-tree"></i></span><span class="nav-label">Kategori & Jenjang</span></a>
