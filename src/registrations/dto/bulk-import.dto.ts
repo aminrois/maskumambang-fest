@@ -6,12 +6,14 @@ import {
   ValidateNested,
   IsEmail,
   IsNotEmpty,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Gender, RegistrationStatus } from '@prisma/client';
 
 export class BulkImportSchoolAccountDto {
-  @IsEnum(['existing', 'new'])
+  @IsNotEmpty()
+  @IsIn(['existing', 'new'])
   mode!: 'existing' | 'new';
 
   @IsOptional()

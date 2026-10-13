@@ -17,7 +17,8 @@ class BulkImportSchoolAccountDto {
 }
 exports.BulkImportSchoolAccountDto = BulkImportSchoolAccountDto;
 __decorate([
-    (0, class_validator_1.IsEnum)(['existing', 'new']),
+    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsIn)(['existing', 'new']),
     __metadata("design:type", String)
 ], BulkImportSchoolAccountDto.prototype, "mode", void 0);
 __decorate([

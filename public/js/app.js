@@ -111,9 +111,13 @@ async function apiRequest(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${state.token}`;
   }
 
-  if (options.body && !(options.body instanceof FormData) && typeof options.body === 'object') {
-    headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(options.body);
+  if (options.body && !(options.body instanceof FormData)) {
+    if (!headers['Content-Type'] && !headers['content-type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (typeof options.body === 'object') {
+      options.body = JSON.stringify(options.body);
+    }
   }
 
   options.headers = headers;
@@ -6708,7 +6712,8 @@ async function submitBulkImport() {
 
     const res = await apiRequest('/api/registrations/bulk-import', {
       method: 'POST',
-      body: JSON.stringify(payload)
+      headers: { 'Content-Type': 'application/json' },
+      body: payload
     });
 
     if (res.success) {
