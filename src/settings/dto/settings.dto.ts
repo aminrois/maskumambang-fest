@@ -36,6 +36,12 @@ export class UpdateSettingsDto {
   @IsString()
   @IsOptional()
   countdown_ended_text?: string;
+
+  // deadline per kategori — disimpan sebagai JSON string
+  // contoh: [{"name":"Scout","deadline":"2026-11-15T23:59"},{"name":"Robotik","deadline":"2026-11-05T23:59"}]
+  @IsString()
+  @IsOptional()
+  registration_deadlines?: string;
 }
 
 export class ResetOperationalDataDto {

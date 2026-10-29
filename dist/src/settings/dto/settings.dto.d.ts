@@ -8,6 +8,7 @@ export declare class UpdateSettingsDto {
     countdown_title?: string;
     countdown_target_date?: string;
     countdown_ended_text?: string;
+    registration_deadlines?: string;
 }
 export declare class ResetOperationalDataDto {
     confirmationCode: string;

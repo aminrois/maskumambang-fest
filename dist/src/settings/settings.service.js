@@ -35,6 +35,14 @@ let SettingsService = class SettingsService {
             countdown_title: 'Hitung Mundur Penutupan Pendaftaran',
             countdown_target_date: '2026-10-15T23:59:00',
             countdown_ended_text: 'Pendaftaran Resmi Ditutup',
+            registration_deadlines: JSON.stringify([
+                { name: 'Robotik', deadline: '2026-11-05T23:59:00' },
+                { name: 'Sport', deadline: '2026-11-05T23:59:00' },
+                { name: 'Little Champions', deadline: '2026-11-05T23:59:00' },
+                { name: 'Master Chef', deadline: '2026-11-10T23:59:00' },
+                { name: 'Olympiad', deadline: '2026-11-10T23:59:00' },
+                { name: 'Scout', deadline: '2026-11-15T23:59:00' },
+            ]),
         };
         settings.forEach((s) => {
             if (s.value !== null && s.value !== undefined) {

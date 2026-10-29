@@ -59,6 +59,11 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], UpdateSettingsDto.prototype, "countdown_ended_text", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateSettingsDto.prototype, "registration_deadlines", void 0);
 class ResetOperationalDataDto {
 }
 exports.ResetOperationalDataDto = ResetOperationalDataDto;

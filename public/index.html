@@ -303,6 +303,77 @@
       transform: translateY(-3px);
     }
 
+    /* ===== BANNER PERPANJANGAN PENDAFTARAN ===== */
+    .reg-extension-banner {
+      max-width: 580px;
+      margin: 0 auto 16px auto;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 14px 18px;
+      animation: fadeSlideUp 0.8s ease both;
+      animation-delay: 0.35s;
+    }
+    .reg-extension-banner-title {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #fbbf24;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .reg-extension-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+    .reg-extension-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(245, 158, 11, 0.18);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 99px;
+      padding: 4px 11px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #fde68a;
+      white-space: nowrap;
+    }
+    .reg-extension-chip i { font-size: 0.65rem; color: #fbbf24; }
+
+    /* ===== DEADLINE BADGE DI CARD LOMBA ===== */
+    .branch-deadline-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 99px;
+      margin-top: 6px;
+    }
+    .branch-deadline-badge.deadline-active {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: #b45309;
+    }
+    .branch-deadline-badge.deadline-urgent {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #b91c1c;
+    }
+    .branch-deadline-badge.deadline-closed {
+      background: rgba(100, 116, 139, 0.1);
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      color: var(--text-muted);
+    }
+
     /* Live Hero Countdown Box */
     .hero-countdown-box {
       max-width: 580px;
@@ -980,7 +1051,7 @@
     </div>
   </footer>
 
-  <script src="/js/app.js?v=20261013_edit_peserta"></script>
+  <script src="/js/app.js?v=20261029_ext_v2"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       initTheme();
@@ -1007,13 +1078,58 @@
         return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(num) || 0);
       }
 
+      // Ambil settings untuk deadline per kategori
+      const defaultCategoryDeadlines = [
+        { name: 'Robotik', deadline: '2026-11-05T23:59:00' },
+        { name: 'Sport', deadline: '2026-11-05T23:59:00' },
+        { name: 'Little Champions', deadline: '2026-11-05T23:59:00' },
+        { name: 'Master Chef', deadline: '2026-11-10T23:59:00' },
+        { name: 'Olympiad', deadline: '2026-11-10T23:59:00' },
+        { name: 'Scout', deadline: '2026-11-15T23:59:00' },
+      ];
+      let categoryDeadlines = defaultCategoryDeadlines;
+      try {
+        const settingsRes = await apiRequest('/api/settings');
+        if (settingsRes.success && settingsRes.data && settingsRes.data.registration_deadlines) {
+          try {
+            const parsed = JSON.parse(settingsRes.data.registration_deadlines);
+            if (Array.isArray(parsed) && parsed.length) categoryDeadlines = parsed;
+          } catch(e2) {}
+        }
+      } catch(e2) {}
+
+      // Cari deadline kategori berdasarkan nama
+      function getCategoryDeadline(categoryName) {
+        if (!categoryDeadlines.length) return null;
+        const lower = categoryName.toLowerCase();
+        return categoryDeadlines.find(function(d) {
+          return lower.includes(d.name.toLowerCase()) || d.name.toLowerCase().includes(lower);
+        }) || null;
+      }
+
+      // Render badge deadline di card
+      function renderDeadlineBadge(categoryName) {
+        const dl = getCategoryDeadline(categoryName);
+        if (!dl) return '';
+        const deadlineTime = new Date(dl.deadline).getTime();
+        const nowMs = Date.now();
+        const diff = deadlineTime - nowMs;
+        if (diff <= 0) {
+          return '<div class="branch-deadline-badge deadline-closed"><i class="fa-solid fa-calendar-xmark"></i> Pendaftaran Ditutup</div>';
+        }
+        const daysLeft = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const urgentClass = daysLeft <= 3 ? 'deadline-urgent' : 'deadline-active';
+        const dateLabel = new Date(dl.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        const urgentText = daysLeft === 0 ? ' (Hari Ini!)' : daysLeft === 1 ? ' (Besok!)' : daysLeft <= 3 ? ` (${daysLeft} hari lagi)` : '';
+        return `<div class="branch-deadline-badge ${urgentClass}"><i class="fa-solid fa-calendar-plus"></i> Diperpanjang s.d. ${dateLabel}${urgentText}</div>`;
+      }
+
       try {
         const res = await apiRequest('/api/competitions/tree');
         if (res.success && res.data) {
           const container = document.getElementById('branches-grid');
           const categories = res.data;
 
-          // Count total branches for hero stats
           let totalBranches = 0;
           categories.forEach(cat => cat.levels.forEach(lvl => totalBranches += lvl.branches.length));
           const statEl = document.getElementById('stat-branches');
@@ -1021,19 +1137,12 @@
           const catStatEl = document.getElementById('stat-categories');
           if (catStatEl) catStatEl.textContent = categories.length;
 
-          // Flatten all branches with parent info
           const allBranches = [];
           categories.forEach(cat => {
             const catInfo = catIcons[cat.slug] || { icon: 'fa-trophy', cls: '' };
             cat.levels.forEach(lvl => {
               lvl.branches.forEach(branch => {
-                allBranches.push({
-                  ...branch,
-                  categoryName: cat.name,
-                  categorySlug: cat.slug,
-                  levelName: lvl.name,
-                  catInfo,
-                });
+                allBranches.push({ ...branch, categoryName: cat.name, categorySlug: cat.slug, levelName: lvl.name, catInfo });
               });
             });
           });
@@ -1045,17 +1154,11 @@
 
           container.innerHTML = allBranches.map(b => {
             const isTeam = b.participantType === 'TEAM';
-            // Registration count from _count.registrations (added in service)
             const regCount = b._count?.registrations ?? 0;
             const isFull = b.maxRegistrants && regCount >= b.maxRegistrants;
 
-            // Combined single-line title: "Kategori · Nama Cabang Jenjang"
-            const combinedLine = `${b.categoryName} · ${b.name} ${b.levelName}`;
-
             const juknisBtn = b.juknisUrl
-              ? `<a href="${b.juknisUrl}" target="_blank" rel="noopener noreferrer" class="btn-juknis" title="Lihat Petunjuk Teknis">
-                   <i class="fa-solid fa-file-lines"></i> Lihat Juknis
-                 </a>`
+              ? `<a href="${b.juknisUrl}" target="_blank" rel="noopener noreferrer" class="btn-juknis" title="Lihat Petunjuk Teknis"><i class="fa-solid fa-file-lines"></i> Lihat Juknis</a>`
               : '';
 
             const daftarBtn = isFull
@@ -1063,23 +1166,15 @@
               : `<a href="/register.html" class="btn-daftar"><i class="fa-solid fa-paper-plane"></i> Daftar</a>`;
 
             const quotaBar = b.maxRegistrants
-              ? `<div style="margin-top:8px;">
-                   <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-dim);margin-bottom:3px;">
-                     <span>Kuota</span><span>${regCount}/${b.maxRegistrants}</span>
-                   </div>
-                   <div style="height:4px;background:var(--border-subtle);border-radius:99px;overflow:hidden;">
-                     <div style="height:100%;width:${Math.min(100, Math.round(regCount / b.maxRegistrants * 100))}%;background:${isFull ? 'var(--danger-500,#ef4444)' : 'var(--primary-500)'};transition:width 0.4s;border-radius:99px;"></div>
-                   </div>
-                 </div>`
+              ? `<div style="margin-top:8px;"><div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-dim);margin-bottom:3px;"><span>Kuota</span><span>${regCount}/${b.maxRegistrants}</span></div><div style="height:4px;background:var(--border-subtle);border-radius:99px;overflow:hidden;"><div style="height:100%;width:${Math.min(100, Math.round(regCount / b.maxRegistrants * 100))}%;background:${isFull ? 'var(--danger-500,#ef4444)' : 'var(--primary-500)'};transition:width 0.4s;border-radius:99px;"></div></div></div>`
               : '';
+
+            const deadlineBadge = renderDeadlineBadge(b.categoryName);
 
             return `
               <div class="branch-card ${b.catInfo.cls}${isFull ? ' opacity-80' : ''}">
-                <!-- Header: icon + combined title -->
                 <div class="branch-card-top">
-                  <div class="branch-icon">
-                    <i class="fa-solid ${b.catInfo.icon}"></i>
-                  </div>
+                  <div class="branch-icon"><i class="fa-solid ${b.catInfo.icon}"></i></div>
                   <div style="flex:1;padding-left:12px;min-width:0;">
                     <div style="font-size:1rem;font-weight:800;color:var(--text-heading);line-height:1.35;">${b.categoryName} · ${b.name} ${b.levelName}</div>
                   </div>
@@ -1089,30 +1184,22 @@
                     <i class="fa-solid ${isTeam ? 'fa-users' : 'fa-user'}"></i>
                     ${isTeam ? `Beregu · ${b.minTeamMembers}–${b.maxTeamMembers} Org` : 'Perorangan'}
                   </span>
+                  ${deadlineBadge}
                 </div>
-
                 <div class="branch-divider"></div>
-
-                <!-- Fee row & Verified Count -->
-                <div class="branch-fee-row" style="display: flex; justify-content: space-between; align-items: flex-end; gap: 8px;">
+                <div class="branch-fee-row" style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;">
                   <div>
                     <span class="branch-fee-label">Biaya Pendaftaran</span>
                     <div class="branch-fee">${formatRp(b.registrationFee)}</div>
                   </div>
-                  <div style="text-align: right;">
+                  <div style="text-align:right;">
                     <span class="branch-fee-label">Pendaftar Sah</span>
-                    <div style="font-size: 0.8rem; font-weight: 700; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;">
-                      <i class="fa-solid fa-circle-check"></i> ${b.verifiedCount ?? 0} Pendaftar
-                    </div>
+                    <div style="font-size:0.8rem;font-weight:700;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;padding:3px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><i class="fa-solid fa-circle-check"></i> ${b.verifiedCount ?? 0} Pendaftar</div>
                   </div>
                 </div>
                 ${quotaBar}
                 <p><span class="branch-fee-label">Biaya tersebut murni digunakan untuk akomodasi pelaksanaan dan bukan untuk hadiah.</span></p>
-                <!-- Action buttons -->
-                <div class="branch-actions" style="margin-top:14px;">
-                  ${juknisBtn}
-                  ${daftarBtn}
-                </div>
+                <div class="branch-actions" style="margin-top:14px;">${juknisBtn}${daftarBtn}</div>
               </div>
             `;
           }).join('');
