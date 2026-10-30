@@ -622,6 +622,78 @@ let RegistrationsService = class RegistrationsService {
             registrations: createdRegs,
         };
     }
+    async bulkDeleteRegistrations(adminId, dto) {
+        if (!dto.pin || dto.pin.trim() !== 'Mask1859') {
+            throw new common_1.ForbiddenException('PIN konfirmasi salah. Tindakan penghapusan dibatalkan.');
+        }
+        if (!dto.registrationIds || !dto.registrationIds.length) {
+            throw new common_1.BadRequestException('Pilih setidaknya satu pendaftaran untuk dihapus.');
+        }
+        const targets = await this.prisma.registration.findMany({
+            where: { id: { in: dto.registrationIds } },
+            include: {
+                individualParticipant: true,
+                team: true,
+                branch: true,
+            },
+        });
+        if (!targets.length) {
+            throw new common_1.NotFoundException('Tidak ada data pendaftaran yang ditemukan untuk dihapus.');
+        }
+        const targetIds = targets.map((t) => t.id);
+        await this.prisma.$transaction(async (tx) => {
+            await tx.checkIn.deleteMany({
+                where: { registrationId: { in: targetIds } },
+            });
+            const payments = await tx.payment.findMany({
+                where: { registrationId: { in: targetIds } },
+                select: { id: true },
+            });
+            const paymentIds = payments.map((p) => p.id);
+            if (paymentIds.length > 0) {
+                await tx.paymentVerificationLog.deleteMany({
+                    where: { paymentId: { in: paymentIds } },
+                });
+                await tx.payment.deleteMany({
+                    where: { id: { in: paymentIds } },
+                });
+            }
+            const teams = await tx.team.findMany({
+                where: { registrationId: { in: targetIds } },
+                select: { id: true },
+            });
+            const teamIds = teams.map((t) => t.id);
+            if (teamIds.length > 0) {
+                await tx.teamMember.deleteMany({
+                    where: { teamId: { in: teamIds } },
+                });
+                await tx.team.deleteMany({
+                    where: { id: { in: teamIds } },
+                });
+            }
+            await tx.individualParticipant.deleteMany({
+                where: { registrationId: { in: targetIds } },
+            });
+            await tx.registration.deleteMany({
+                where: { id: { in: targetIds } },
+            });
+        });
+        const regSummaries = targets.map((t) => {
+            const name = t.individualParticipant?.fullName || t.team?.teamName || '-';
+            return `${t.registrationNumber} (${name} - ${t.branch?.name})`;
+        });
+        await this.auditService.log({
+            userId: adminId,
+            action: 'BULK_DELETE_REGISTRATIONS',
+            targetTable: 'registrations',
+            details: `Super Admin menghapus ${targets.length} data pendaftaran (duplikat/batal): ${regSummaries.join(', ')}`,
+        });
+        return {
+            success: true,
+            message: `${targets.length} data pendaftaran berhasil dihapus secara permanen.`,
+            deletedCount: targets.length,
+        };
+    }
 };
 exports.RegistrationsService = RegistrationsService;
 exports.RegistrationsService = RegistrationsService = __decorate([

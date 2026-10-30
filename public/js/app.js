@@ -2989,6 +2989,8 @@ async function renderAdminDashboard() {
 }
 
 // --- ADMIN DAFTAR PESERTA (ALL REGISTRATIONS) ---
+const selectedAdminRegIds = new Set();
+
 async function renderAdminRegistrationsView() {
   const container = document.getElementById('main-view-slot');
   container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat daftar seluruh peserta...</div>';
@@ -2996,6 +2998,7 @@ async function renderAdminRegistrationsView() {
   try {
     const res = await apiRequest('/api/registrations?perPage=500');
     tableState.adminRegistrations.data = res.success ? res.registrations : [];
+    selectedAdminRegIds.clear();
 
     container.innerHTML = `
       <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
@@ -3010,6 +3013,21 @@ async function renderAdminRegistrationsView() {
         </div>
       </div>
 
+      <!-- Bulk Action Bar -->
+      <div id="admin-reg-bulk-actions" style="margin-bottom: 14px; display: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); padding: 10px 16px; border-radius: var(--radius-md);">
+        <div style="font-size: 0.875rem; font-weight: 700; color: var(--danger-600); display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-check-double"></i> <span id="reg-selected-count">0</span> Pendaftaran Terpilih
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-sm btn-danger" onclick="openBulkDeleteRegistrationsModal()" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700;">
+            <i class="fa-solid fa-trash-can"></i> Hapus Terpilih
+          </button>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="clearSelectedRegistrations()">
+            <i class="fa-solid fa-xmark"></i> Batal
+          </button>
+        </div>
+      </div>
+
       <div id="admin-registrations-table-slot">
         ${renderAdminRegistrationsTable()}
       </div>
@@ -3021,60 +3039,79 @@ async function renderAdminRegistrationsView() {
 
 function renderAdminRegistrationsTable() {
   const ts = tableState.adminRegistrations;
+  const isSuperAdmin = state.user?.role === 'SUPER_ADMIN';
+
+  const columns = [];
+
+  if (isSuperAdmin) {
+    columns.push({
+      header: `<input type="checkbox" id="reg-check-all" onchange="toggleSelectAllRegistrations(this.checked)" style="-webkit-appearance:checkbox !important; appearance:checkbox !important; width:18px; height:18px; cursor:pointer; accent-color:var(--primary-600); margin:0;" title="Pilih Semua">`,
+      sortable: false,
+      render: r => {
+        const checked = selectedAdminRegIds.has(r.id) ? 'checked' : '';
+        return `<input type="checkbox" class="reg-row-check" value="${r.id}" ${checked} onchange="toggleRegistrationSelect('${r.id}', this.checked)" style="-webkit-appearance:checkbox !important; appearance:checkbox !important; width:18px; height:18px; cursor:pointer; accent-color:var(--primary-600); margin:0;">`;
+      },
+    });
+  }
+
+  columns.push(
+    {
+      header: 'No. Registrasi',
+      key: 'registrationNumber',
+      render: r => `<code style="font-weight: 800; color: var(--primary-600);">${r.registrationNumber}</code>`,
+    },
+    {
+      header: 'Nama Peserta / Tim',
+      sortValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.fullName : r.team?.teamName) || '',
+      render: r => `<strong>${r.branch.participantType === 'INDIVIDUAL' ? (r.individualParticipant?.fullName || '-') : (r.team?.teamName || '-')}</strong>`,
+    },
+    {
+      header: 'Sekolah',
+      sortValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '',
+      render: r => (r.branch.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '-',
+    },
+    {
+      header: 'Kategori & Jenjang',
+      sortValue: r => `${r.branch?.level?.category?.name} ${r.branch?.level?.name}`,
+      render: r => `<span class="member-chip">${r.branch.level.category.name} - ${r.branch.level.name}</span>`,
+    },
+    {
+      header: 'Cabang',
+      sortValue: r => r.branch?.name || '',
+      render: r => `<strong>${r.branch.name}</strong>`,
+    },
+    {
+      header: 'Status Pembayaran',
+      key: 'status',
+      render: r => getStatusBadge(r.status),
+    },
+    {
+      header: 'Status Check-In',
+      sortValue: r => r.checkIn ? 1 : 0,
+      render: r => getCheckInBadge(r.checkIn),
+    },
+    {
+      header: 'Aksi',
+      sticky: true,
+      sortable: false,
+      render: r => {
+        let btns = `<a href="#detail/${r.id}" class="btn btn-sm btn-secondary" style="padding: 4px 10px;"><i class="fa-solid fa-eye"></i> Detail</a> `;
+        if (isSuperAdmin) {
+          btns += `<button type="button" class="btn btn-sm btn-warning" style="padding: 4px 10px; background: #f59e0b; color: #fff; border: none;" onclick="openEditRegistrationModal('${r.id}')" title="Edit Data Peserta"><i class="fa-solid fa-pen-to-square"></i> Edit</button> `;
+          const pName = escapeQuotes(r.branch?.participantType === 'INDIVIDUAL' ? (r.individualParticipant?.fullName || '') : (r.team?.teamName || ''));
+          btns += `<button type="button" class="btn btn-sm btn-danger" style="padding: 4px 10px; background: #ef4444; color: #fff; border: none;" onclick="openSingleDeleteRegistrationModal('${r.id}', '${r.registrationNumber}', '${pName}')" title="Hapus Pendaftaran (Duplikat)"><i class="fa-solid fa-trash-can"></i> Hapus</button> `;
+        }
+        if (r.status === 'APPROVED') {
+          btns += `<button type="button" class="btn btn-sm btn-success" style="padding: 4px 10px;" onclick="openParticipantCardModal('${r.id}')" title="Lihat & Cetak Kartu"><i class="fa-solid fa-id-card"></i> Kartu</button>`;
+        }
+        return `<div style="display: flex; flex-direction: column; gap: 4px;">${btns}</div>`;
+      },
+    }
+  );
+
   return renderUniversalTable({
     tableId: 'admin-registrations-table',
-    columns: [
-      {
-        header: 'No. Registrasi',
-        key: 'registrationNumber',
-        render: r => `<code style="font-weight: 800; color: var(--primary-600);">${r.registrationNumber}</code>`,
-      },
-      {
-        header: 'Nama Peserta / Tim',
-        sortValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.fullName : r.team?.teamName) || '',
-        render: r => `<strong>${r.branch.participantType === 'INDIVIDUAL' ? (r.individualParticipant?.fullName || '-') : (r.team?.teamName || '-')}</strong>`,
-      },
-      {
-        header: 'Sekolah',
-        sortValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '',
-        render: r => (r.branch.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '-',
-      },
-      {
-        header: 'Kategori & Jenjang',
-        sortValue: r => `${r.branch?.level?.category?.name} ${r.branch?.level?.name}`,
-        render: r => `<span class="member-chip">${r.branch.level.category.name} - ${r.branch.level.name}</span>`,
-      },
-      {
-        header: 'Cabang',
-        sortValue: r => r.branch?.name || '',
-        render: r => `<strong>${r.branch.name}</strong>`,
-      },
-      {
-        header: 'Status Pembayaran',
-        key: 'status',
-        render: r => getStatusBadge(r.status),
-      },
-      {
-        header: 'Status Check-In',
-        sortValue: r => r.checkIn ? 1 : 0,
-        render: r => getCheckInBadge(r.checkIn),
-      },
-      {
-        header: 'Aksi',
-        sticky: true,
-        sortable: false,
-        render: r => {
-          let btns = `<a href="#detail/${r.id}" class="btn btn-sm btn-secondary" style="padding: 4px 10px;"><i class="fa-solid fa-eye"></i> Detail</a> `;
-          if (state.user?.role === 'SUPER_ADMIN') {
-            btns += `<button type="button" class="btn btn-sm btn-warning" style="padding: 4px 10px; background: #f59e0b; color: #fff; border: none;" onclick="openEditRegistrationModal('${r.id}')" title="Edit Data Peserta"><i class="fa-solid fa-pen-to-square"></i> Edit</button> `;
-          }
-          if (r.status === 'APPROVED') {
-            btns += `<button type="button" class="btn btn-sm btn-success" style="padding: 4px 10px;" onclick="openParticipantCardModal('${r.id}')" title="Lihat & Cetak Kartu"><i class="fa-solid fa-id-card"></i> Kartu</button>`;
-          }
-          return `<div style="display: flex; flex-direction: column; gap: 4px;">${btns}</div>`;
-        },
-      },
-    ],
+    columns,
     data: ts.data,
     searchQuery: ts.search,
     searchFields: [
@@ -3108,6 +3145,156 @@ function renderAdminRegistrationsTable() {
   });
 }
 
+function toggleRegistrationSelect(regId, checked) {
+  if (checked) {
+    selectedAdminRegIds.add(regId);
+  } else {
+    selectedAdminRegIds.delete(regId);
+  }
+  updateRegistrationBulkActionBar();
+}
+
+function toggleSelectAllRegistrations(checked) {
+  const ts = tableState.adminRegistrations;
+  if (checked) {
+    (ts.data || []).forEach(r => selectedAdminRegIds.add(r.id));
+  } else {
+    selectedAdminRegIds.clear();
+  }
+  updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
+  updateRegistrationBulkActionBar();
+}
+
+function clearSelectedRegistrations() {
+  selectedAdminRegIds.clear();
+  updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
+  updateRegistrationBulkActionBar();
+}
+
+function updateRegistrationBulkActionBar() {
+  const bar = document.getElementById('admin-reg-bulk-actions');
+  const countEl = document.getElementById('reg-selected-count');
+  if (bar) {
+    bar.style.display = selectedAdminRegIds.size > 0 ? 'flex' : 'none';
+  }
+  if (countEl) {
+    countEl.innerText = selectedAdminRegIds.size;
+  }
+}
+
+function openSingleDeleteRegistrationModal(regId, regNumber, name) {
+  openDeleteRegistrationsModal([regId], `Anda akan menghapus data pendaftaran <strong>${regNumber}</strong> (${name || '-'}).`);
+}
+
+function openBulkDeleteRegistrationsModal() {
+  const count = selectedAdminRegIds.size;
+  if (count === 0) return;
+  openDeleteRegistrationsModal(Array.from(selectedAdminRegIds), `Anda akan menghapus <strong>${count} pendaftaran terpilih</strong> sekaligus secara permanen.`);
+}
+
+function openDeleteRegistrationsModal(regIds, descriptionText) {
+  window._pendingDeleteRegIds = regIds;
+  openAppModal(`
+    <div style="text-align: center; padding: 10px 0;">
+      <div style="width: 56px; height: 56px; border-radius: 50%; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 16px;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--text-heading); margin-bottom: 8px;">Konfirmasi Hapus Pendaftaran</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px; line-height: 1.5;">
+        ${descriptionText}<br>
+        <span style="color: #dc2626; font-size: 0.8rem; font-weight: 600;">Data pendaftaran duplikat/batal ini akan dihapus permanen dari sistem.</span>
+      </p>
+
+      <div id="delete-reg-error-alert" style="display: none; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 0.85rem; text-align: left; background: #fee2e2; color: #991b1b; border: 1px solid #f87171;"></div>
+
+      <div style="margin-bottom: 20px; text-align: left; background: var(--bg-body); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+        <label for="reg-delete-pin-input" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-heading); margin-bottom: 6px;">
+          <i class="fa-solid fa-key" style="color: var(--primary-600); margin-right: 4px;"></i> Masukkan PIN Konfirmasi Keamanan:
+        </label>
+        <input type="password" id="reg-delete-pin-input" class="form-control" placeholder="Ketik PIN pengaman..." autocomplete="off" style="width: 100%; padding: 10px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md); font-size: 0.95rem; font-weight: 600;" onkeydown="if(event.key==='Enter') executeDeleteRegistrations()">
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 5px;">Ketik PIN <code>Mask1859</code> untuk mengonfirmasi tindakan ini.</div>
+      </div>
+
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button type="button" class="btn btn-secondary" onclick="closeAppModal()" style="padding: 9px 20px;">Batal</button>
+        <button type="button" id="btn-submit-delete-reg" class="btn btn-danger" onclick="executeDeleteRegistrations()" style="padding: 9px 20px; font-weight: 700;">
+          <i class="fa-solid fa-trash-can"></i> Hapus Sekarang
+        </button>
+      </div>
+    </div>
+  `);
+
+  setTimeout(() => {
+    const input = document.getElementById('reg-delete-pin-input');
+    if (input) input.focus();
+  }, 100);
+}
+
+async function executeDeleteRegistrations() {
+  const regIds = window._pendingDeleteRegIds || [];
+  if (!regIds.length) {
+    alert('Tidak ada data pendaftaran yang dipilih.');
+    return;
+  }
+
+  const pinInput = document.getElementById('reg-delete-pin-input');
+  const errorEl = document.getElementById('delete-reg-error-alert');
+  const btn = document.getElementById('btn-submit-delete-reg');
+  const pin = (pinInput ? pinInput.value : '').trim();
+
+  if (!pin) {
+    if (errorEl) {
+      errorEl.textContent = 'Harap masukkan PIN konfirmasi keamanan.';
+      errorEl.style.display = 'block';
+    }
+    if (pinInput) pinInput.focus();
+    return;
+  }
+
+  if (pin !== 'Mask1859') {
+    if (errorEl) {
+      errorEl.textContent = 'PIN konfirmasi salah! Tindakan penghapusan ditolak.';
+      errorEl.style.display = 'block';
+    }
+    if (pinInput) {
+      pinInput.value = '';
+      pinInput.focus();
+    }
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menghapus...';
+  }
+
+  try {
+    const res = await apiRequest('/api/registrations/bulk-delete', {
+      method: 'POST',
+      body: {
+        registrationIds: regIds,
+        pin: pin,
+      },
+    });
+
+    if (res.success) {
+      closeAppModal();
+      alert(res.message || 'Pendaftaran berhasil dihapus.');
+      regIds.forEach(id => selectedAdminRegIds.delete(id));
+      renderAdminRegistrationsView();
+    }
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Hapus Sekarang';
+    }
+    if (errorEl) {
+      errorEl.textContent = 'Gagal menghapus: ' + err.message;
+      errorEl.style.display = 'block';
+    }
+  }
+}
+
 function exportAdminRegistrationsExcel() {
   const data = tableState.adminRegistrations.data || [];
   if (!data || !data.length) {
@@ -3128,13 +3315,12 @@ function exportAdminRegistrationsExcel() {
     { header: 'Nama Peserta / Tim', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.fullName : r.team?.teamName) || '-' },
     { header: 'Jenis Kelamin (Perorangan)', exportValue: r => r.individualParticipant?.gender || '-' },
     { header: 'Kelas / Jenjang (Perorangan)', exportValue: r => r.individualParticipant?.gradeClass || '-' },
-    { header: 'No. WhatsApp Peserta', exportValue: r => r.individualParticipant?.whatsappNumber || '-' },
     { header: 'Asal Sekolah', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '-' },
     { header: 'Alamat Sekolah', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolAddress : r.team?.schoolAddress) || '-' },
-    { header: 'Nama Guru Pembimbing', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.mentorName : r.team?.mentorName) || '-' },
+    { header: 'Nama Pembina / Pendamping', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.mentorName : r.team?.mentorName) || '-' },
+    { header: 'No. WhatsApp Pembina', exportValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.whatsappNumber : r.team?.whatsappNumber) || '-' },
     { header: 'Ketua Tim (Beregu)', exportValue: r => r.team?.leaderName || '-' },
-    { header: 'Jumlah Anggota Tim', exportValue: r => (r.team?.members ? r.team.members.length : '-') },
-    { header: 'Daftar Anggota Tim', exportValue: r => (r.team?.members && r.team.members.length > 0 ? r.team.members.map((m, i) => `${i + 1}. ${m.memberName}`).join('; ') : '-') },
+    { header: 'Anggota Tim (Beregu)', exportValue: r => (r.team?.members || []).map(m => `${m.memberName} (${m.gradeClass})`).join('; ') || '-' },
     { header: 'Nama Akun Pendaftar', exportValue: r => r.user?.name || '-' },
     { header: 'Email Akun Pendaftar', exportValue: r => r.user?.email || '-' },
     { header: 'No. HP Akun Pendaftar', exportValue: r => r.user?.phoneNumber || '-' },
@@ -3161,6 +3347,7 @@ function onAdminRegFilterChange(v) {
   tableState.adminRegistrations.page = 1;
   updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
 }
+
 
 // =============================================================================
 // EDIT PESERTA - SUPER ADMIN ONLY (Modal + Cascading Dropdowns + Save)

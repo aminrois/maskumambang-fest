@@ -4,6 +4,7 @@ import { CreateIndividualRegistrationDto } from './dto/create-individual.dto';
 import { CreateTeamRegistrationDto } from './dto/create-team.dto';
 import { UpdateRegistrationDto } from './dto/update-registration.dto';
 import { BulkImportRegistrationDto } from './dto/bulk-import.dto';
+import { BulkDeleteRegistrationDto } from './dto/bulk-delete.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role, RegistrationStatus } from '@prisma/client';
@@ -108,5 +109,13 @@ export class RegistrationsController {
       message: `Berhasil mengimpor ${data.importedCount} peserta.`,
       data,
     };
+  }
+  @Roles(Role.SUPER_ADMIN)
+  @Post('bulk-delete')
+  async bulkDeleteRegistrations(
+    @CurrentUser('id') adminId: string,
+    @Body() dto: BulkDeleteRegistrationDto,
+  ) {
+    return this.registrationsService.bulkDeleteRegistrations(adminId, dto);
   }
 }

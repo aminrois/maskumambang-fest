@@ -13,6 +13,7 @@ import { CreateIndividualRegistrationDto } from './dto/create-individual.dto';
 import { CreateTeamRegistrationDto, TeamMemberDto } from './dto/create-team.dto';
 import { UpdateRegistrationDto } from './dto/update-registration.dto';
 import { BulkImportRegistrationDto, BulkImportItemDto } from './dto/bulk-import.dto';
+import { BulkDeleteRegistrationDto } from './dto/bulk-delete.dto';
 import { ParticipantType, RegistrationStatus, Role, PaymentStatus } from '@prisma/client';
 import * as crypto from 'crypto';
 
@@ -734,6 +735,101 @@ export class RegistrationsService {
         plainPassword: dto.schoolAccount.mode === 'new' ? plainPassword : null,
       },
       registrations: createdRegs,
+    };
+  }
+  async bulkDeleteRegistrations(adminId: string, dto: BulkDeleteRegistrationDto) {
+    if (!dto.pin || dto.pin.trim() !== 'Mask1859') {
+      throw new ForbiddenException('PIN konfirmasi salah. Tindakan penghapusan dibatalkan.');
+    }
+
+    if (!dto.registrationIds || !dto.registrationIds.length) {
+      throw new BadRequestException('Pilih setidaknya satu pendaftaran untuk dihapus.');
+    }
+
+    // 1. Ambil pendaftaran yang akan dihapus beserta info terkait untuk audit
+    const targets = await this.prisma.registration.findMany({
+      where: { id: { in: dto.registrationIds } },
+      include: {
+        individualParticipant: true,
+        team: true,
+        branch: true,
+      },
+    });
+
+    if (!targets.length) {
+      throw new NotFoundException('Tidak ada data pendaftaran yang ditemukan untuk dihapus.');
+    }
+
+    const targetIds = targets.map((t) => t.id);
+
+    // 2. Hapus dalam transaksi Prisma yang aman
+    await this.prisma.$transaction(async (tx) => {
+      // a. Hapus CheckIn terkait (karena onDelete: Restrict)
+      await tx.checkIn.deleteMany({
+        where: { registrationId: { in: targetIds } },
+      });
+
+      // b. Ambil ID payment terkait
+      const payments = await tx.payment.findMany({
+        where: { registrationId: { in: targetIds } },
+        select: { id: true },
+      });
+      const paymentIds = payments.map((p) => p.id);
+
+      if (paymentIds.length > 0) {
+        // Hapus log verifikasi
+        await tx.paymentVerificationLog.deleteMany({
+          where: { paymentId: { in: paymentIds } },
+        });
+        // Hapus payment
+        await tx.payment.deleteMany({
+          where: { id: { in: paymentIds } },
+        });
+      }
+
+      // c. Ambil ID team terkait
+      const teams = await tx.team.findMany({
+        where: { registrationId: { in: targetIds } },
+        select: { id: true },
+      });
+      const teamIds = teams.map((t) => t.id);
+      if (teamIds.length > 0) {
+        await tx.teamMember.deleteMany({
+          where: { teamId: { in: teamIds } },
+        });
+        await tx.team.deleteMany({
+          where: { id: { in: teamIds } },
+        });
+      }
+
+      // d. Hapus individualParticipant
+      await tx.individualParticipant.deleteMany({
+        where: { registrationId: { in: targetIds } },
+      });
+
+      // e. Hapus Registration
+      await tx.registration.deleteMany({
+        where: { id: { in: targetIds } },
+      });
+    });
+
+    // 3. Catat ke Audit Log
+    const regSummaries = targets.map((t) => {
+      const name = t.individualParticipant?.fullName || t.team?.teamName || '-';
+      return `${t.registrationNumber} (${name} - ${t.branch?.name})`;
+    });
+
+    await this.auditService.log({
+      userId: adminId,
+      action: 'BULK_DELETE_REGISTRATIONS',
+      targetTable: 'registrations',
+      details: `Super Admin menghapus ${targets.length} data pendaftaran (duplikat/batal): ${regSummaries.join(', ')}`,
+    });
+
+    return {
+      success: true,
+      message: `${targets.length} data pendaftaran berhasil dihapus secara permanen.`,
+      deletedCount: targets.length,
     };
   }
 }

@@ -5,6 +5,7 @@ import { CreateIndividualRegistrationDto } from './dto/create-individual.dto';
 import { CreateTeamRegistrationDto } from './dto/create-team.dto';
 import { UpdateRegistrationDto } from './dto/update-registration.dto';
 import { BulkImportRegistrationDto } from './dto/bulk-import.dto';
+import { BulkDeleteRegistrationDto } from './dto/bulk-delete.dto';
 import { RegistrationStatus, Role } from '@prisma/client';
 export declare class RegistrationsService {
     private readonly prisma;
@@ -823,5 +824,10 @@ export declare class RegistrationsService {
             branchName: any;
             levelName: any;
         }[];
+    }>;
+    bulkDeleteRegistrations(adminId: string, dto: BulkDeleteRegistrationDto): Promise<{
+        success: boolean;
+        message: string;
+        deletedCount: number;
     }>;
 }
