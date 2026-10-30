@@ -256,20 +256,75 @@ async function loadBrandingInfo() {
 
 // ============================================================================
 // ============================================================================
-// UNIVERSAL TABLE ENGINE & EXCEL/CSV EXPORT UTILITY
+// UNIVERSAL TABLE ENGINE & EXCEL (.XLSX) EXPORT UTILITY
 // ============================================================================
-function exportTableDataToExcel(filename, columns, data) {
+async function ensureXLSXLoaded() {
+  if (typeof XLSX !== 'undefined') return true;
+  return new Promise((resolve) => {
+    const existing = document.querySelector('script[src*="xlsx.full.min.js"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(typeof XLSX !== 'undefined'));
+      existing.addEventListener('error', () => resolve(false));
+      setTimeout(() => resolve(typeof XLSX !== 'undefined'), 500);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = '/js/xlsx.full.min.js';
+    script.onload = () => resolve(typeof XLSX !== 'undefined');
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+}
+
+function downloadExcelWorkbook(wb, filename) {
+  try {
+    if (typeof XLSX.writeFile === 'function') {
+      XLSX.writeFile(wb, filename);
+      return;
+    }
+  } catch (err) {
+    console.warn('XLSX.writeFile threw error, falling back to Blob download:', err);
+  }
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportUniversalTableData(tableId, filename) {
+  const reg = window._tableRegistry && window._tableRegistry[tableId];
+  if (!reg || !reg.data || !reg.data.length) {
+    alert('Tidak ada data untuk diekspor.');
+    return;
+  }
+  exportTableDataToExcel(filename || tableId, reg.columns, reg.data);
+}
+
+async function exportTableDataToExcel(filename, columns, data) {
   if (!data || !data.length) {
     alert('Tidak ada data untuk diekspor.');
     return;
   }
 
-  // Filter out action columns
-  const exportCols = columns.filter(c => !c.sticky && c.header !== 'Aksi');
-  
+  // Filter out action columns & empty headers
+  const exportCols = (columns || []).filter(c => !c.sticky && c.header && c.header !== 'Aksi');
+  if (!exportCols.length) {
+    alert('Tidak ada kolom data yang dapat diekspor.');
+    return;
+  }
+
   // Header row
-  const headers = exportCols.map(c => `"${(c.header || '').replace(/"/g, '""')}"`);
-  
+  const headers = exportCols.map(c => String(c.header || '').trim());
+
   // Data rows
   const rows = data.map((item, idx) => {
     return exportCols.map(col => {
@@ -280,21 +335,74 @@ function exportTableDataToExcel(filename, columns, data) {
         val = item[col.key];
       } else if (typeof col.render === 'function') {
         const rendered = col.render(item);
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = rendered;
-        val = tempDiv.textContent || tempDiv.innerText || '';
+        if (typeof rendered === 'string' && rendered.includes('<')) {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = rendered;
+          val = tempDiv.textContent || tempDiv.innerText || '';
+        } else {
+          val = rendered;
+        }
       }
-      val = (val === null || val === undefined) ? '' : String(val).trim();
-      return `"${val.replace(/"/g, '""')}"`;
-    }).join(',');
+      if (val === null || val === undefined) return '';
+      if (typeof val === 'number') return val;
+      return String(val).trim();
+    });
   });
 
-  const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let baseFilename = (filename || 'export').replace(/\.(xlsx|csv)$/i, '');
+  if (!baseFilename.includes(todayStr)) {
+    baseFilename = `${baseFilename}_${todayStr}`;
+  }
+  const finalFilename = `${baseFilename}.xlsx`;
+
+  // Ensure SheetJS is available
+  await ensureXLSXLoaded();
+
+  if (typeof XLSX !== 'undefined') {
+    try {
+      const wb = XLSX.utils.book_new();
+      const wsData = [headers, ...rows];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // Auto-fit column widths based on cell content
+      ws['!cols'] = headers.map((h, colIdx) => {
+        let maxLen = Math.max(String(h || '').length, 8);
+        for (let r = 0; r < Math.min(rows.length, 500); r++) {
+          const cellVal = rows[r][colIdx];
+          if (cellVal !== undefined && cellVal !== null) {
+            const l = String(cellVal).length;
+            if (l > maxLen) maxLen = l;
+          }
+        }
+        return { wch: Math.min(maxLen + 3, 50) };
+      });
+
+      // Sheet name (Excel limit: max 31 chars, valid chars)
+      const sheetName = (filename || 'DATA')
+        .replace(/[\/\\?*:\[\]]/g, '')
+        .replace(/\.(xlsx|csv)$/i, '')
+        .replace(/^data_|^master_|^log_/i, '')
+        .toUpperCase()
+        .slice(0, 31) || 'DATA';
+
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      downloadExcelWorkbook(wb, finalFilename);
+      return;
+    } catch (err) {
+      console.error('Error generating Excel file via SheetJS:', err);
+    }
+  }
+
+  // Fallback to CSV only if SheetJS is unavailable
+  const csvHeaders = headers.map(h => `"${h.replace(/"/g, '""')}"`);
+  const csvRows = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','));
+  const csvContent = '\uFEFF' + [csvHeaders.join(','), ...csvRows].join('\r\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute('download', `${filename || 'export'}_${new Date().toISOString().slice(0, 10)}.csv`);
+  link.setAttribute('download', `${baseFilename}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -323,6 +431,10 @@ function renderUniversalTable({
   onExportName = '',
   emptyMessage = 'Belum ada data.',
 }) {
+  // Cache table definition for export
+  window._tableRegistry = window._tableRegistry || {};
+  window._tableRegistry[tableId] = { columns, data };
+
   // 1. Filter data by column filter if provided
   let filtered = data;
   if (filterKey && filterValue) {
@@ -444,7 +556,7 @@ function renderUniversalTable({
 
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
           ${(exportFilename || onExportName) ? `
-            <button type="button" onclick="${onExportName ? `${onExportName}()` : `exportTableDataToExcel('${exportFilename || tableId}', [], [])`}" style="padding: 7px 10px; font-size: 1rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--success-500); color: var(--success-600); background: transparent; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;" title="Ekspor ke Excel / CSV" onmouseover="this.style.background='var(--success-50)'" onmouseout="this.style.background='transparent'">
+            <button type="button" onclick="${onExportName ? `${onExportName}()` : `exportUniversalTableData('${tableId}', '${exportFilename || tableId}')`}" style="padding: 7px 10px; font-size: 1rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--success-500); color: var(--success-600); background: transparent; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;" title="Ekspor ke Excel (.xlsx)" onmouseover="this.style.background='var(--success-50)'" onmouseout="this.style.background='transparent'">
               <i class="fa-solid fa-file-excel"></i>
             </button>
           ` : ''}
@@ -2474,7 +2586,7 @@ async function renderCheckInScannerView() {
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
           <h3 style="font-size: 1.15rem; color: var(--text-heading); margin: 0;"><i class="fa-solid fa-satellite-dish"></i> Live Check-In Feed</h3>
           <div style="display: flex; gap: 8px; align-items: center;">
-            <button style="padding: 6px 10px; font-size: 0.95rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--success-500); color: var(--success-600); background: transparent; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;" onclick="exportCheckInLogsExcel()" title="Ekspor Log Check-In ke Excel / CSV" onmouseover="this.style.background='var(--success-50)'" onmouseout="this.style.background='transparent'">
+            <button style="padding: 6px 10px; font-size: 0.95rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--success-500); color: var(--success-600); background: transparent; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;" onclick="exportCheckInLogsExcel()" title="Ekspor Log Check-In ke Excel (.xlsx)" onmouseover="this.style.background='var(--success-50)'" onmouseout="this.style.background='transparent'">
               <i class="fa-solid fa-file-excel"></i>
             </button>
             <button class="btn btn-sm btn-secondary" onclick="loadLiveCheckInLogs()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
@@ -6301,8 +6413,10 @@ window.initHomepageCountdown = initHomepageCountdown;
 window.handleOperationalResetSubmit = handleOperationalResetSubmit;
 window.handlePasswordChangeSubmit = handlePasswordChangeSubmit;
 
-// Super Admin Excel / CSV Export Handlers
+// Super Admin Excel Export Handlers
 window.exportTableDataToExcel = exportTableDataToExcel;
+window.exportUniversalTableData = exportUniversalTableData;
+window.downloadExcelWorkbook = downloadExcelWorkbook;
 window.exportAdminRegistrationsExcel = exportAdminRegistrationsExcel;
 window.exportAdminUsersExcel = exportAdminUsersExcel;
 window.exportAdminBranchesExcel = exportAdminBranchesExcel;
