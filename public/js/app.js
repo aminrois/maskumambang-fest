@@ -832,7 +832,7 @@ function handleDashboardRoute() {
 const tableState = {
   pesertaRegs: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
   bendaharaPayments: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
-  adminRegistrations: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
+  adminRegistrations: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', filterStatus: '', filterCategory: '', filterBranch: '', data: [] },
   adminUsers: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
   adminAudit: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
   adminBranches: { page: 1, pageSize: 10, search: '', sortKey: '', sortDir: 'asc', filterKey: '', filterVal: '', data: [] },
@@ -3103,12 +3103,155 @@ async function renderAdminDashboard() {
 // --- ADMIN DAFTAR PESERTA (ALL REGISTRATIONS) ---
 const selectedAdminRegIds = new Set();
 
+function buildAdminRegCategoryOptions(selectedCatId) {
+  const tree = state.competitionTree || [];
+  return tree.map(cat => {
+    const isSel = cat.id === selectedCatId ? 'selected' : '';
+    return `<option value="${cat.id}" ${isSel}>${escapeHtml(cat.name)}</option>`;
+  }).join('');
+}
+
+function buildAdminRegBranchOptions(selectedCatId, selectedBranchId) {
+  const tree = state.competitionTree || [];
+  let html = '<option value="">Semua Cabang Lomba</option>';
+
+  if (selectedCatId) {
+    const cat = tree.find(c => c.id === selectedCatId);
+    if (cat && cat.levels) {
+      cat.levels.forEach(lvl => {
+        if (lvl.branches && lvl.branches.length) {
+          html += `<optgroup label="${escapeHtml(lvl.name)}">`;
+          lvl.branches.forEach(b => {
+            const isSel = b.id === selectedBranchId ? 'selected' : '';
+            html += `<option value="${b.id}" ${isSel}>${escapeHtml(b.name)} (${escapeHtml(lvl.name)})</option>`;
+          });
+          html += `</optgroup>`;
+        }
+      });
+    }
+  } else {
+    tree.forEach(cat => {
+      html += `<optgroup label="Kategori: ${escapeHtml(cat.name)}">`;
+      (cat.levels || []).forEach(lvl => {
+        (lvl.branches || []).forEach(b => {
+          const isSel = b.id === selectedBranchId ? 'selected' : '';
+          html += `<option value="${b.id}" ${isSel}>${escapeHtml(b.name)} - ${escapeHtml(lvl.name)}</option>`;
+        });
+      });
+      html += `</optgroup>`;
+    });
+  }
+  return html;
+}
+
+function getFilteredAdminRegistrations() {
+  const ts = tableState.adminRegistrations;
+  let items = ts.data || [];
+
+  // 1. Filter Kategori Lomba
+  if (ts.filterCategory) {
+    items = items.filter(r => {
+      const catId = r.branch?.level?.category?.id;
+      const catName = r.branch?.level?.category?.name;
+      return catId === ts.filterCategory || catName === ts.filterCategory;
+    });
+  }
+
+  // 2. Filter Cabang Lomba
+  if (ts.filterBranch) {
+    items = items.filter(r => {
+      const bId = r.branch?.id;
+      const bName = r.branch?.name;
+      return bId === ts.filterBranch || bName === ts.filterBranch;
+    });
+  }
+
+  // 3. Filter Status Pembayaran
+  if (ts.filterStatus) {
+    items = items.filter(r => r.status === ts.filterStatus);
+  }
+
+  return items;
+}
+
+function renderAdminRegFilterBar() {
+  const ts = tableState.adminRegistrations;
+  const filtered = getFilteredAdminRegistrations();
+  const total = (ts.data || []).length;
+
+  return `
+    <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
+        <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-heading); display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-filter" style="color: var(--primary-600);"></i> Filter Data Peserta
+          <span id="admin-reg-filter-badge" style="font-size: 0.78rem; font-weight: 600; padding: 2px 10px; border-radius: 12px; background: rgba(59,130,246,0.1); color: var(--primary-600); border: 1px solid rgba(59,130,246,0.2);">
+            <strong>${filtered.length}</strong> dari ${total} Peserta
+          </span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetAdminRegFilters()" style="padding: 6px 12px; font-size: 0.825rem; display: inline-flex; align-items: center; gap: 6px; border-radius: var(--radius-md);">
+            <i class="fa-solid fa-rotate-left"></i> Reset Filter
+          </button>
+          <button type="button" class="btn btn-sm btn-success" onclick="exportAdminRegistrationsExcel()" style="padding: 6px 14px; font-size: 0.825rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; background: #10b981; color: #fff; border: none; border-radius: var(--radius-md); box-shadow: 0 2px 4px rgba(16,185,129,0.2);" title="Ekspor Data Terfilter ke Excel (.xlsx)">
+            <i class="fa-solid fa-file-excel"></i> Export Excel Sesuai Filter
+          </button>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+        <!-- Kategori Lomba -->
+        <div>
+          <label for="admin-reg-filter-category" style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+            <i class="fa-solid fa-layer-group" style="margin-right: 4px;"></i> Kategori Lomba
+          </label>
+          <select id="admin-reg-filter-category" onchange="onAdminRegCategoryChange(this.value)" class="form-control" style="width: 100%; padding: 8px 12px; font-size: 0.875rem; border-radius: var(--radius-md); border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); cursor: pointer;">
+            <option value="">Semua Kategori</option>
+            ${buildAdminRegCategoryOptions(ts.filterCategory)}
+          </select>
+        </div>
+
+        <!-- Cabang Lomba -->
+        <div>
+          <label for="admin-reg-filter-branch" style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+            <i class="fa-solid fa-trophy" style="margin-right: 4px;"></i> Cabang Lomba
+          </label>
+          <select id="admin-reg-filter-branch" onchange="onAdminRegBranchChange(this.value)" class="form-control" style="width: 100%; padding: 8px 12px; font-size: 0.875rem; border-radius: var(--radius-md); border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); cursor: pointer;">
+            ${buildAdminRegBranchOptions(ts.filterCategory, ts.filterBranch)}
+          </select>
+        </div>
+
+        <!-- Status Pembayaran -->
+        <div>
+          <label for="admin-reg-filter-status" style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+            <i class="fa-solid fa-receipt" style="margin-right: 4px;"></i> Status Pembayaran
+          </label>
+          <select id="admin-reg-filter-status" onchange="onAdminRegStatusChange(this.value)" class="form-control" style="width: 100%; padding: 8px 12px; font-size: 0.875rem; border-radius: var(--radius-md); border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); cursor: pointer;">
+            <option value="" ${!ts.filterStatus ? 'selected' : ''}>Semua Status</option>
+            <option value="APPROVED" ${ts.filterStatus === 'APPROVED' ? 'selected' : ''}>Disetujui (Approved)</option>
+            <option value="WAITING_VERIFICATION" ${ts.filterStatus === 'WAITING_VERIFICATION' ? 'selected' : ''}>Menunggu Verifikasi</option>
+            <option value="PAYMENT_REJECTED" ${ts.filterStatus === 'PAYMENT_REJECTED' ? 'selected' : ''}>Ditolak (Rejected)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 async function renderAdminRegistrationsView() {
   const container = document.getElementById('main-view-slot');
   container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat daftar seluruh peserta...</div>';
 
   try {
-    const res = await apiRequest('/api/registrations?perPage=500');
+    if (!state.competitionTree || !state.competitionTree.length) {
+      try {
+        const treeRes = await apiRequest('/api/competitions/tree');
+        if (treeRes.success) state.competitionTree = treeRes.data;
+      } catch (e) {
+        console.warn('Could not load competition tree for filters:', e);
+      }
+    }
+
+    const res = await apiRequest('/api/registrations?perPage=5000');
     tableState.adminRegistrations.data = res.success ? res.registrations : [];
     selectedAdminRegIds.clear();
 
@@ -3140,6 +3283,10 @@ async function renderAdminRegistrationsView() {
         </div>
       </div>
 
+      <div id="admin-reg-filter-bar-slot">
+        ${renderAdminRegFilterBar()}
+      </div>
+
       <div id="admin-registrations-table-slot">
         ${renderAdminRegistrationsTable()}
       </div>
@@ -3152,6 +3299,7 @@ async function renderAdminRegistrationsView() {
 function renderAdminRegistrationsTable() {
   const ts = tableState.adminRegistrations;
   const isSuperAdmin = state.user?.role === 'SUPER_ADMIN';
+  const filteredData = getFilteredAdminRegistrations();
 
   const columns = [];
 
@@ -3175,22 +3323,22 @@ function renderAdminRegistrationsTable() {
     {
       header: 'Nama Peserta / Tim',
       sortValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.fullName : r.team?.teamName) || '',
-      render: r => `<strong>${r.branch.participantType === 'INDIVIDUAL' ? (r.individualParticipant?.fullName || '-') : (r.team?.teamName || '-')}</strong>`,
+      render: r => `<strong>${r.branch?.participantType === 'INDIVIDUAL' ? (r.individualParticipant?.fullName || '-') : (r.team?.teamName || '-')}</strong>`,
     },
     {
       header: 'Sekolah',
       sortValue: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '',
-      render: r => (r.branch.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '-',
+      render: r => (r.branch?.participantType === 'INDIVIDUAL' ? r.individualParticipant?.schoolName : r.team?.schoolName) || '-',
     },
     {
       header: 'Kategori & Jenjang',
-      sortValue: r => `${r.branch?.level?.category?.name} ${r.branch?.level?.name}`,
-      render: r => `<span class="member-chip">${r.branch.level.category.name} - ${r.branch.level.name}</span>`,
+      sortValue: r => `${r.branch?.level?.category?.name || ''} ${r.branch?.level?.name || ''}`,
+      render: r => `<span class="member-chip">${r.branch?.level?.category?.name || '-'} - ${r.branch?.level?.name || '-'}</span>`,
     },
     {
       header: 'Cabang',
       sortValue: r => r.branch?.name || '',
-      render: r => `<strong>${r.branch.name}</strong>`,
+      render: r => `<strong>${r.branch?.name || '-'}</strong>`,
     },
     {
       header: 'Status Pembayaran',
@@ -3224,7 +3372,7 @@ function renderAdminRegistrationsTable() {
   return renderUniversalTable({
     tableId: 'admin-registrations-table',
     columns,
-    data: ts.data,
+    data: filteredData,
     searchQuery: ts.search,
     searchFields: [
       'registrationNumber',
@@ -3236,24 +3384,15 @@ function renderAdminRegistrationsTable() {
     ],
     sortKey: ts.sortKey,
     sortDir: ts.sortDir,
-    filterKey: 'status',
-    filterValue: ts.filterVal,
-    filterOptions: [
-      { label: 'Semua Status', value: '' },
-      { label: 'Disetujui (Approved)', value: 'APPROVED' },
-      { label: 'Menunggu Verifikasi', value: 'WAITING_VERIFICATION' },
-      { label: 'Ditolak (Rejected)', value: 'PAYMENT_REJECTED' },
-    ],
     currentPage: ts.page,
     pageSize: ts.pageSize,
     onPageChangeName: 'onAdminRegPageChange',
     onSearchChangeName: 'onAdminRegSearchChange',
     onPageSizeChangeName: 'onAdminRegPageSizeChange',
     onSortChangeName: 'onAdminRegSortChange',
-    onFilterChangeName: 'onAdminRegFilterChange',
     exportFilename: 'data_seluruh_peserta_lomba',
     onExportName: 'exportAdminRegistrationsExcel',
-    emptyMessage: 'Belum ada pendaftaran masuk.',
+    emptyMessage: 'Tidak ada data peserta yang cocok dengan filter atau kata kunci pencarian.',
   });
 }
 
@@ -3267,11 +3406,11 @@ function toggleRegistrationSelect(regId, checked) {
 }
 
 function toggleSelectAllRegistrations(checked) {
-  const ts = tableState.adminRegistrations;
+  const items = getFilteredAdminRegistrations();
   if (checked) {
-    (ts.data || []).forEach(r => selectedAdminRegIds.add(r.id));
+    items.forEach(r => selectedAdminRegIds.add(r.id));
   } else {
-    selectedAdminRegIds.clear();
+    items.forEach(r => selectedAdminRegIds.delete(r.id));
   }
   updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
   updateRegistrationBulkActionBar();
@@ -3408,10 +3547,51 @@ async function executeDeleteRegistrations() {
 }
 
 function exportAdminRegistrationsExcel() {
-  const data = tableState.adminRegistrations.data || [];
+  const ts = tableState.adminRegistrations;
+  let data = getFilteredAdminRegistrations();
+
+  // If search query is currently active, also filter by search query
+  if (ts.search && ts.search.trim()) {
+    const q = ts.search.toLowerCase().trim();
+    data = data.filter(r => {
+      const regNo = String(r.registrationNumber || '').toLowerCase();
+      const bName = String(r.branch?.name || '').toLowerCase();
+      const pName = String(r.branch?.participantType === 'INDIVIDUAL' ? (r.individualParticipant?.fullName || '') : (r.team?.teamName || '')).toLowerCase();
+      const sName = String(r.branch?.participantType === 'INDIVIDUAL' ? (r.individualParticipant?.schoolName || '') : (r.team?.schoolName || '')).toLowerCase();
+      return regNo.includes(q) || bName.includes(q) || pName.includes(q) || sName.includes(q);
+    });
+  }
+
   if (!data || !data.length) {
-    alert('Tidak ada data peserta untuk diekspor.');
+    alert('Tidak ada data peserta yang cocok dengan filter untuk diekspor.');
     return;
+  }
+
+  // Generate dynamic, descriptive file name
+  let filename = 'data_peserta';
+  const parts = [];
+  if (ts.filterCategory) {
+    const cat = (state.competitionTree || []).find(c => c.id === ts.filterCategory);
+    if (cat) parts.push(cat.name);
+  }
+  if (ts.filterBranch) {
+    let branchName = '';
+    (state.competitionTree || []).forEach(c => {
+      (c.levels || []).forEach(l => {
+        const b = (l.branches || []).find(br => br.id === ts.filterBranch);
+        if (b) branchName = `${b.name}_${l.name}`;
+      });
+    });
+    if (branchName) parts.push(branchName);
+  }
+  if (ts.filterStatus) {
+    parts.push(ts.filterStatus.toLowerCase());
+  }
+
+  if (parts.length > 0) {
+    filename = `data_peserta_${parts.join('_').replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  } else {
+    filename = 'data_lengkap_seluruh_peserta_lomba';
   }
 
   const cols = [
@@ -3439,12 +3619,94 @@ function exportAdminRegistrationsExcel() {
     { header: 'Check-In Tahap 1 (Kedatangan)', exportValue: r => (r.checkIn?.stage1CheckedIn ? `SUDAH (${formatDate(r.checkIn.stage1CheckedInAt)})` : 'BELUM') },
     { header: 'Check-In Tahap 2 (Masuk Arena)', exportValue: r => (r.checkIn?.stage2CheckedIn ? `SUDAH (${formatDate(r.checkIn.stage2CheckedInAt)})` : 'BELUM') },
   ];
-  exportTableDataToExcel('data_lengkap_seluruh_peserta_lomba', cols, data);
+  exportTableDataToExcel(filename, cols, data);
 }
 
-function onAdminRegPageChange(p) { tableState.adminRegistrations.page = p; updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable); }
-function onAdminRegSearchChange(s) { tableState.adminRegistrations.search = s; tableState.adminRegistrations.page = 1; updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable); }
-function onAdminRegPageSizeChange(z) { tableState.adminRegistrations.pageSize = z; tableState.adminRegistrations.page = 1; updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable); }
+function onAdminRegCategoryChange(catId) {
+  const ts = tableState.adminRegistrations;
+  ts.filterCategory = catId;
+  ts.filterBranch = ''; // reset cabang saat kategori berubah
+  ts.page = 1;
+
+  const branchSelect = document.getElementById('admin-reg-filter-branch');
+  if (branchSelect) {
+    branchSelect.innerHTML = buildAdminRegBranchOptions(catId, '');
+  }
+
+  updateAdminRegView();
+}
+
+function onAdminRegBranchChange(branchId) {
+  const ts = tableState.adminRegistrations;
+  ts.filterBranch = branchId;
+  ts.page = 1;
+  updateAdminRegView();
+}
+
+function onAdminRegStatusChange(status) {
+  const ts = tableState.adminRegistrations;
+  ts.filterStatus = status;
+  ts.filterVal = status;
+  ts.page = 1;
+  updateAdminRegView();
+}
+
+function resetAdminRegFilters() {
+  const ts = tableState.adminRegistrations;
+  ts.filterCategory = '';
+  ts.filterBranch = '';
+  ts.filterStatus = '';
+  ts.filterVal = '';
+  ts.search = '';
+  ts.page = 1;
+
+  const catSelect = document.getElementById('admin-reg-filter-category');
+  if (catSelect) catSelect.value = '';
+
+  const branchSelect = document.getElementById('admin-reg-filter-branch');
+  if (branchSelect) branchSelect.innerHTML = buildAdminRegBranchOptions('', '');
+
+  const statusSelect = document.getElementById('admin-reg-filter-status');
+  if (statusSelect) statusSelect.value = '';
+
+  const searchInput = document.getElementById('admin-registrations-table-search-input');
+  if (searchInput) searchInput.value = '';
+
+  updateAdminRegView();
+}
+
+function updateAdminRegView() {
+  updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
+  updateAdminRegFilterBadge();
+}
+
+function updateAdminRegFilterBadge() {
+  const badge = document.getElementById('admin-reg-filter-badge');
+  if (badge) {
+    const filtered = getFilteredAdminRegistrations();
+    const total = (tableState.adminRegistrations.data || []).length;
+    badge.innerHTML = `<strong>${filtered.length}</strong> dari ${total} Peserta`;
+  }
+}
+
+function onAdminRegPageChange(p) {
+  tableState.adminRegistrations.page = p;
+  updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
+}
+
+function onAdminRegSearchChange(s) {
+  tableState.adminRegistrations.search = s;
+  tableState.adminRegistrations.page = 1;
+  updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
+  updateAdminRegFilterBadge();
+}
+
+function onAdminRegPageSizeChange(z) {
+  tableState.adminRegistrations.pageSize = z;
+  tableState.adminRegistrations.page = 1;
+  updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
+}
+
 function onAdminRegSortChange(k) {
   if (tableState.adminRegistrations.sortKey === k) {
     tableState.adminRegistrations.sortDir = tableState.adminRegistrations.sortDir === 'asc' ? 'desc' : 'asc';
@@ -3454,10 +3716,9 @@ function onAdminRegSortChange(k) {
   }
   updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
 }
+
 function onAdminRegFilterChange(v) {
-  tableState.adminRegistrations.filterVal = v;
-  tableState.adminRegistrations.page = 1;
-  updateUniversalTable('admin-registrations-table-slot', renderAdminRegistrationsTable);
+  onAdminRegStatusChange(v);
 }
 
 
@@ -6418,6 +6679,11 @@ window.exportTableDataToExcel = exportTableDataToExcel;
 window.exportUniversalTableData = exportUniversalTableData;
 window.downloadExcelWorkbook = downloadExcelWorkbook;
 window.exportAdminRegistrationsExcel = exportAdminRegistrationsExcel;
+window.onAdminRegCategoryChange = onAdminRegCategoryChange;
+window.onAdminRegBranchChange = onAdminRegBranchChange;
+window.onAdminRegStatusChange = onAdminRegStatusChange;
+window.resetAdminRegFilters = resetAdminRegFilters;
+window.getFilteredAdminRegistrations = getFilteredAdminRegistrations;
 window.exportAdminUsersExcel = exportAdminUsersExcel;
 window.exportAdminBranchesExcel = exportAdminBranchesExcel;
 window.exportAdminAuditExcel = exportAdminAuditExcel;
