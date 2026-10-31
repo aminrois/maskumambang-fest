@@ -12,9 +12,67 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PublicService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const client_1 = require("@prisma/client");
 let PublicService = class PublicService {
     constructor(prisma) {
         this.prisma = prisma;
+        this.cachedStats = null;
+    }
+    async getHomepageStats() {
+        const now = Date.now();
+        if (this.cachedStats && this.cachedStats.expiresAt > now) {
+            return this.cachedStats.data;
+        }
+        const submittedFilter = {
+            status: {
+                in: [client_1.RegistrationStatus.WAITING_VERIFICATION, client_1.RegistrationStatus.APPROVED],
+            },
+        };
+        const individualCount = await this.prisma.individualParticipant.count({
+            where: {
+                registration: submittedFilter,
+            },
+        });
+        const teams = await this.prisma.team.findMany({
+            where: {
+                registration: submittedFilter,
+            },
+            select: {
+                leaderName: true,
+                members: {
+                    select: {
+                        memberName: true,
+                        positionRole: true,
+                    },
+                },
+            },
+        });
+        let teamParticipantCount = 0;
+        for (const t of teams) {
+            const hasLeaderInMembers = t.members.some((m) => m.positionRole === 'Ketua Tim' ||
+                (m.memberName &&
+                    t.leaderName &&
+                    m.memberName.trim().toLowerCase() === t.leaderName.trim().toLowerCase()));
+            teamParticipantCount += hasLeaderInMembers
+                ? t.members.length
+                : 1 + t.members.length;
+        }
+        const totalParticipants = individualCount + teamParticipantCount;
+        const totalBranches = await this.prisma.competitionBranch.count({
+            where: { isActive: true },
+        });
+        const result = {
+            totalParticipants,
+            individualCount,
+            teamParticipantCount,
+            totalTeams: teams.length,
+            totalBranches,
+        };
+        this.cachedStats = {
+            data: result,
+            expiresAt: now + 30000,
+        };
+        return result;
     }
     async searchParticipants(query) {
         if (!query || query.trim().length < 2) {

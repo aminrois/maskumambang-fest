@@ -20,6 +20,13 @@ let PublicController = class PublicController {
     constructor(publicService) {
         this.publicService = publicService;
     }
+    async getHomepageStats() {
+        const data = await this.publicService.getHomepageStats();
+        return {
+            success: true,
+            data,
+        };
+    }
     async checkParticipants(q) {
         const results = await this.publicService.searchParticipants(q);
         return {
@@ -30,6 +37,13 @@ let PublicController = class PublicController {
     }
 };
 exports.PublicController = PublicController;
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('stats'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], PublicController.prototype, "getHomepageStats", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Get)('cek-peserta'),

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RegistrationStatus } from '@prisma/client';
 
 export interface PublicParticipantSearchResult {
   registration_number: string;
@@ -11,9 +12,97 @@ export interface PublicParticipantSearchResult {
   status: string;
 }
 
+export interface PublicHomepageStatsResult {
+  totalParticipants: number;
+  individualCount: number;
+  teamParticipantCount: number;
+  totalTeams: number;
+  totalBranches: number;
+}
+
 @Injectable()
 export class PublicService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private cachedStats: { data: PublicHomepageStatsResult; expiresAt: number } | null = null;
+
+  /**
+   * Mengambil statistik publik untuk live counter homepage:
+   * Menghitung seluruh pendaftar yang sudah submit (WAITING_VERIFICATION + APPROVED).
+   * Individu dihitung 1, Tim dihitung seluruh anggotanya (termasuk ketua tim).
+   */
+  async getHomepageStats(): Promise<PublicHomepageStatsResult> {
+    const now = Date.now();
+    if (this.cachedStats && this.cachedStats.expiresAt > now) {
+      return this.cachedStats.data;
+    }
+
+    const submittedFilter = {
+      status: {
+        in: [RegistrationStatus.WAITING_VERIFICATION, RegistrationStatus.APPROVED],
+      },
+    };
+
+    // 1. Total Individu
+    const individualCount = await this.prisma.individualParticipant.count({
+      where: {
+        registration: submittedFilter,
+      },
+    });
+
+    // 2. Total Tim & Anggota
+    const teams = await this.prisma.team.findMany({
+      where: {
+        registration: submittedFilter,
+      },
+      select: {
+        leaderName: true,
+        members: {
+          select: {
+            memberName: true,
+            positionRole: true,
+          },
+        },
+      },
+    });
+
+    let teamParticipantCount = 0;
+    for (const t of teams) {
+      const hasLeaderInMembers = t.members.some(
+        (m) =>
+          m.positionRole === 'Ketua Tim' ||
+          (m.memberName &&
+            t.leaderName &&
+            m.memberName.trim().toLowerCase() === t.leaderName.trim().toLowerCase()),
+      );
+      // Jika ketua tim sudah tercatat di tabel teamMember (misal hasil bulk import), hitung jumlah record members
+      // Jika belum tercatat di tabel teamMember (pendaftaran manual wizard biasa), 1 (ketua) + members.length
+      teamParticipantCount += hasLeaderInMembers
+        ? t.members.length
+        : 1 + t.members.length;
+    }
+
+    const totalParticipants = individualCount + teamParticipantCount;
+
+    const totalBranches = await this.prisma.competitionBranch.count({
+      where: { isActive: true },
+    });
+
+    const result: PublicHomepageStatsResult = {
+      totalParticipants,
+      individualCount,
+      teamParticipantCount,
+      totalTeams: teams.length,
+      totalBranches,
+    };
+
+    this.cachedStats = {
+      data: result,
+      expiresAt: now + 30000, // Cache 30 detik agar sangat ringan di server
+    };
+
+    return result;
+  }
 
   /**
    * Searches participants publicly by name, team name, registration number, or school name.

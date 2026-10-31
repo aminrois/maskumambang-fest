@@ -5862,6 +5862,7 @@ async function initHomepageCountdown() {
 
     const deadlines = parseRegistrationDeadlines(settings);
     renderExtensionBanner(deadlines);
+    initHomepageParticipantBadge();
 
     const nowMs = Date.now();
     let targetTime = null;
@@ -5917,6 +5918,40 @@ async function initHomepageCountdown() {
     countdownTimerInterval = setInterval(updateCountdown, 1000);
   } catch (err) { console.error('Countdown init error:', err); }
 }
+
+async function initHomepageParticipantBadge() {
+  const badge = document.getElementById('hero-participant-badge');
+  const countEl = document.getElementById('participant-count-val');
+  if (!badge || !countEl) return;
+
+  try {
+    const res = await apiRequest('/api/public/stats');
+    if (res.success && res.data) {
+      const total = Number(res.data.totalParticipants) || 0;
+      if (total > 0) {
+        badge.style.display = 'inline-flex';
+        const duration = 1200;
+        const startTime = performance.now();
+        function updateCounter(now) {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const ease = 1 - Math.pow(1 - progress, 3);
+          const current = Math.floor(ease * total);
+          countEl.innerText = current.toLocaleString('id-ID');
+          if (progress < 1) {
+            requestAnimationFrame(updateCounter);
+          } else {
+            countEl.innerText = total.toLocaleString('id-ID');
+          }
+        }
+        requestAnimationFrame(updateCounter);
+      }
+    }
+  } catch (err) {
+    console.warn('Participant counter load error:', err);
+  }
+}
+
 
 // --- AUDIT LOGS (UNIVERSAL TABLE) ---
 async function renderAdminAuditLogsView() {
@@ -6697,6 +6732,7 @@ window.previewBrandingFile = previewBrandingFile;
 window.renderAdminCountdownView = renderAdminCountdownView;
 window.handleCountdownSave = handleCountdownSave;
 window.initHomepageCountdown = initHomepageCountdown;
+window.initHomepageParticipantBadge = initHomepageParticipantBadge;
 window.handleOperationalResetSubmit = handleOperationalResetSubmit;
 window.handlePasswordChangeSubmit = handlePasswordChangeSubmit;
 

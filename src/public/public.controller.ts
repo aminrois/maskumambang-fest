@@ -7,6 +7,16 @@ export class PublicController {
   constructor(private readonly publicService: PublicService) {}
 
   @Public()
+  @Get('stats')
+  async getHomepageStats() {
+    const data = await this.publicService.getHomepageStats();
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Public()
   @Get('cek-peserta')
   async checkParticipants(@Query('q') q?: string) {
     const results = await this.publicService.searchParticipants(q);
