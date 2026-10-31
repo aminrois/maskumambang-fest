@@ -316,6 +316,7 @@
       animation: fadeSlideUp 0.8s ease both;
       animation-delay: 0.35s;
     }
+
     .reg-extension-banner-title {
       display: flex;
       align-items: center;
@@ -327,11 +328,13 @@
       text-transform: uppercase;
       margin-bottom: 10px;
     }
+
     .reg-extension-list {
       display: flex;
       flex-wrap: wrap;
       gap: 7px;
     }
+
     .reg-extension-chip {
       display: inline-flex;
       align-items: center;
@@ -345,7 +348,11 @@
       color: #fde68a;
       white-space: nowrap;
     }
-    .reg-extension-chip i { font-size: 0.65rem; color: #fbbf24; }
+
+    .reg-extension-chip i {
+      font-size: 0.65rem;
+      color: #fbbf24;
+    }
 
     /* ===== DEADLINE BADGE DI CARD LOMBA ===== */
     .branch-deadline-badge {
@@ -358,16 +365,19 @@
       border-radius: 99px;
       margin-top: 6px;
     }
+
     .branch-deadline-badge.deadline-active {
       background: rgba(245, 158, 11, 0.12);
       border: 1px solid rgba(245, 158, 11, 0.35);
       color: #b45309;
     }
+
     .branch-deadline-badge.deadline-urgent {
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.35);
       color: #b91c1c;
     }
+
     .branch-deadline-badge.deadline-closed {
       background: rgba(100, 116, 139, 0.1);
       border: 1px solid rgba(100, 116, 139, 0.25);
@@ -425,6 +435,7 @@
         transform: scale(0.6);
         opacity: 1;
       }
+
       100% {
         transform: scale(1.9);
         opacity: 0;
@@ -446,6 +457,7 @@
         gap: 8px;
         margin-bottom: 12px;
       }
+
       .participant-count-num {
         font-size: 1rem;
       }
@@ -1015,7 +1027,7 @@
         <div class="hero-participant-badge" id="hero-participant-badge" style="display: none;">
           <span class="live-pulse-dot" title="Pembaruan Real-time"></span>
           <span>
-            🔥 <strong class="participant-count-num" id="participant-count-val">0</strong> Peserta Telah Terdaftar di Seluruh Cabang Lomba
+            <strong class="participant-count-num" id="participant-count-val">0</strong> Peserta Telah Terdaftar di Seluruh Cabang Lomba
           </span>
         </div>
       </div>
@@ -1181,15 +1193,15 @@
           try {
             const parsed = JSON.parse(settingsRes.data.registration_deadlines);
             if (Array.isArray(parsed) && parsed.length) categoryDeadlines = parsed;
-          } catch(e2) {}
+          } catch (e2) { }
         }
-      } catch(e2) {}
+      } catch (e2) { }
 
       // Cari deadline kategori berdasarkan nama
       function getCategoryDeadline(categoryName) {
         if (!categoryDeadlines.length) return null;
         const lower = categoryName.toLowerCase();
-        return categoryDeadlines.find(function(d) {
+        return categoryDeadlines.find(function (d) {
           return lower.includes(d.name.toLowerCase()) || d.name.toLowerCase().includes(lower);
         }) || null;
       }
