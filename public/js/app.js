@@ -12,10 +12,10 @@ const safeStorage = {
     try { return localStorage.getItem(key); } catch (e) { return null; }
   },
   setItem(key, value) {
-    try { localStorage.setItem(key, value); } catch (e) {}
+    try { localStorage.setItem(key, value); } catch (e) { }
   },
   removeItem(key) {
-    try { localStorage.removeItem(key); } catch (e) {}
+    try { localStorage.removeItem(key); } catch (e) { }
   },
 };
 
@@ -33,7 +33,7 @@ window.escapeHtml = escapeHtml;
 // Global Application State
 const state = {
   token: null, // Token dikelola via HttpOnly Cookie oleh server, tidak disimpan di JS
-  user: (() => { try { return JSON.parse(safeStorage.getItem('lomba_user_data') || 'null'); } catch(e){ return null; } })(),
+  user: (() => { try { return JSON.parse(safeStorage.getItem('lomba_user_data') || 'null'); } catch (e) { return null; } })(),
   settings: {},
   competitionTree: [],
   paymentAccounts: [],
@@ -97,7 +97,7 @@ async function handleLogout() {
   try {
     // Hapus cookie sesi di server
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-  } catch (e) {}
+  } catch (e) { }
   clearSession();
   window.location.href = '/login.html';
 }
@@ -224,7 +224,7 @@ async function loadBrandingInfo() {
       state.settings = res.data;
       const appName = res.data.application_name || 'MASKUMAMBANG FEST #4';
       const shortName = res.data.application_short_name || 'MASKUMAMBANG FEST #4';
-      
+
       document.querySelectorAll('#nav-title, #footer-title, #auth-app-title, #sidebar-title, #topbar-event-name').forEach(el => {
         el.innerText = shortName;
       });
@@ -573,10 +573,10 @@ function renderUniversalTable({
           <thead>
             <tr style="background: var(--table-header-bg); border-bottom: 1px solid var(--border-subtle);">
               ${columns.map(col => {
-                const targetKey = col.sortKey || col.key || col.header;
-                const isSortable = col.sortable !== false && onSortChangeName;
-                const isCurrentSort = sortKey === targetKey;
-                return `
+    const targetKey = col.sortKey || col.key || col.header;
+    const isSortable = col.sortable !== false && onSortChangeName;
+    const isCurrentSort = sortKey === targetKey;
+    return `
                   <th class="${col.sticky ? 'sticky-action' : ''}" style="padding: 12px 14px; font-weight: 700; color: var(--text-muted); white-space: nowrap; ${col.width ? `width:${col.width};` : ''} ${col.sticky ? 'border-left: 1px solid var(--border-subtle);' : ''} ${isSortable ? 'cursor: pointer; user-select: none;' : ''}" ${isSortable ? `onclick="${onSortChangeName}('${targetKey}')" title="Klik untuk mengurutkan kolom"` : ''}>
                     <div style="display: inline-flex; align-items: center; gap: 6px;">
                       <span>${col.header}</span>
@@ -588,7 +588,7 @@ function renderUniversalTable({
                     </div>
                   </th>
                 `;
-              }).join('')}
+  }).join('')}
             </tr>
           </thead>
           <tbody id="${tableId}-tbody">
@@ -1020,7 +1020,7 @@ async function renderPesertaRegistrationWizard() {
   try {
     const accRes = await apiRequest('/api/payments/accounts');
     if (accRes.success && accRes.data) state.paymentAccounts = accRes.data;
-  } catch (e) {}
+  } catch (e) { }
 
   container.innerHTML = `
     <div style="max-width: 850px; margin: 0 auto;">
@@ -1481,7 +1481,7 @@ function previewProofImage(input) {
   const img = document.getElementById('wiz-preview-img');
   if (input.files && input.files[0]) {
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
       img.src = e.target.result;
       slot.style.display = 'block';
     };
@@ -1792,7 +1792,7 @@ let currentActiveCardData = null;
 function buildSingleCardHTML(card) {
   const isTeam = card.participant_type === 'TEAM';
   const memberCount = (isTeam && card.members) ? card.members.length : 0;
-  
+
   // Dynamic scaling for team member chips if team has many members
   const chipFontSize = memberCount > 4 ? '0.62rem' : memberCount > 2 ? '0.68rem' : '0.74rem';
   const chipPadding = memberCount > 4 ? '1px 6px' : '2px 8px';
@@ -2441,7 +2441,7 @@ async function executeApprovePayment(paymentId) {
     if (res.success) {
       alert('Pembayaran berhasil disetujui! Kartu peserta kini aktif.');
       closeAppModal();
-      
+
       // Update data in-memory jika ada di tableState
       if (tableState.bendaharaPayments && tableState.bendaharaPayments.data) {
         const item = tableState.bendaharaPayments.data.find(x => x.id === paymentId);
@@ -2450,7 +2450,7 @@ async function executeApprovePayment(paymentId) {
           if (item.registration) item.registration.status = 'APPROVED';
         }
       }
-      
+
       // Refresh tampilan aktif
       const hash = (window.location.hash || '').replace(/^#/, '');
       if (hash.startsWith('detail/')) {
@@ -2645,7 +2645,7 @@ function switchCheckInStage(stage) {
 
 function startCameraScanner() {
   if (state.scanner) {
-    try { state.scanner.clear(); } catch (e) {}
+    try { state.scanner.clear(); } catch (e) { }
   }
 
   const stage = state.checkInStage || 1;
@@ -2661,7 +2661,7 @@ function startCameraScanner() {
 
     state.scanner.render((decodedText) => {
       executeCheckIn(decodedText, 'QR_SCAN', stage);
-    }, () => {});
+    }, () => { });
   } catch (e) {
     console.error('Scanner init error:', e);
   }
@@ -2925,7 +2925,7 @@ function exportCheckInLogsExcel() {
     { header: 'Masuk Arena (Tahap 2)', exportValue: l => l.check_in_2_time ? formatDate(l.check_in_2_time) : 'Belum' },
     { header: 'Petugas Tahap 2', exportValue: l => l.checked_in_2_by_name || '-' },
   ];
-  exportTableDataToExcel(`log_checkin_${new Date().toISOString().slice(0,10)}`, cols, data);
+  exportTableDataToExcel(`log_checkin_${new Date().toISOString().slice(0, 10)}`, cols, data);
 }
 
 
@@ -2943,6 +2943,8 @@ async function renderAdminDashboard() {
     let pendingCount = 0;
     let totalConfirmedFunds = 0;
     let branchStats = [];
+    let approvedRegs = [];
+    let pendingRegs = [];
 
     // Prioritize dedicated aggregated backend stats for 100% database accuracy
     try {
@@ -2971,8 +2973,8 @@ async function renderAdminDashboard() {
       const allBranches = (branchesRes.success && Array.isArray(branchesRes.data)) ? branchesRes.data : [];
 
       totalRegs = regRes.pagination?.total || allRegs.length;
-      const approvedRegs = allRegs.filter(r => r.status === 'APPROVED');
-      const pendingRegs = allRegs.filter(r => r.status === 'WAITING_VERIFICATION');
+      approvedRegs = allRegs.filter(r => r.status === 'APPROVED');
+      pendingRegs = allRegs.filter(r => r.status === 'WAITING_VERIFICATION');
       approvedCount = approvedRegs.length;
       pendingCount = pendingRegs.length;
 
@@ -3090,8 +3092,8 @@ async function renderAdminDashboard() {
               <tr style="border-top: 2px solid var(--border-subtle); background: var(--bg-body); font-weight: 800;">
                 <td colspan="5" style="padding: 14px 10px; text-align: right; text-transform: uppercase;">Total Seluruh Cabang:</td>
                 <td style="padding: 14px 10px; text-align: center; color: var(--primary-600); font-size: 1.1rem;">${totalRegs}</td>
-                <td style="padding: 14px 10px; text-align: center; color: var(--success-600);">${approvedRegs.length}</td>
-                <td style="padding: 14px 10px; text-align: center; color: var(--warning-600);">${pendingRegs.length}</td>
+                <td style="padding: 14px 10px; text-align: center; color: var(--success-600);">${approvedCount}</td>
+                <td style="padding: 14px 10px; text-align: center; color: var(--warning-600);">${pendingCount}</td>
                 <td style="padding: 14px 10px; text-align: right; color: var(--success-600); font-size: 1.1rem;">${formatCurrency(totalConfirmedFunds)}</td>
               </tr>
             </tfoot>
@@ -3486,7 +3488,7 @@ function openDeleteRegistrationsModal(regIds, descriptionText) {
           <i class="fa-solid fa-key" style="color: var(--primary-600); margin-right: 4px;"></i> Masukkan PIN Konfirmasi Keamanan:
         </label>
         <input type="password" id="reg-delete-pin-input" class="form-control" placeholder="Ketik PIN pengaman..." autocomplete="off" style="width: 100%; padding: 10px 14px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-main); border-radius: var(--radius-md); font-size: 0.95rem; font-weight: 600;" onkeydown="if(event.key==='Enter') executeDeleteRegistrations()">
-        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 5px;">Ketik PIN <code>Mask1859</code> untuk mengonfirmasi tindakan ini.</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 5px;">Ketik PIN untuk mengonfirmasi tindakan ini.</div>
       </div>
 
       <div style="display: flex; gap: 10px; justify-content: center;">
@@ -5625,7 +5627,7 @@ async function renderAdminBrandingView() {
 function previewBrandingFile(input, previewImgId) {
   if (input.files && input.files[0]) {
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
       const img = document.getElementById(previewImgId);
       if (img) img.src = e.target.result;
     };
@@ -5690,12 +5692,12 @@ async function renderAdminCountdownView() {
   let existingDeadlines = [];
   try {
     if (s.registration_deadlines && s.registration_deadlines !== '[]') existingDeadlines = JSON.parse(s.registration_deadlines);
-  } catch(e) {}
+  } catch (e) { }
   if (!existingDeadlines.length) {
-    existingDeadlines = ['Scout','Robotik','Master Chef','Sport','Olympiad','Little Champions'].map(function(n) { return { name: n, deadline: '' }; });
+    existingDeadlines = ['Scout', 'Robotik', 'Master Chef', 'Sport', 'Olympiad', 'Little Champions'].map(function (n) { return { name: n, deadline: '' }; });
   }
 
-  const deadlineRows = existingDeadlines.map(function(d) {
+  const deadlineRows = existingDeadlines.map(function (d) {
     const dlVal = d.deadline ? d.deadline.slice(0, 16) : '';
     return `<tr>
       <td style="padding:8px 10px;font-size:0.875rem;font-weight:600;color:var(--text-main);vertical-align:middle;">${d.name}</td>
@@ -5768,7 +5770,7 @@ function addDeadlineRow() {
   tr.innerHTML = `<td style="padding:8px 10px;"><input type="text" class="form-control dl-name-input" placeholder="Nama Kategori" style="width:100%;padding:7px 10px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-main);border-radius:var(--radius-md);"></td><td style="padding:8px 10px;"><input type="datetime-local" class="form-control dl-input" data-name="" style="width:100%;padding:8px 10px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-main);border-radius:var(--radius-md);"></td><td style="padding:8px 10px;text-align:center;"><button type="button" onclick="removeDeadlineRow(this)" style="background:none;border:none;color:#ef4444;cursor:pointer;"><i class="fa-solid fa-trash-can"></i></button></td>`;
   tbody.appendChild(tr);
   const ni = tr.querySelector('.dl-name-input'), di = tr.querySelector('.dl-input');
-  ni.addEventListener('input', function() { di.setAttribute('data-name', ni.value); });
+  ni.addEventListener('input', function () { di.setAttribute('data-name', ni.value); });
 }
 
 function removeDeadlineRow(btn) { const tr = btn.closest('tr'); if (tr) tr.remove(); }
@@ -5776,7 +5778,7 @@ function removeDeadlineRow(btn) { const tr = btn.closest('tr'); if (tr) tr.remov
 async function saveDeadlines() {
   const rows = document.querySelectorAll('#deadline-rows-body tr');
   const deadlines = [];
-  rows.forEach(function(tr) {
+  rows.forEach(function (tr) {
     const ni = tr.querySelector('.dl-name-input'), di = tr.querySelector('.dl-input');
     const name = ni ? ni.value.trim() : (di ? di.getAttribute('data-name') : '');
     const deadline = di ? di.value : '';
@@ -5800,7 +5802,8 @@ async function handleCountdownSave(e) {
     const endedTextVal = document.getElementById('cd-ended-text-input').value.trim();
     const res = await apiRequest('/api/settings', { method: 'POST', body: { countdown_enabled: isEnabled ? 'true' : 'false', countdown_title: titleVal, countdown_target_date: targetDateVal, countdown_ended_text: endedTextVal } });
     if (res.success) { state.settings = res.data; showBannerAlert('countdown-save-alert', 'Pengaturan countdown berhasil disimpan.', 'success'); }
-  } catch (err) { showBannerAlert('countdown-save-alert', err.message, 'danger');
+  } catch (err) {
+    showBannerAlert('countdown-save-alert', err.message, 'danger');
   } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Simpan Pengaturan Countdown'; }
 }
 
@@ -5821,7 +5824,7 @@ function parseRegistrationDeadlines(settings) {
     if (!raw || raw === '[]') return defaultList;
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) && parsed.length ? parsed : defaultList;
-  } catch(e) { return defaultList; }
+  } catch (e) { return defaultList; }
 }
 
 function formatDeadlineShort(dateStr) {
@@ -5834,9 +5837,9 @@ function renderExtensionBanner(deadlines) {
   const bannerEl = document.getElementById('reg-extension-banner');
   if (!bannerEl) return;
   const now = Date.now();
-  const active = deadlines.filter(function(d) { return new Date(d.deadline).getTime() > now; });
+  const active = deadlines.filter(function (d) { return new Date(d.deadline).getTime() > now; });
   if (!active.length) { bannerEl.style.display = 'none'; return; }
-  const chips = active.map(function(d) {
+  const chips = active.map(function (d) {
     const msLeft = new Date(d.deadline).getTime() - now;
     const daysLeft = Math.floor(msLeft / 86400000);
     const urgentStyle = daysLeft <= 3 ? ' style="color:#fca5a5;"' : '';
@@ -5866,12 +5869,12 @@ async function initHomepageCountdown() {
 
     if (deadlines.length) {
       const active = deadlines
-        .map(function(d) { return { name: d.name, time: new Date(d.deadline).getTime() }; })
-        .filter(function(d) { return d.time > nowMs; })
-        .sort(function(a, b) { return a.time - b.time; });
+        .map(function (d) { return { name: d.name, time: new Date(d.deadline).getTime() }; })
+        .filter(function (d) { return d.time > nowMs; })
+        .sort(function (a, b) { return a.time - b.time; });
       if (active.length) {
         targetTime = active[0].time;
-        const sameGroup = active.filter(function(d) { return d.time === active[0].time; }).map(function(d) { return d.name; });
+        const sameGroup = active.filter(function (d) { return d.time === active[0].time; }).map(function (d) { return d.name; });
         targetLabel = sameGroup.join(' & ');
       }
     }
@@ -6303,12 +6306,12 @@ function renderCetakKartuPage() {
                 Tidak ada peserta yang sudah disetujui / terverifikasi.
               </td></tr>
             ` : filtered.map(r => {
-              const name = r.individualParticipant?.fullName || r.team?.teamName || '-';
-              const school = r.individualParticipant?.schoolName || r.team?.schoolName || '-';
-              const branch = r.branch?.name || r.branchName || '-';
-              const type = r.branch?.participantType === 'TEAM' ? 'Beregu' : 'Perorangan';
-              const checked = cetakKartuState.selected.has(r.id) ? 'checked' : '';
-              return `
+    const name = r.individualParticipant?.fullName || r.team?.teamName || '-';
+    const school = r.individualParticipant?.schoolName || r.team?.schoolName || '-';
+    const branch = r.branch?.name || r.branchName || '-';
+    const type = r.branch?.participantType === 'TEAM' ? 'Beregu' : 'Perorangan';
+    const checked = cetakKartuState.selected.has(r.id) ? 'checked' : '';
+    return `
                 <tr style="border-bottom:1px solid var(--border-subtle); ${checked ? 'background: rgba(99,102,241,0.08);' : ''}; cursor:pointer;" onclick="cetakRowClick(event, '${r.id}')">
                   <td style="padding:12px 14px; text-align:center;" onclick="event.stopPropagation();">
                     <input type="checkbox" class="cetak-row-check" value="${r.id}" ${checked} onchange="cetakToggleOne('${r.id}', this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:var(--primary-600);">
@@ -6317,10 +6320,10 @@ function renderCetakKartuPage() {
                   <td style="padding:12px 14px; font-weight:700; color:var(--text-heading);">${name}</td>
                   <td style="padding:12px 14px; color:var(--text-muted);">${school}</td>
                   <td style="padding:12px 14px; font-weight:600;">${branch}</td>
-                  <td style="padding:12px 14px;"><span style="font-size:0.75rem; padding:3px 10px; border-radius:9999px; background:${type==='Beregu'?'#dbeafe':'#dcfce7'}; color:${type==='Beregu'?'#1d4ed8':'#15803d'}; font-weight:700;">${type}</span></td>
+                  <td style="padding:12px 14px;"><span style="font-size:0.75rem; padding:3px 10px; border-radius:9999px; background:${type === 'Beregu' ? '#dbeafe' : '#dcfce7'}; color:${type === 'Beregu' ? '#1d4ed8' : '#15803d'}; font-weight:700;">${type}</span></td>
                 </tr>
               `;
-            }).join('')}
+  }).join('')}
           </tbody>
         </table>
       </div>
@@ -7044,8 +7047,8 @@ function downloadImportTemplateExcel() {
 
   // Sheet 2: Referensi Cabang Lomba
   const branchHeaders = ['No', 'Nama Cabang Lomba', 'Kategori / Jenjang', 'Kategori Event', 'Tipe'];
-  const branchesList = (state.competitionTree || []).flatMap(cat => 
-    (cat.levels || []).flatMap(lvl => 
+  const branchesList = (state.competitionTree || []).flatMap(cat =>
+    (cat.levels || []).flatMap(lvl =>
       (lvl.branches || []).map(b => [b.name, lvl.name, cat.name, b.participantType === 'INDIVIDUAL' ? 'Individu' : 'Beregu'])
     )
   );
@@ -7076,7 +7079,7 @@ function handleImportFileSelect(e) {
   if (label) label.innerHTML = `<i class="fa-solid fa-file-excel" style="color: #10b981;"></i> ${escapeHtml(file.name)}`;
 
   const reader = new FileReader();
-  reader.onload = function(evt) {
+  reader.onload = function (evt) {
     try {
       const data = new Uint8Array(evt.target.result);
       const workbook = XLSX.read(data, { type: 'array' });
@@ -7091,7 +7094,7 @@ function handleImportFileSelect(e) {
       }
 
       const headers = rawRows[0].map(h => String(h || '').trim().toLowerCase());
-      
+
       const findColIdx = (patterns) => {
         return headers.findIndex(h => patterns.some(p => h.includes(p)));
       };
@@ -7106,8 +7109,8 @@ function handleImportFileSelect(e) {
       const colGuru = findColIdx(['nama guru', 'pembimbing', 'mentor', 'guru']);
       const colWa = findColIdx(['no whatsapp', 'whatsapp', 'no wa', 'telepon', 'hp']);
 
-      const allBranches = (state.competitionTree || []).flatMap(cat => 
-        (cat.levels || []).flatMap(lvl => 
+      const allBranches = (state.competitionTree || []).flatMap(cat =>
+        (cat.levels || []).flatMap(lvl =>
           (lvl.branches || []).map(b => ({
             ...b,
             levelName: lvl.name,
@@ -7132,13 +7135,13 @@ function handleImportFileSelect(e) {
         const branchName = colCabang >= 0 ? String(row[colCabang] || '').trim() : '';
         const levelName = colJenjang >= 0 ? String(row[colJenjang] || '').trim() : '';
         const gradeClass = colKelas >= 0 ? String(row[colKelas] || '').trim() : '-';
-        
+
         let birthDate = colTglLahir >= 0 ? String(row[colTglLahir] || '').trim() : '';
         if (typeof row[colTglLahir] === 'number') {
           try {
             const dateObj = new Date(Math.round((row[colTglLahir] - 25569) * 86400 * 1000));
             birthDate = dateObj.toISOString().split('T')[0];
-          } catch(e) {}
+          } catch (e) { }
         }
 
         const schoolName = colSekolah >= 0 ? String(row[colSekolah] || '').trim() : '';
