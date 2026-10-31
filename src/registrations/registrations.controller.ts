@@ -69,6 +69,16 @@ export class RegistrationsController {
     };
   }
 
+  @Roles(Role.BENDAHARA, Role.SUPER_ADMIN)
+  @Get('dashboard-stats')
+  async getDashboardStats() {
+    const data = await this.registrationsService.getDashboardStats();
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get(':id')
   async getRegistrationDetail(
     @Param('id') id: string,

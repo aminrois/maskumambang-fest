@@ -554,6 +554,28 @@ export declare class RegistrationsService {
         branchId: string;
         status: import(".prisma/client").$Enums.RegistrationStatus;
     }>;
+    getDashboardStats(): Promise<{
+        totalUsers: number;
+        totalRegs: number;
+        approvedCount: number;
+        pendingCount: number;
+        rejectedCount: number;
+        totalConfirmedFunds: number;
+        branchStats: {
+            no: number;
+            id: string;
+            name: string;
+            categoryName: string;
+            levelName: string;
+            participantType: import(".prisma/client").$Enums.ParticipantType;
+            fee: number;
+            totalCount: number;
+            approvedCount: number;
+            pendingCount: number;
+            confirmedFunds: number;
+            isActive: boolean;
+        }[];
+    }>;
     listAllRegistrations(search?: string, status?: RegistrationStatus, branchId?: string, page?: number, perPage?: number): Promise<{
         registrations: ({
             user: {

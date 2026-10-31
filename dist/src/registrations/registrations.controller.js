@@ -54,6 +54,13 @@ let RegistrationsController = class RegistrationsController {
             data,
         };
     }
+    async getDashboardStats() {
+        const data = await this.registrationsService.getDashboardStats();
+        return {
+            success: true,
+            data,
+        };
+    }
     async getRegistrationDetail(id, userId, role) {
         const data = await this.registrationsService.getRegistrationById(id, userId, role);
         return {
@@ -119,6 +126,13 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], RegistrationsController.prototype, "getMyRegistrations", null);
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.BENDAHARA, client_1.Role.SUPER_ADMIN),
+    (0, common_1.Get)('dashboard-stats'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], RegistrationsController.prototype, "getDashboardStats", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),

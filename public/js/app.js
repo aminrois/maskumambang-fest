@@ -2233,7 +2233,7 @@ async function renderBendaharaPaymentsView() {
   container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat daftar pembayaran...</div>';
 
   try {
-    const res = await apiRequest('/api/payments/list?perPage=1000');
+    const res = await apiRequest('/api/payments/list?perPage=10000');
     tableState.bendaharaPayments.data = res.success ? res.payments : [];
 
     container.innerHTML = `
@@ -2937,52 +2937,75 @@ async function renderAdminDashboard() {
   container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat dashboard analitik admin...</div>';
 
   try {
-    const [usersRes, regRes, branchesRes] = await Promise.all([
-      apiRequest('/api/users?perPage=1'),
-      apiRequest('/api/registrations?perPage=500'),
-      apiRequest('/api/competitions/branches/all'),
-    ]);
+    let totalUsers = 0;
+    let totalRegs = 0;
+    let approvedCount = 0;
+    let pendingCount = 0;
+    let totalConfirmedFunds = 0;
+    let branchStats = [];
 
-    const totalUsers = usersRes.pagination?.total || 0;
-    const allRegs = (regRes.success && Array.isArray(regRes.registrations)) ? regRes.registrations : [];
-    const allBranches = (branchesRes.success && Array.isArray(branchesRes.data)) ? branchesRes.data : [];
+    // Prioritize dedicated aggregated backend stats for 100% database accuracy
+    try {
+      const statsRes = await apiRequest('/api/registrations/dashboard-stats');
+      if (statsRes.success && statsRes.data) {
+        const s = statsRes.data;
+        totalUsers = s.totalUsers || 0;
+        totalRegs = s.totalRegs || 0;
+        approvedCount = s.approvedCount || 0;
+        pendingCount = s.pendingCount || 0;
+        totalConfirmedFunds = s.totalConfirmedFunds || 0;
+        branchStats = s.branchStats || [];
+      } else {
+        throw new Error('Invalid stats response');
+      }
+    } catch (statsErr) {
+      console.warn('Dashboard stats API fallback to direct query:', statsErr);
+      const [usersRes, regRes, branchesRes] = await Promise.all([
+        apiRequest('/api/users?perPage=1'),
+        apiRequest('/api/registrations?perPage=10000'),
+        apiRequest('/api/competitions/branches/all'),
+      ]);
 
-    const totalRegs = regRes.pagination?.total || allRegs.length;
-    const approvedRegs = allRegs.filter(r => r.status === 'APPROVED');
-    const pendingRegs = allRegs.filter(r => r.status === 'WAITING_VERIFICATION');
-    const rejectedRegs = allRegs.filter(r => r.status === 'PAYMENT_REJECTED');
+      totalUsers = usersRes.pagination?.total || 0;
+      const allRegs = (regRes.success && Array.isArray(regRes.registrations)) ? regRes.registrations : [];
+      const allBranches = (branchesRes.success && Array.isArray(branchesRes.data)) ? branchesRes.data : [];
 
-    // Calculate confirmed funds from approved registrations
-    const totalConfirmedFunds = approvedRegs.reduce((sum, r) => {
-      const fee = Number(r.branch?.registrationFee) || 0;
-      return sum + fee;
-    }, 0);
+      totalRegs = regRes.pagination?.total || allRegs.length;
+      const approvedRegs = allRegs.filter(r => r.status === 'APPROVED');
+      const pendingRegs = allRegs.filter(r => r.status === 'WAITING_VERIFICATION');
+      approvedCount = approvedRegs.length;
+      pendingCount = pendingRegs.length;
 
-    // Build branch summary report
-    const branchStats = allBranches.map((br, idx) => {
-      const branchRegs = allRegs.filter(r => r.branchId === br.id);
-      const brApproved = branchRegs.filter(r => r.status === 'APPROVED');
-      const brPending = branchRegs.filter(r => r.status === 'WAITING_VERIFICATION');
-      const brFunds = brApproved.reduce((sum, r) => sum + (Number(br.registrationFee) || 0), 0);
+      totalConfirmedFunds = approvedRegs.reduce((sum, r) => {
+        const fee = Number(r.branch?.registrationFee) || 0;
+        return sum + fee;
+      }, 0);
 
-      return {
-        no: idx + 1,
-        id: br.id,
-        name: br.name,
-        categoryName: br.level?.category?.name || '-',
-        levelName: br.level?.name || '-',
-        participantType: br.participantType,
-        fee: Number(br.registrationFee) || 0,
-        totalCount: branchRegs.length,
-        approvedCount: brApproved.length,
-        pendingCount: brPending.length,
-        confirmedFunds: brFunds,
-        isActive: br.isActive,
-      };
-    });
+      branchStats = allBranches.map((br, idx) => {
+        const branchRegs = allRegs.filter(r => r.branchId === br.id);
+        const brApproved = branchRegs.filter(r => r.status === 'APPROVED');
+        const brPending = branchRegs.filter(r => r.status === 'WAITING_VERIFICATION');
+        const brFunds = brApproved.reduce((sum, r) => sum + (Number(br.registrationFee) || 0), 0);
 
-    // Sort by total participants descending
-    branchStats.sort((a, b) => b.totalCount - a.totalCount || a.name.localeCompare(b.name));
+        return {
+          no: idx + 1,
+          id: br.id,
+          name: br.name,
+          categoryName: br.level?.category?.name || '-',
+          levelName: br.level?.name || '-',
+          participantType: br.participantType,
+          fee: Number(br.registrationFee) || 0,
+          totalCount: branchRegs.length,
+          approvedCount: brApproved.length,
+          pendingCount: brPending.length,
+          confirmedFunds: brFunds,
+          isActive: br.isActive,
+        };
+      });
+
+      branchStats.sort((a, b) => b.totalCount - a.totalCount || a.name.localeCompare(b.name));
+    }
+
     window.latestBranchStats = branchStats;
 
     container.innerHTML = `
@@ -3007,14 +3030,14 @@ async function renderAdminDashboard() {
 
         <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
           <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;"><i class="fa-solid fa-circle-check"></i> Status Pendaftaran</div>
-          <div style="font-size: 2rem; font-weight: 800; color: var(--success-600); margin-top: 4px;">${approvedRegs.length} <span style="font-size: 1rem; font-weight: 600; color: var(--text-muted);">Disetujui</span></div>
-          <div style="font-size: 0.8rem; color: var(--warning-600); margin-top: 4px; font-weight: 600;">${pendingRegs.length} menunggu verifikasi</div>
+          <div style="font-size: 2rem; font-weight: 800; color: var(--success-600); margin-top: 4px;">${approvedCount} <span style="font-size: 1rem; font-weight: 600; color: var(--text-muted);">Disetujui</span></div>
+          <div style="font-size: 0.8rem; color: var(--warning-600); margin-top: 4px; font-weight: 600;">${pendingCount} menunggu verifikasi</div>
         </div>
 
         <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm);">
           <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;"><i class="fa-solid fa-money-bill-wave"></i> Uang Pendaftaran Terkonfirmasi</div>
           <div style="font-size: 1.8rem; font-weight: 800; color: var(--success-600); margin-top: 4px;">${formatCurrency(totalConfirmedFunds)}</div>
-          <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">Dari ${approvedRegs.length} peserta disetujui</div>
+          <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">Dari ${approvedCount} peserta disetujui</div>
         </div>
       </div>
 
@@ -3251,7 +3274,7 @@ async function renderAdminRegistrationsView() {
       }
     }
 
-    const res = await apiRequest('/api/registrations?perPage=5000');
+    const res = await apiRequest('/api/registrations?perPage=10000');
     tableState.adminRegistrations.data = res.success ? res.registrations : [];
     selectedAdminRegIds.clear();
 
@@ -4117,7 +4140,7 @@ async function renderAdminUsersView() {
   container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data user...</div>';
 
   try {
-    const res = await apiRequest('/api/users?perPage=500');
+    const res = await apiRequest('/api/users?perPage=10000');
     tableState.adminUsers.data = res.success ? res.users : [];
     selectedAdminUserIds.clear();
 
@@ -6201,7 +6224,7 @@ async function renderCetakKartuView() {
   container.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat daftar peserta terverifikasi...</div>';
 
   try {
-    const res = await apiRequest('/api/registrations?perPage=999&status=APPROVED');
+    const res = await apiRequest('/api/registrations?perPage=10000&status=APPROVED');
     cetakKartuState.data = res.success ? (res.data || res.registrations || []) : [];
     cetakKartuState.selected = new Set();
     renderCetakKartuPage();

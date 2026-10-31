@@ -259,8 +259,78 @@ let RegistrationsService = class RegistrationsService {
         }
         return reg;
     }
+    async getDashboardStats() {
+        const totalUsers = await this.prisma.user.count();
+        const [totalRegs, approvedCount, pendingCount, rejectedCount] = await Promise.all([
+            this.prisma.registration.count(),
+            this.prisma.registration.count({ where: { status: 'APPROVED' } }),
+            this.prisma.registration.count({ where: { status: 'WAITING_VERIFICATION' } }),
+            this.prisma.registration.count({ where: { status: 'PAYMENT_REJECTED' } }),
+        ]);
+        const approvedRegistrations = await this.prisma.registration.findMany({
+            where: { status: 'APPROVED' },
+            select: {
+                branch: {
+                    select: { registrationFee: true },
+                },
+            },
+        });
+        const totalConfirmedFunds = approvedRegistrations.reduce((sum, r) => sum + (Number(r.branch?.registrationFee) || 0), 0);
+        const branches = await this.prisma.competitionBranch.findMany({
+            include: {
+                level: {
+                    include: {
+                        category: true,
+                    },
+                },
+                _count: {
+                    select: { registrations: true },
+                },
+                registrations: {
+                    select: { status: true },
+                },
+            },
+            orderBy: [
+                { level: { category: { name: 'asc' } } },
+                { level: { name: 'asc' } },
+                { name: 'asc' },
+            ],
+        });
+        const branchStats = branches.map((br, idx) => {
+            const totalCount = br._count.registrations;
+            const approved = br.registrations.filter((r) => r.status === 'APPROVED').length;
+            const pending = br.registrations.filter((r) => r.status === 'WAITING_VERIFICATION').length;
+            const fee = Number(br.registrationFee) || 0;
+            const confirmedFunds = approved * fee;
+            return {
+                no: idx + 1,
+                id: br.id,
+                name: br.name,
+                categoryName: br.level?.category?.name || '-',
+                levelName: br.level?.name || '-',
+                participantType: br.participantType,
+                fee,
+                totalCount,
+                approvedCount: approved,
+                pendingCount: pending,
+                confirmedFunds,
+                isActive: br.isActive,
+            };
+        });
+        branchStats.sort((a, b) => b.totalCount - a.totalCount || a.name.localeCompare(b.name));
+        return {
+            totalUsers,
+            totalRegs,
+            approvedCount,
+            pendingCount,
+            rejectedCount,
+            totalConfirmedFunds,
+            branchStats,
+        };
+    }
     async listAllRegistrations(search, status, branchId, page = 1, perPage = 25) {
-        const skip = (page - 1) * perPage;
+        const safePerPage = Math.min(Math.max(perPage, 1), 50000);
+        const skip = (page - 1) * safePerPage;
         const where = {};
         if (status) {
             where.status = status;
@@ -309,7 +379,7 @@ let RegistrationsService = class RegistrationsService {
                     checkIn: true,
                 },
                 skip,
-                take: perPage,
+                take: safePerPage,
                 orderBy: { createdAt: 'desc' },
             }),
             this.prisma.registration.count({ where }),
@@ -319,8 +389,8 @@ let RegistrationsService = class RegistrationsService {
             pagination: {
                 total,
                 page,
-                perPage,
-                totalPages: Math.ceil(total / perPage),
+                perPage: safePerPage,
+                totalPages: Math.ceil(total / safePerPage),
             },
         };
     }

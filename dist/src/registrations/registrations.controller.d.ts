@@ -538,6 +538,31 @@ export declare class RegistrationsController {
             status: import(".prisma/client").$Enums.RegistrationStatus;
         })[];
     }>;
+    getDashboardStats(): Promise<{
+        success: boolean;
+        data: {
+            totalUsers: number;
+            totalRegs: number;
+            approvedCount: number;
+            pendingCount: number;
+            rejectedCount: number;
+            totalConfirmedFunds: number;
+            branchStats: {
+                no: number;
+                id: string;
+                name: string;
+                categoryName: string;
+                levelName: string;
+                participantType: import(".prisma/client").$Enums.ParticipantType;
+                fee: number;
+                totalCount: number;
+                approvedCount: number;
+                pendingCount: number;
+                confirmedFunds: number;
+                isActive: boolean;
+            }[];
+        };
+    }>;
     getRegistrationDetail(id: string, userId: string, role: Role): Promise<{
         success: boolean;
         data: {
