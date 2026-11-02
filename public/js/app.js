@@ -1910,16 +1910,81 @@ function buildSingleCardHTML(card) {
   `;
 }
 
-// --- DEDICATED POPUP PRINT FOR SINGLE CARD (100% RELIABLE, NEVER BLANK, UPPERCASE, PERFECT FIT) ---
+// --- HIGH RESOLUTION CARD RENDERING & DOWNLOAD (JPG / 300 DPI) ---
 function ensureHtml2CanvasLoaded() {
   if (typeof html2canvas !== 'undefined') return Promise.resolve();
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+    script.src = '/js/html2canvas.min.js';
     script.onload = resolve;
-    script.onerror = () => reject(new Error('Gagal memuat pustaka html2canvas untuk mengunduh gambar JPG.'));
+    script.onerror = () => {
+      const fallbackScript = document.createElement('script');
+      fallbackScript.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+      fallbackScript.onload = resolve;
+      fallbackScript.onerror = () => reject(new Error('Gagal memuat pustaka html2canvas untuk mengunduh gambar JPG.'));
+      document.head.appendChild(fallbackScript);
+    };
     document.head.appendChild(script);
   });
+}
+
+function ensureJSZipLoaded() {
+  if (typeof JSZip !== 'undefined') return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '/js/jszip.min.js';
+    script.onload = resolve;
+    script.onerror = () => {
+      const fallbackScript = document.createElement('script');
+      fallbackScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+      fallbackScript.onload = resolve;
+      fallbackScript.onerror = () => reject(new Error('Gagal memuat pustaka JSZip untuk mengompres file kartu.'));
+      document.head.appendChild(fallbackScript);
+    };
+    document.head.appendChild(script);
+  });
+}
+
+async function renderCardDataToCanvas(card) {
+  await ensureHtml2CanvasLoaded();
+
+  const tempWrapper = document.createElement('div');
+  tempWrapper.style.position = 'fixed';
+  tempWrapper.style.left = '-9999px';
+  tempWrapper.style.top = '0';
+  tempWrapper.style.zIndex = '-9999';
+  tempWrapper.style.background = '#ffffff';
+  tempWrapper.innerHTML = buildSingleCardHTML(card);
+  document.body.appendChild(tempWrapper);
+
+  const elementToCapture = tempWrapper.querySelector('#official-card-print') || tempWrapper.firstElementChild || tempWrapper;
+
+  // Tunggu gambar template background kartu selesai dimuat
+  const imgEl = elementToCapture.querySelector('img');
+  if (imgEl && !imgEl.complete) {
+    await new Promise(res => {
+      imgEl.onload = res;
+      imgEl.onerror = res;
+      setTimeout(res, 1200);
+    });
+  }
+
+  // Jeda rendering sejenak agar layout browser tuntas
+  await new Promise(r => setTimeout(r, 80));
+
+  const canvas = await html2canvas(elementToCapture, {
+    scale: 3, // High DPI (300 DPI) tajam dan jernih seperti pada daftar peserta
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: '#ffffff',
+    logging: false,
+  });
+
+  if (document.body.contains(tempWrapper)) {
+    document.body.removeChild(tempWrapper);
+  }
+
+  return canvas;
 }
 
 async function downloadParticipantCardJPG(card) {
@@ -1932,37 +1997,8 @@ async function downloadParticipantCardJPG(card) {
   }
 
   try {
-    await ensureHtml2CanvasLoaded();
-
-    let elementToCapture = document.getElementById('official-card-print');
-    let tempWrapper = null;
-
-    // Jika elemen kartu tidak ada di layar aktif, buat container sementara di luar layar
-    if (!elementToCapture && targetCard) {
-      tempWrapper = document.createElement('div');
-      tempWrapper.style.position = 'fixed';
-      tempWrapper.style.left = '-9999px';
-      tempWrapper.style.top = '0';
-      tempWrapper.style.zIndex = '-1';
-      tempWrapper.innerHTML = buildSingleCardHTML(targetCard);
-      document.body.appendChild(tempWrapper);
-      elementToCapture = tempWrapper.querySelector('#official-card-print') || tempWrapper.firstElementChild;
-    }
-
-    if (!elementToCapture) {
-      throw new Error('Elemen kartu peserta tidak ditemukan.');
-    }
-
-    // Beri jeda sejenak untuk rendering
-    await new Promise(r => setTimeout(r, 120));
-
-    const canvas = await html2canvas(elementToCapture, {
-      scale: 3, // High DPI (300 DPI) agar tajam dan jernih untuk cetak/simpan
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-    });
+    if (!targetCard) throw new Error('Data kartu peserta tidak ditemukan.');
+    const canvas = await renderCardDataToCanvas(targetCard);
 
     const regNum = targetCard?.registration_number || 'kartu';
     const cleanRegNum = regNum.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -1975,10 +2011,6 @@ async function downloadParticipantCardJPG(card) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
-    if (tempWrapper) {
-      document.body.removeChild(tempWrapper);
-    }
   } catch (err) {
     alert('Gagal mengunduh kartu peserta: ' + err.message);
   } finally {
@@ -6285,8 +6317,8 @@ function renderCetakKartuPage() {
   container.innerHTML = `
     <div style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
       <div>
-        <h2 style="font-size:1.6rem; color:var(--text-heading); margin-bottom:4px;"><i class="fa-solid fa-print"></i> Cetak Kartu Peserta Massal</h2>
-        <p style="color:var(--text-muted); font-size:0.9rem;">Pilih peserta yang ingin dicetak kartunya secara massal (Ukuran Standar: <strong>10cm × 14cm</strong>).</p>
+        <h2 style="font-size:1.6rem; color:var(--text-heading); margin-bottom:4px;"><i class="fa-solid fa-download"></i> Cetak / Download Kartu Peserta</h2>
+        <p style="color:var(--text-muted); font-size:0.9rem;">Pilih peserta yang ingin diunduh kartunya (Format: <strong>JPG Kualitas Tinggi / 300 DPI</strong> seperti pada Daftar Peserta).</p>
       </div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
         <button type="button" class="btn btn-secondary" onclick="cetakSelectAll()" title="Pilih semua yang terfilter">
@@ -6295,8 +6327,11 @@ function renderCetakKartuPage() {
         <button type="button" class="btn btn-secondary" onclick="cetakClearAll()" title="Kosongkan pilihan">
           <i class="fa-solid fa-xmark"></i> Batal Pilih
         </button>
-        <button type="button" class="btn btn-primary" onclick="cetakKartuPDF()" ${selectedCount === 0 ? 'disabled' : ''} style="min-width:170px;">
-          <i class="fa-solid fa-print"></i> Cetak PDF (<span id="cetak-count">${selectedCount}</span>)
+        <button type="button" class="btn btn-success" id="btn-cetak-download-jpg" onclick="cetakDownloadJPG()" ${selectedCount === 0 ? 'disabled' : ''} style="min-width:180px; font-weight:700;">
+          <i class="fa-solid fa-download"></i> Download JPG (<span id="cetak-count">${selectedCount}</span>)
+        </button>
+        <button type="button" class="btn btn-outline-secondary" onclick="cetakKartuPDF()" ${selectedCount === 0 ? 'disabled' : ''} title="Cetak / Simpan PDF (Alternatif)">
+          <i class="fa-solid fa-print"></i> Cetak PDF
         </button>
       </div>
     </div>
@@ -6332,11 +6367,12 @@ function renderCetakKartuPage() {
               <th style="padding:12px 14px; font-weight:700; color:var(--text-muted);">Asal Sekolah</th>
               <th style="padding:12px 14px; font-weight:700; color:var(--text-muted);">Cabang Lomba</th>
               <th style="padding:12px 14px; font-weight:700; color:var(--text-muted);">Jenis</th>
+              <th style="padding:12px 14px; font-weight:700; color:var(--text-muted); text-align:center;">Aksi</th>
             </tr>
           </thead>
           <tbody>
             ${filtered.length === 0 ? `
-              <tr><td colspan="6" style="text-align:center; padding:36px; color:var(--text-muted);">
+              <tr><td colspan="7" style="text-align:center; padding:36px; color:var(--text-muted);">
                 <i class="fa-solid fa-folder-open" style="font-size:2rem; display:block; margin-bottom:8px; color:var(--text-dim);"></i>
                 Tidak ada peserta yang sudah disetujui / terverifikasi.
               </td></tr>
@@ -6356,6 +6392,14 @@ function renderCetakKartuPage() {
                   <td style="padding:12px 14px; color:var(--text-muted);">${school}</td>
                   <td style="padding:12px 14px; font-weight:600;">${branch}</td>
                   <td style="padding:12px 14px;"><span style="font-size:0.75rem; padding:3px 10px; border-radius:9999px; background:${type === 'Beregu' ? '#dbeafe' : '#dcfce7'}; color:${type === 'Beregu' ? '#1d4ed8' : '#15803d'}; font-weight:700;">${type}</span></td>
+                  <td style="padding:10px 14px; text-align:center; white-space:nowrap;" onclick="event.stopPropagation();">
+                    <button type="button" class="btn btn-sm btn-success" style="padding:4px 10px; font-size:0.8rem;" onclick="downloadSingleCardFromCetakPage('${r.id}')" title="Download JPG">
+                      <i class="fa-solid fa-download"></i> JPG
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" style="padding:4px 10px; font-size:0.8rem; margin-left:4px;" onclick="openParticipantCardModal('${r.id}')" title="Lihat Kartu">
+                      <i class="fa-solid fa-id-card"></i> Lihat
+                    </button>
+                  </td>
                 </tr>
               `;
   }).join('')}
@@ -6367,7 +6411,7 @@ function renderCetakKartuPage() {
 }
 
 function cetakRowClick(e, id) {
-  if (e.target.tagName === 'INPUT') return;
+  if (e.target.tagName === 'INPUT' || e.target.closest('button')) return;
   const isSelected = cetakKartuState.selected.has(id);
   cetakToggleOne(id, !isSelected);
 }
@@ -6381,11 +6425,13 @@ function cetakToggleOne(id, checked) {
   const allEl = document.getElementById('cetak-check-all');
   if (allEl) allEl.checked = filtered.length > 0 && filtered.every(r => cetakKartuState.selected.has(r.id));
 
-  // Update count & button
+  // Update count & button states
   const el = document.getElementById('cetak-count');
   if (el) el.textContent = cetakKartuState.selected.size;
-  const btn = document.querySelector('[onclick="cetakKartuPDF()"]');
-  if (btn) btn.disabled = cetakKartuState.selected.size === 0;
+  const btnJpg = document.getElementById('btn-cetak-download-jpg');
+  if (btnJpg) btnJpg.disabled = cetakKartuState.selected.size === 0;
+  const btnPdf = document.querySelector('[onclick="cetakKartuPDF()"]');
+  if (btnPdf) btnPdf.disabled = cetakKartuState.selected.size === 0;
 
   // Re-render row highlight if needed
   renderCetakKartuPage();
@@ -6419,6 +6465,146 @@ function cetakOnSearch(val) {
 function cetakOnFilterBranch(val) {
   cetakKartuState.filterBranch = val;
   renderCetakKartuPage();
+}
+
+// Progress modal helper for downloading JPG / ZIP
+function createDownloadProgressModal(title, total) {
+  const modal = document.createElement('div');
+  modal.id = 'download-progress-overlay';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.7);backdrop-filter:blur(3px);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:var(--bg-card, #ffffff);padding:30px 36px;border-radius:16px;text-align:center;min-width:320px;max-width:440px;box-shadow:0 20px 40px rgba(0,0,0,0.25);border:1px solid var(--border-subtle, #e2e8f0);">
+      <i class="fa-solid fa-spinner fa-spin" style="font-size:2.2rem;color:#059669;margin-bottom:14px;display:inline-block;"></i>
+      <h3 style="font-size:1.15rem;font-weight:800;color:var(--text-heading, #0f172a);margin-bottom:6px;">${escapeHtml(title)}</h3>
+      <div id="download-progress-status" style="color:var(--text-muted, #64748b);font-size:0.875rem;margin-bottom:14px;">Memulai proses...</div>
+      <div style="width:100%;height:10px;background:#e2e8f0;border-radius:9999px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.1);">
+        <div id="download-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg, #10b981, #059669);transition:width 0.25s ease;"></div>
+      </div>
+      <div id="download-progress-counter" style="color:var(--text-dim, #94a3b8);font-size:0.8rem;margin-top:10px;font-weight:600;">0 / ${total}</div>
+    </div>
+  `;
+  return modal;
+}
+
+function updateDownloadProgress(overlay, current, total, statusText) {
+  if (!overlay) return;
+  const statusEl = overlay.querySelector('#download-progress-status');
+  const barEl = overlay.querySelector('#download-progress-bar');
+  const counterEl = overlay.querySelector('#download-progress-counter');
+
+  if (statusEl && statusText) statusEl.textContent = statusText;
+  if (barEl) {
+    const percent = Math.min(100, Math.round((current / total) * 100));
+    barEl.style.width = `${percent}%`;
+  }
+  if (counterEl) counterEl.textContent = `${current} / ${total}`;
+}
+
+async function downloadSingleCardFromCetakPage(regId) {
+  let overlay = null;
+  try {
+    overlay = createDownloadProgressModal('Mengunduh Kartu Peserta (JPG)...', 1);
+    document.body.appendChild(overlay);
+
+    const res = await apiRequest(`/api/cards/${regId}`);
+    if (!res.success || !res.data) throw new Error('Data kartu peserta tidak ditemukan.');
+    const card = res.data;
+
+    updateDownloadProgress(overlay, 1, 1, `Merender kartu ${card.registration_number || ''}...`);
+    const canvas = await renderCardDataToCanvas(card);
+
+    const regNum = card.registration_number || 'kartu';
+    const cleanRegNum = regNum.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanName = (card.participant_name || 'peserta').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
+    const filename = `kartu_peserta_${cleanRegNum}_${cleanName}.jpg`;
+
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = canvas.toDataURL('image/jpeg', 0.95);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    if (overlay && document.body.contains(overlay)) document.body.removeChild(overlay);
+  } catch (err) {
+    if (overlay && document.body.contains(overlay)) document.body.removeChild(overlay);
+    alert('Gagal mengunduh kartu peserta JPG: ' + err.message);
+  }
+}
+
+async function cetakDownloadJPG() {
+  const ids = [...cetakKartuState.selected];
+  if (ids.length === 0) {
+    alert('Pilih minimal 1 peserta terlebih dahulu.');
+    return;
+  }
+
+  // Jika hanya 1 peserta dipilih, langsung download 1 file JPG
+  if (ids.length === 1) {
+    await downloadSingleCardFromCetakPage(ids[0]);
+    return;
+  }
+
+  // Jika lebih dari 1 peserta, render semua dan buat arsip ZIP
+  let overlay = null;
+  try {
+    await ensureHtml2CanvasLoaded();
+    await ensureJSZipLoaded();
+
+    overlay = createDownloadProgressModal(`Menyiapkan ${ids.length} Kartu Peserta (JPG)...`, ids.length);
+    document.body.appendChild(overlay);
+
+    const zip = typeof JSZip !== 'undefined' ? new JSZip() : null;
+
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      const res = await apiRequest(`/api/cards/${id}`);
+      if (!res.success || !res.data) continue;
+      const card = res.data;
+
+      updateDownloadProgress(overlay, i + 1, ids.length, `Merender kartu ${i + 1} dari ${ids.length} (${card.registration_number || ''})...`);
+
+      const canvas = await renderCardDataToCanvas(card);
+      const regNum = card.registration_number || `kartu_${i + 1}`;
+      const cleanRegNum = regNum.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const cleanName = (card.participant_name || 'peserta').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
+      const filename = `kartu_peserta_${cleanRegNum}_${cleanName}.jpg`;
+
+      if (zip) {
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+        zip.file(filename, blob);
+      } else {
+        // Fallback: unduh langsung satu per satu
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/jpeg', 0.95);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        await new Promise(r => setTimeout(r, 400));
+      }
+    }
+
+    if (zip) {
+      updateDownloadProgress(overlay, ids.length, ids.length, 'Mengompres seluruh kartu JPG ke dalam arsip ZIP...');
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const nowStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const zipFilename = `kartu_peserta_massal_${nowStr}.zip`;
+
+      const link = document.createElement('a');
+      link.download = zipFilename;
+      link.href = URL.createObjectURL(zipBlob);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(link.href), 15000);
+    }
+
+    if (overlay && document.body.contains(overlay)) document.body.removeChild(overlay);
+  } catch (err) {
+    if (overlay && document.body.contains(overlay)) document.body.removeChild(overlay);
+    alert('Gagal mengunduh kartu peserta massal: ' + err.message);
+  }
 }
 
 async function cetakKartuPDF() {
@@ -6469,6 +6655,8 @@ function openBulkPrintWindow(cards) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cetak Kartu Peserta — ${cards.length} Kartu</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<script src="/js/html2canvas.min.js"><\/script>
+<script src="/js/jszip.min.js"><\/script>
 <style>
   @page {
     size: 10cm 14cm portrait;
@@ -6528,10 +6716,13 @@ function openBulkPrintWindow(cards) {
 <body>
   <div class="no-print" style="background:#1e1b4b;color:#fff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;text-transform:none;position:sticky;top:0;z-index:9999;box-shadow:0 2px 10px rgba(0,0,0,0.25);">
     <div>
-      <strong style="font-size:1.05rem;"><i class="fa-solid fa-print"></i> Cetak Kartu Peserta Massal</strong>
-      <span style="margin-left:14px;font-size:0.875rem;opacity:0.85;">${cards.length} KARTU SIAP DICETAK · UKURAN STANDAR: 10CM × 14CM</span>
+      <strong style="font-size:1.05rem;"><i class="fa-solid fa-download"></i> Cetak / Unduh Kartu Peserta</strong>
+      <span style="margin-left:14px;font-size:0.875rem;opacity:0.85;">${cards.length} KARTU · UKURAN STANDAR: 10CM × 14CM</span>
     </div>
     <div style="display:flex;gap:10px;">
+      <button onclick="downloadAllCardsFromPopup()" style="background:#10b981;color:#ffffff;border:none;padding:10px 22px;border-radius:8px;font-size:0.95rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+        <i class="fa-solid fa-download"></i> DOWNLOAD (JPG)
+      </button>
       <button onclick="window.print()" style="background:#f59e0b;color:#1e1b4b;border:none;padding:10px 22px;border-radius:8px;font-size:0.95rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
         <i class="fa-solid fa-print"></i> CETAK / SIMPAN PDF
       </button>
@@ -6544,9 +6735,46 @@ function openBulkPrintWindow(cards) {
     ${cardsHTML}
   </div>
   <script>
-    window.onload = function() {
-      setTimeout(() => window.print(), 800);
-    };
+    async function downloadAllCardsFromPopup() {
+      const cardEls = document.querySelectorAll('.id-card-official');
+      if (!cardEls || cardEls.length === 0) return;
+      const btn = event?.currentTarget;
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...'; }
+      try {
+        const zip = (typeof JSZip !== 'undefined' && cardEls.length > 1) ? new JSZip() : null;
+        for (let i = 0; i < cardEls.length; i++) {
+          const el = cardEls[i];
+          const canvas = await html2canvas(el, { scale: 3, backgroundColor: '#ffffff', useCORS: true, allowTaint: true });
+          const filename = 'kartu_peserta_' + (i + 1) + '.jpg';
+          if (zip) {
+            const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+            zip.file(filename, blob);
+          } else {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            await new Promise(r => setTimeout(r, 400));
+          }
+        }
+        if (zip) {
+          const zipBlob = await zip.generateAsync({ type: 'blob' });
+          const link = document.createElement('a');
+          link.download = 'kartu_peserta_massal_' + new Date().toISOString().slice(0, 10) + '.zip';
+          link.href = URL.createObjectURL(zipBlob);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      } catch (e) {
+        alert('Gagal mendownload JPG: ' + e.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+      }
+    }
   <\/script>
 </body>
 </html>`);
@@ -6561,6 +6789,8 @@ window.cetakClearAll = cetakClearAll;
 window.cetakOnSearch = cetakOnSearch;
 window.cetakOnFilterBranch = cetakOnFilterBranch;
 window.cetakKartuPDF = cetakKartuPDF;
+window.cetakDownloadJPG = cetakDownloadJPG;
+window.downloadSingleCardFromCetakPage = downloadSingleCardFromCetakPage;
 window.cetakRowClick = cetakRowClick;
 window.printSingleCardPopup = printSingleCardPopup;
 window.switchCameraMode = switchCameraMode;
