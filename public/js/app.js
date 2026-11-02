@@ -1794,116 +1794,116 @@ function buildSingleCardHTML(card) {
   const memberCount = (isTeam && card.members) ? card.members.length : 0;
 
   // Dynamic scaling for team member chips if team has many members
-  const chipFontSize = memberCount > 4 ? '0.62rem' : memberCount > 2 ? '0.68rem' : '0.74rem';
-  const chipPadding = memberCount > 4 ? '1px 6px' : '2px 8px';
-  const membersGap = memberCount > 4 ? '2px' : '3px';
+  const chipFontSize = memberCount > 4 ? '0.55rem' : memberCount > 2 ? '0.62rem' : '0.68rem';
+  const chipPadding = memberCount > 4 ? '1px 5px' : '1.5px 6px';
 
   const membersHTML = isTeam && card.members && card.members.length > 0
-    ? card.members.map(m => `<span style="background:#e0e7ff;border:1px solid #c7d2fe;padding:${chipPadding};border-radius:5px;font-size:${chipFontSize};font-weight:700;color:#3730a3;margin:1px 2px 1px 0;display:inline-block;text-transform:uppercase;">${m.memberName}</span>`).join('')
+    ? card.members.map(m => `<span style="background:#ecfdf5;border:1px solid #a7f3d0;padding:${chipPadding};border-radius:4px;font-size:${chipFontSize};font-weight:700;color:#064e3b;margin:1px 2px 1px 0;display:inline-block;text-transform:uppercase;">${escapeHtml(m.memberName)}</span>`).join('')
     : '';
 
   return `
     <div class="id-card-official official-card-print" id="official-card-print" style="
-      width:378px;
-      height:529px;
-      max-width:378px;
-      max-height:529px;
-      background:#ffffff;
-      border-radius:12px;
-      border:2px solid #1e1b4b;
-      box-shadow:0 16px 36px -10px rgba(15,23,42,0.2);
-      overflow:hidden;
-      display:flex;
-      flex-direction:column;
-      justify-content:space-between;
-      box-sizing:border-box;
-      font-family:'Segoe UI',Arial,sans-serif;
-      color:#0f172a;
-      margin:0 auto;
-      text-align:left;
-      text-transform:uppercase !important;
+      width: 378px;
+      height: 529px;
+      max-width: 378px;
+      max-height: 529px;
+      position: relative;
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1.5px solid #064e3b;
+      box-shadow: 0 16px 36px -10px rgba(6, 78, 59, 0.25);
+      overflow: hidden;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #0f172a;
+      margin: 0 auto;
+      text-align: left;
+      text-transform: uppercase !important;
     ">
 
-      <!-- TOP SECTION -->
-      <div style="flex-shrink:0;">
-        <!-- HEADER BANNER -->
-        <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 55%,#4338ca 100%);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:2.5px solid #f59e0b;flex-shrink:0;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <img src="${card.logo_url || '/static/img/logo_e7a8b6a95d.webp'}" alt="Logo"
-              style="height:36px;width:36px;object-fit:contain;background:#fff;padding:2px;border-radius:6px;box-shadow:0 2px 5px rgba(0,0,0,0.25);"
-              onerror="this.style.display='none'">
-            <div>
-              <div style="font-size:0.92rem;font-weight:800;line-height:1.2;text-transform:uppercase;color:#ffffff;">${card.app_short_name || 'MASKUMAMBANG FEST #4'}</div>
-              <div style="font-size:0.68rem;color:rgba(255,255,255,0.85);margin-top:1px;text-transform:uppercase;">${card.category_name} · JENJANG ${card.level_name}</div>
-            </div>
-          </div>
-          <span style="background:rgba(245,158,11,0.2);border:1px solid #f59e0b;color:#fbbf24;font-size:0.62rem;font-weight:800;padding:3px 8px;border-radius:9999px;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">${isTeam ? 'TIM / BEREGU' : 'PERORANGAN'}</span>
-        </div>
+      <!-- Background Template Image (Pre-printed Header & Footer) -->
+      <img src="/static/img/back-kartu-peserta.webp" alt="Template Kartu" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none;">
 
-        <!-- LABEL KARTU -->
-        <div style="background:#f1f5f9;text-align:center;padding:3px;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
-          <span style="font-size:0.65rem;font-weight:800;color:#475569;letter-spacing:0.12em;text-transform:uppercase;">✦ KARTU PESERTA RESMI ✦</span>
-        </div>
-
-        <!-- NO REG -->
-        <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1.5px dashed #a5b4fc;padding:5px 12px;margin:8px 12px 0;border-radius:6px;flex-shrink:0;">
-          <span style="font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;">NO. REGISTRASI:</span>
-          <span style="font-size:0.95rem;font-weight:800;color:#4338ca;font-family:monospace;letter-spacing:0.05em;text-transform:uppercase;">${card.registration_number}</span>
-        </div>
-      </div>
-
-      <!-- INFO PESERTA (SCALED, AUTO-WRAP & COMPACT) -->
-      <div style="padding:6px 12px;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;">
-        <div style="margin-bottom:4px;">
-          <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.03em;">NAMA ${isTeam ? 'TIM' : 'PESERTA'}:</div>
-          <div style="font-size:${isTeam ? '0.92rem' : '0.98rem'};font-weight:800;color:#1e1b4b;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.participant_name}</div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin-bottom:4px;">
-          <div style="min-width:0;">
-            <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;">ASAL SEKOLAH:</div>
-            <div style="font-size:0.75rem;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.school_name}</div>
-          </div>
-          <div style="min-width:0;">
-            <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;">CABANG LOMBA:</div>
-            <div style="font-size:0.75rem;font-weight:700;color:#4338ca;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.branch_name}</div>
-          </div>
-          ${card.mentor_name && card.mentor_name !== '-' ? `
-          <div style="min-width:0;">
-            <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;">PEMBIMBING:</div>
-            <div style="font-size:0.72rem;font-weight:600;color:#334155;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.mentor_name}</div>
-          </div>` : ''}
-          ${isTeam && card.leader_name ? `
-          <div style="min-width:0;">
-            <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;">KETUA TIM:</div>
-            <div style="font-size:0.72rem;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.leader_name}</div>
-          </div>` : ''}
-        </div>
-
-        ${membersHTML ? `
-        <div style="border-top:1px dashed #cbd5e1;padding-top:4px;margin-top:2px;">
-          <div style="font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:2px;">ANGGOTA TIM:</div>
-          <div style="line-height:1.2;">${membersHTML}</div>
-        </div>` : ''}
-      </div>
-
-      <!-- BOTTOM SECTION: QR CODE & FOOTER -->
-      <div style="flex-shrink:0;">
-        <!-- QR CODE — FIT KE UKURAN 10x14cm -->
-        <div style="background:linear-gradient(to bottom,#f8fafc,#eef2ff);border-top:1.5px solid #e0e7ff;padding:8px 12px;display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
-          <div style="background:#ffffff;border:2px solid #c7d2fe;border-radius:8px;padding:5px;box-shadow:0 3px 10px rgba(67,56,202,0.12);display:inline-block;">
-            <img src="${card.qr_data_uri}" alt="QR Check-in" style="width:105px;height:105px;display:block;border-radius:4px;">
-          </div>
-          <div style="margin-top:4px;font-size:0.66rem;font-weight:800;color:#4338ca;letter-spacing:0.1em;text-transform:uppercase;">◈ SCAN UNTUK CHECK-IN ◈</div>
-          <div style="font-size:0.58rem;color:#94a3b8;margin-top:1px;text-transform:uppercase;">TUNJUKKAN KARTU INI SAAT MEMASUKI AREA LOMBA</div>
-        </div>
-
-        <!-- FOOTER -->
-        <div style="background:#1e1b4b;padding:5px 14px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
-          <span style="display:inline-flex;align-items:center;gap:4px;color:#4ade80;font-size:0.68rem;font-weight:800;text-transform:uppercase;">
-            <i class="fa-solid fa-circle-check"></i> TERVERIFIKASI RESMI
+      <!-- Designated Middle Content Space (Guaranteed between 28% and 84%) -->
+      <div style="
+        position: absolute;
+        top: 28%;
+        bottom: 16%;
+        left: 6%;
+        right: 6%;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden;
+        box-sizing: border-box;
+      ">
+        <!-- 1. Header Konten: Badge Status & Tipe -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+          <span style="background: #064e3b; color: #ecfdf5; font-size: 0.58rem; font-weight: 800; padding: 2px 8px; border-radius: 9999px; letter-spacing: 0.06em; display: inline-flex; align-items: center; gap: 4px;">
+            <i class="fa-solid fa-id-badge" style="color: #34d399;"></i> KARTU TANDA PESERTA
           </span>
-          <span style="font-size:0.65rem;color:rgba(255,255,255,0.75);font-weight:600;letter-spacing:0.04em;">www.maskumambang.ac.id</span>
+          <span style="background: ${isTeam ? '#dbeafe' : '#fef3c7'}; color: ${isTeam ? '#1e40af' : '#92400e'}; border: 1px solid ${isTeam ? '#bfdbfe' : '#fde68a'}; font-size: 0.55rem; font-weight: 800; padding: 2px 7px; border-radius: 9999px; letter-spacing: 0.04em;">
+            ${isTeam ? 'TIM / BEREGU' : 'PERORANGAN'}
+          </span>
         </div>
+
+        <!-- 2. Cabang Lomba Card -->
+        <div style="background: rgba(255, 255, 255, 0.95); border: 1.5px solid #059669; border-radius: 8px; padding: 5px 8px; text-align: center; box-shadow: 0 2px 6px rgba(5,150,105,0.12); margin-bottom: 3px;">
+          <div style="font-size: 0.85rem; font-weight: 900; color: #064e3b; line-height: 1.2; letter-spacing: 0.02em;">
+            ${escapeHtml(card.branch_name)}
+          </div>
+          <div style="font-size: 0.62rem; font-weight: 700; color: #047857; margin-top: 1px;">
+            ${escapeHtml(card.category_name)} · JENJANG ${escapeHtml(card.level_name)}
+          </div>
+        </div>
+
+        <!-- 3. Strip No. Registrasi -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.94); border: 1px dashed #059669; border-radius: 6px; padding: 3px 8px; margin-bottom: 3px;">
+          <span style="font-size: 0.58rem; font-weight: 800; color: #475569; letter-spacing: 0.04em;">NO. REGISTRASI:</span>
+          <span style="font-size: 0.78rem; font-weight: 900; color: #064e3b; font-family: monospace; letter-spacing: 0.06em;">${escapeHtml(card.registration_number)}</span>
+        </div>
+
+        <!-- 4. Body Data Peserta + QR Frame -->
+        <div style="background: rgba(255, 255, 255, 0.96); border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); display: flex; gap: 8px; align-items: center; flex: 1; min-height: 0;">
+          <!-- Sisi Kiri: Data Identitas -->
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-around; height: 100%;">
+            <div style="margin-bottom: 2px;">
+              <div style="font-size: 0.52rem; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">NAMA ${isTeam ? 'TIM' : 'PESERTA'}:</div>
+              <div style="font-size: ${isTeam ? '0.78rem' : '0.85rem'}; font-weight: 900; color: #0f172a; line-height: 1.2; word-break: break-word;">${escapeHtml(card.participant_name)}</div>
+            </div>
+
+            <div style="margin-bottom: 2px;">
+              <div style="font-size: 0.52rem; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">ASAL SEKOLAH:</div>
+              <div style="font-size: 0.65rem; font-weight: 700; color: #1e293b; line-height: 1.2; word-break: break-word;">${escapeHtml(card.school_name)}</div>
+            </div>
+
+            ${card.mentor_name && card.mentor_name !== '-' ? `
+            <div style="margin-bottom: 2px;">
+              <div style="font-size: 0.5rem; font-weight: 700; color: #64748b;">PEMBIMBING:</div>
+              <div style="font-size: 0.62rem; font-weight: 600; color: #334155; line-height: 1.15; word-break: break-word;">${escapeHtml(card.mentor_name)}</div>
+            </div>` : ''}
+
+            ${isTeam && card.leader_name ? `
+            <div style="margin-bottom: 2px;">
+              <div style="font-size: 0.5rem; font-weight: 700; color: #059669;">KETUA TIM:</div>
+              <div style="font-size: 0.64rem; font-weight: 800; color: #064e3b; line-height: 1.15; word-break: break-word;">${escapeHtml(card.leader_name)}</div>
+            </div>` : ''}
+
+            ${membersHTML ? `
+            <div style="border-top: 1px dashed #e2e8f0; padding-top: 2px; margin-top: 1px;">
+              <div style="font-size: 0.5rem; font-weight: 700; color: #64748b; margin-bottom: 1px;">ANGGOTA TIM:</div>
+              <div style="line-height: 1.1; max-height: 44px; overflow: hidden;">${membersHTML}</div>
+            </div>` : ''}
+          </div>
+
+          <!-- Sisi Kanan: Frame QR Code -->
+          <div style="flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; border: 1.2px solid #a7f3d0; border-radius: 6px; padding: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
+            <img src="${card.qr_data_uri}" alt="QR Code Check-In" style="width: 84px; height: 84px; display: block; border-radius: 4px; background: #ffffff;">
+            <span style="font-size: 0.52rem; font-weight: 900; color: #064e3b; margin-top: 3px; letter-spacing: 0.05em; text-align: center;">SCAN CHECK-IN</span>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -6455,94 +6455,112 @@ async function cetakKartuPDF() {
 function buildCardHTML(card) {
   const isTeam = card.participant_type === 'TEAM';
   const memberCount = (isTeam && card.members) ? card.members.length : 0;
-  const chipFontSize = memberCount > 4 ? '6px' : memberCount > 2 ? '6.8px' : '7.5px';
-  const chipPadding = memberCount > 4 ? '1px 5px' : '2px 7px';
+  const chipFontSize = memberCount > 4 ? '5.2px' : memberCount > 2 ? '6px' : '6.8px';
+  const chipPadding = memberCount > 4 ? '1px 4px' : '1.5px 5px';
 
   const membersHTML = isTeam && card.members && card.members.length > 0
-    ? card.members.map(m => `<span style="background:#e0e7ff;border:1px solid #c7d2fe;padding:${chipPadding};border-radius:4px;font-size:${chipFontSize};font-weight:700;color:#3730a3;margin:1px 2px 1px 0;display:inline-block;text-transform:uppercase;">${m.memberName}</span>`).join('')
+    ? card.members.map(m => `<span style="background:#ecfdf5;border:1px solid #a7f3d0;padding:${chipPadding};border-radius:4px;font-size:${chipFontSize};font-weight:700;color:#064e3b;margin:1px 2px 1px 0;display:inline-block;text-transform:uppercase;">${escapeHtml(m.memberName)}</span>`).join('')
     : '';
 
   return `
-    <div class="print-card" style="width:10cm;height:14cm;max-width:10cm;max-height:14cm;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;text-transform:uppercase !important;">
+    <div class="print-card" style="
+      width: 10cm;
+      height: 14cm;
+      max-width: 10cm;
+      max-height: 14cm;
+      position: relative;
+      background: #ffffff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #0f172a;
+      text-transform: uppercase !important;
+    ">
 
-      <!-- TOP SECTION -->
-      <div style="flex-shrink:0;">
-        <!-- HEADER BANNER -->
-        <div class="card-banner" style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#4338ca 100%);color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #f59e0b;flex-shrink:0;">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <img src="${card.logo_url || '/static/img/logo_e7a8b6a95d.webp'}" alt="Logo"
-              style="height:32px;width:32px;object-fit:contain;background:#fff;padding:2px;border-radius:5px;box-shadow:0 2px 4px rgba(0,0,0,0.25);"
-              onerror="this.style.display='none'">
-            <div>
-              <div style="font-size:9.5px;font-weight:800;color:#fff;line-height:1.2;text-transform:uppercase;">${card.app_short_name || 'MASKUMAMBANG FEST #4'}</div>
-              <div style="font-size:7px;color:rgba(255,255,255,0.85);margin-top:1px;text-transform:uppercase;">${card.category_name} · JENJANG ${card.level_name}</div>
+      <!-- Background Template Image (Pre-printed Header & Footer) -->
+      <img src="/static/img/back-kartu-peserta.webp" alt="Template Kartu" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none;">
+
+      <!-- Designated Middle Content Space (Guaranteed between 28% and 84%) -->
+      <div style="
+        position: absolute;
+        top: 28%;
+        bottom: 16%;
+        left: 6%;
+        right: 6%;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden;
+        box-sizing: border-box;
+      ">
+        <!-- 1. Header Konten: Badge Status & Tipe -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+          <span style="background: #064e3b; color: #ecfdf5; font-size: 7px; font-weight: 800; padding: 2px 7px; border-radius: 9999px; letter-spacing: 0.06em; display: inline-flex; align-items: center; gap: 3px;">
+            ✓ KARTU TANDA PESERTA
+          </span>
+          <span style="background: ${isTeam ? '#dbeafe' : '#fef3c7'}; color: ${isTeam ? '#1e40af' : '#92400e'}; border: 1px solid ${isTeam ? '#bfdbfe' : '#fde68a'}; font-size: 6.5px; font-weight: 800; padding: 1.5px 6px; border-radius: 9999px; letter-spacing: 0.04em;">
+            ${isTeam ? 'TIM / BEREGU' : 'PERORANGAN'}
+          </span>
+        </div>
+
+        <!-- 2. Cabang Lomba Card -->
+        <div style="background: rgba(255, 255, 255, 0.95); border: 1.5px solid #059669; border-radius: 7px; padding: 4px 7px; text-align: center; box-shadow: 0 1.5px 5px rgba(5,150,105,0.12); margin-bottom: 3px;">
+          <div style="font-size: 10px; font-weight: 900; color: #064e3b; line-height: 1.2; letter-spacing: 0.02em;">
+            ${escapeHtml(card.branch_name)}
+          </div>
+          <div style="font-size: 7px; font-weight: 700; color: #047857; margin-top: 1px;">
+            ${escapeHtml(card.category_name)} · JENJANG ${escapeHtml(card.level_name)}
+          </div>
+        </div>
+
+        <!-- 3. Strip No. Registrasi -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.94); border: 1px dashed #059669; border-radius: 5px; padding: 2.5px 7px; margin-bottom: 3px;">
+          <span style="font-size: 6.5px; font-weight: 800; color: #475569; letter-spacing: 0.04em;">NO. REGISTRASI:</span>
+          <span style="font-size: 8.5px; font-weight: 900; color: #064e3b; font-family: monospace; letter-spacing: 0.06em;">${escapeHtml(card.registration_number)}</span>
+        </div>
+
+        <!-- 4. Body Data Peserta + QR Frame -->
+        <div style="background: rgba(255, 255, 255, 0.96); border: 1px solid #cbd5e1; border-radius: 7px; padding: 5px 7px; box-shadow: 0 1.5px 6px rgba(0,0,0,0.06); display: flex; gap: 7px; align-items: center; flex: 1; min-height: 0;">
+          <!-- Sisi Kiri: Data Identitas -->
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-around; height: 100%;">
+            <div style="margin-bottom: 1.5px;">
+              <div style="font-size: 5.8px; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">NAMA ${isTeam ? 'TIM' : 'PESERTA'}:</div>
+              <div style="font-size: ${isTeam ? '8.2px' : '9px'}; font-weight: 900; color: #0f172a; line-height: 1.2; word-break: break-word;">${escapeHtml(card.participant_name)}</div>
             </div>
+
+            <div style="margin-bottom: 1.5px;">
+              <div style="font-size: 5.8px; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">ASAL SEKOLAH:</div>
+              <div style="font-size: 7px; font-weight: 700; color: #1e293b; line-height: 1.2; word-break: break-word;">${escapeHtml(card.school_name)}</div>
+            </div>
+
+            ${card.mentor_name && card.mentor_name !== '-' ? `
+            <div style="margin-bottom: 1.5px;">
+              <div style="font-size: 5.5px; font-weight: 700; color: #64748b;">PEMBIMBING:</div>
+              <div style="font-size: 6.5px; font-weight: 600; color: #334155; line-height: 1.15; word-break: break-word;">${escapeHtml(card.mentor_name)}</div>
+            </div>` : ''}
+
+            ${isTeam && card.leader_name ? `
+            <div style="margin-bottom: 1.5px;">
+              <div style="font-size: 5.5px; font-weight: 700; color: #059669;">KETUA TIM:</div>
+              <div style="font-size: 6.8px; font-weight: 800; color: #064e3b; line-height: 1.15; word-break: break-word;">${escapeHtml(card.leader_name)}</div>
+            </div>` : ''}
+
+            ${membersHTML ? `
+            <div style="border-top: 1px dashed #e2e8f0; padding-top: 1.5px; margin-top: 1px;">
+              <div style="font-size: 5.5px; font-weight: 700; color: #64748b; margin-bottom: 1px;">ANGGOTA TIM:</div>
+              <div style="line-height: 1.1; max-height: 40px; overflow: hidden;">${membersHTML}</div>
+            </div>` : ''}
           </div>
-          <span style="background:rgba(245,158,11,0.2);border:1px solid #f59e0b;color:#fbbf24;font-size:6px;font-weight:800;padding:2px 6px;border-radius:9999px;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;">${isTeam ? 'TIM / BEREGU' : 'PERORANGAN'}</span>
-        </div>
 
-        <!-- LABEL KARTU -->
-        <div style="background:#f1f5f9;text-align:center;padding:3px;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
-          <span style="font-size:6.5px;font-weight:800;color:#475569;letter-spacing:0.12em;text-transform:uppercase;">✦ KARTU PESERTA RESMI ✦</span>
-        </div>
-
-        <!-- NO REG -->
-        <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1.2px dashed #a5b4fc;padding:4px 8px;margin:6px 8px 0;border-radius:5px;flex-shrink:0;">
-          <span style="font-size:6.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;">NO. REGISTRASI:</span>
-          <span style="font-size:9px;font-weight:800;color:#4338ca;font-family:monospace;letter-spacing:0.05em;text-transform:uppercase;">${card.registration_number}</span>
-        </div>
-      </div>
-
-      <!-- INFO PESERTA (COMPACT, AUTO-WRAP & SCALED) -->
-      <div style="padding:4px 8px;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;">
-        <div style="margin-bottom:3px;">
-          <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.03em;">NAMA ${isTeam ? 'TIM' : 'PESERTA'}:</div>
-          <div style="font-size:${isTeam ? '9.2px' : '10px'};font-weight:800;color:#1e1b4b;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.participant_name}</div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;margin-bottom:3px;">
-          <div style="min-width:0;">
-            <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;">ASAL SEKOLAH:</div>
-            <div style="font-size:7.2px;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.school_name}</div>
+          <!-- Sisi Kanan: Frame QR Code -->
+          <div style="flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; border: 1.2px solid #a7f3d0; border-radius: 5px; padding: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <img src="${card.qr_data_uri}" alt="QR Code Check-In" style="width: 72px; height: 72px; display: block; border-radius: 3px; background: #ffffff;">
+            <span style="font-size: 5.5px; font-weight: 900; color: #064e3b; margin-top: 2px; letter-spacing: 0.05em; text-align: center;">SCAN CHECK-IN</span>
           </div>
-          <div style="min-width:0;">
-            <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;">CABANG LOMBA:</div>
-            <div style="font-size:7.2px;font-weight:700;color:#4338ca;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.branch_name}</div>
-          </div>
-          ${card.mentor_name && card.mentor_name !== '-' ? `
-          <div style="min-width:0;">
-            <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;">PEMBIMBING:</div>
-            <div style="font-size:6.8px;font-weight:600;color:#334155;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.mentor_name}</div>
-          </div>` : ''}
-          ${isTeam && card.leader_name ? `
-          <div style="min-width:0;">
-            <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;">KETUA TIM:</div>
-            <div style="font-size:6.8px;font-weight:700;color:#0f172a;line-height:1.2;margin-top:1px;text-transform:uppercase;word-break:break-word;overflow-wrap:break-word;">${card.leader_name}</div>
-          </div>` : ''}
         </div>
 
-        ${membersHTML ? `
-        <div style="border-top:1px dashed #cbd5e1;padding-top:3px;margin-top:2px;">
-          <div style="font-size:6.2px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:1px;">ANGGOTA TIM:</div>
-          <div style="line-height:1.2;">${membersHTML}</div>
-        </div>` : ''}
-      </div>
-
-      <!-- BOTTOM SECTION: QR CODE & FOOTER -->
-      <div style="flex-shrink:0;">
-        <!-- QR CODE — FIT UKURAN 10x14cm -->
-        <div style="background:linear-gradient(to bottom,#f8fafc,#eef2ff);border-top:1.5px solid #e0e7ff;padding:6px 8px;display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
-          <div style="background:#fff;border:2px solid #c7d2fe;border-radius:6px;padding:4px;box-shadow:0 2px 8px rgba(67,56,202,0.12);display:inline-block;">
-            <img src="${card.qr_data_uri}" alt="QR Check-in" style="width:95px;height:95px;display:block;border-radius:3px;">
-          </div>
-          <div style="margin-top:3px;font-size:6.5px;font-weight:800;color:#4338ca;letter-spacing:0.1em;text-transform:uppercase;">◈ SCAN UNTUK CHECK-IN ◈</div>
-          <div style="font-size:5.5px;color:#94a3b8;margin-top:1px;text-transform:uppercase;">TUNJUKKAN KARTU INI SAAT MEMASUKI AREA LOMBA</div>
-        </div>
-
-        <!-- FOOTER -->
-        <div style="background:#1e1b4b;padding:4px 10px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
-          <span style="display:inline-flex;align-items:center;gap:3px;color:#4ade80;font-size:6.5px;font-weight:800;text-transform:uppercase;">✓ TERVERIFIKASI RESMI</span>
-          <span style="font-size:6px;color:rgba(255,255,255,0.75);font-weight:600;letter-spacing:0.04em;">www.maskumambang.ac.id</span>
-        </div>
       </div>
 
     </div>

@@ -264,6 +264,12 @@
     display: flex !important;
     flex-direction: column !important;
   }
+
+  #official-card-print img,
+  .id-card-official img {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }
 
 
