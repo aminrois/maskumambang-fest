@@ -6453,122 +6453,11 @@ async function cetakKartuPDF() {
 }
 
 function buildCardHTML(card) {
-  const isTeam = card.participant_type === 'TEAM';
-  const memberCount = (isTeam && card.members) ? card.members.length : 0;
-  const chipFontSize = memberCount > 4 ? '5.2px' : memberCount > 2 ? '6px' : '6.8px';
-  const chipPadding = memberCount > 4 ? '1px 4px' : '1.5px 5px';
-
-  const membersHTML = isTeam && card.members && card.members.length > 0
-    ? card.members.map(m => `<span style="background:#ecfdf5;border:1px solid #a7f3d0;padding:${chipPadding};border-radius:4px;font-size:${chipFontSize};font-weight:700;color:#064e3b;margin:1px 2px 1px 0;display:inline-block;text-transform:uppercase;">${escapeHtml(m.memberName)}</span>`).join('')
-    : '';
-
-  return `
-    <div class="print-card" style="
-      width: 10cm;
-      height: 14cm;
-      max-width: 10cm;
-      max-height: 14cm;
-      position: relative;
-      background: #ffffff;
-      border-radius: 10px;
-      overflow: hidden;
-      box-sizing: border-box;
-      font-family: 'Segoe UI', Arial, sans-serif;
-      color: #0f172a;
-      text-transform: uppercase !important;
-    ">
-
-      <!-- Background Template Image (Pre-printed Header & Footer) -->
-      <img src="/static/img/back-kartu-peserta.webp" alt="Template Kartu" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none;">
-
-      <!-- Designated Middle Content Space (Guaranteed between 28% and 84%) -->
-      <div style="
-        position: absolute;
-        top: 28%;
-        bottom: 16%;
-        left: 6%;
-        right: 6%;
-        z-index: 2;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        overflow: hidden;
-        box-sizing: border-box;
-      ">
-        <!-- 1. Header Konten: Badge Status & Tipe -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
-          <span style="background: #064e3b; color: #ecfdf5; font-size: 7px; font-weight: 800; padding: 2px 7px; border-radius: 9999px; letter-spacing: 0.06em; display: inline-flex; align-items: center; gap: 3px;">
-            ✓ KARTU TANDA PESERTA
-          </span>
-          <span style="background: ${isTeam ? '#dbeafe' : '#fef3c7'}; color: ${isTeam ? '#1e40af' : '#92400e'}; border: 1px solid ${isTeam ? '#bfdbfe' : '#fde68a'}; font-size: 6.5px; font-weight: 800; padding: 1.5px 6px; border-radius: 9999px; letter-spacing: 0.04em;">
-            ${isTeam ? 'TIM / BEREGU' : 'PERORANGAN'}
-          </span>
-        </div>
-
-        <!-- 2. Cabang Lomba Card -->
-        <div style="background: rgba(255, 255, 255, 0.95); border: 1.5px solid #059669; border-radius: 7px; padding: 4px 7px; text-align: center; box-shadow: 0 1.5px 5px rgba(5,150,105,0.12); margin-bottom: 3px;">
-          <div style="font-size: 10px; font-weight: 900; color: #064e3b; line-height: 1.2; letter-spacing: 0.02em;">
-            ${escapeHtml(card.branch_name)}
-          </div>
-          <div style="font-size: 7px; font-weight: 700; color: #047857; margin-top: 1px;">
-            ${escapeHtml(card.category_name)} · JENJANG ${escapeHtml(card.level_name)}
-          </div>
-        </div>
-
-        <!-- 3. Strip No. Registrasi -->
-        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.94); border: 1px dashed #059669; border-radius: 5px; padding: 2.5px 7px; margin-bottom: 3px;">
-          <span style="font-size: 6.5px; font-weight: 800; color: #475569; letter-spacing: 0.04em;">NO. REGISTRASI:</span>
-          <span style="font-size: 8.5px; font-weight: 900; color: #064e3b; font-family: monospace; letter-spacing: 0.06em;">${escapeHtml(card.registration_number)}</span>
-        </div>
-
-        <!-- 4. Body Data Peserta + QR Frame -->
-        <div style="background: rgba(255, 255, 255, 0.96); border: 1px solid #cbd5e1; border-radius: 7px; padding: 5px 7px; box-shadow: 0 1.5px 6px rgba(0,0,0,0.06); display: flex; gap: 7px; align-items: center; flex: 1; min-height: 0;">
-          <!-- Sisi Kiri: Data Identitas -->
-          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-around; height: 100%;">
-            <div style="margin-bottom: 1.5px;">
-              <div style="font-size: 5.8px; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">NAMA ${isTeam ? 'TIM' : 'PESERTA'}:</div>
-              <div style="font-size: ${isTeam ? '8.2px' : '9px'}; font-weight: 900; color: #0f172a; line-height: 1.2; word-break: break-word;">${escapeHtml(card.participant_name)}</div>
-            </div>
-
-            <div style="margin-bottom: 1.5px;">
-              <div style="font-size: 5.8px; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">ASAL SEKOLAH:</div>
-              <div style="font-size: 7px; font-weight: 700; color: #1e293b; line-height: 1.2; word-break: break-word;">${escapeHtml(card.school_name)}</div>
-            </div>
-
-            ${card.mentor_name && card.mentor_name !== '-' ? `
-            <div style="margin-bottom: 1.5px;">
-              <div style="font-size: 5.5px; font-weight: 700; color: #64748b;">PEMBIMBING:</div>
-              <div style="font-size: 6.5px; font-weight: 600; color: #334155; line-height: 1.15; word-break: break-word;">${escapeHtml(card.mentor_name)}</div>
-            </div>` : ''}
-
-            ${isTeam && card.leader_name ? `
-            <div style="margin-bottom: 1.5px;">
-              <div style="font-size: 5.5px; font-weight: 700; color: #059669;">KETUA TIM:</div>
-              <div style="font-size: 6.8px; font-weight: 800; color: #064e3b; line-height: 1.15; word-break: break-word;">${escapeHtml(card.leader_name)}</div>
-            </div>` : ''}
-
-            ${membersHTML ? `
-            <div style="border-top: 1px dashed #e2e8f0; padding-top: 1.5px; margin-top: 1px;">
-              <div style="font-size: 5.5px; font-weight: 700; color: #64748b; margin-bottom: 1px;">ANGGOTA TIM:</div>
-              <div style="line-height: 1.1; max-height: 40px; overflow: hidden;">${membersHTML}</div>
-            </div>` : ''}
-          </div>
-
-          <!-- Sisi Kanan: Frame QR Code -->
-          <div style="flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; border: 1.2px solid #a7f3d0; border-radius: 5px; padding: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-            <img src="${card.qr_data_uri}" alt="QR Code Check-In" style="width: 72px; height: 72px; display: block; border-radius: 3px; background: #ffffff;">
-            <span style="font-size: 5.5px; font-weight: 900; color: #064e3b; margin-top: 2px; letter-spacing: 0.05em; text-align: center;">SCAN CHECK-IN</span>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-  `;
+  return buildSingleCardHTML(card);
 }
 
 function openBulkPrintWindow(cards) {
-  const printWin = window.open('', '_blank', 'width=900,height=700');
+  const printWin = window.open('', '_blank', 'width=950,height=750');
   if (!printWin) { alert('Popup diblokir browser. Izinkan popup dan coba lagi.'); return; }
 
   const cardsHTML = cards.map(buildCardHTML).join('');
@@ -6577,7 +6466,9 @@ function openBulkPrintWindow(cards) {
 <html lang="id">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cetak Kartu Peserta — ${cards.length} Kartu</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 <style>
   @page {
     size: 10cm 14cm portrait;
@@ -6585,69 +6476,69 @@ function openBulkPrintWindow(cards) {
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
-    background: #fff;
+    background: #f1f5f9;
     font-family: 'Segoe UI', Arial, sans-serif;
     text-transform: uppercase !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   .cards-wrapper {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0;
-  }
-  .print-card {
-    width: 10cm;
-    height: 14cm;
-    max-width: 10cm;
-    max-height: 14cm;
-    background: #ffffff;
-    border: 1.5px solid #0f172a;
-    border-radius: 10px;
-    overflow: hidden;
-    page-break-after: always;
-    page-break-inside: avoid;
-    break-after: page;
-    display: flex;
     flex-direction: column;
-    position: relative;
-    box-sizing: border-box;
-    text-transform: uppercase !important;
-  }
-  .card-banner {
-    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
-    color: #fff;
-    padding: 8px 12px;
-    display: flex;
-    justify-content: space-between;
     align-items: center;
-    border-bottom: 2px solid #f59e0b;
-    flex-shrink: 0;
+    gap: 24px;
+    padding: 24px 10px;
+  }
+  .id-card-official {
+    page-break-after: always;
+    break-after: page;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
   }
   @media print {
-    body { margin: 0; padding: 0; }
+    body { margin: 0; padding: 0; background: #fff !important; }
     .no-print { display: none !important; }
-    .print-card {
-      page-break-after: always;
-      break-after: page;
-      border: none !important;
-      border-radius: 0 !important;
+    .cards-wrapper {
+      display: block !important;
+      padding: 0 !important;
+      gap: 0 !important;
+    }
+    .id-card-official {
       width: 10cm !important;
       height: 14cm !important;
+      max-width: 10cm !important;
       max-height: 14cm !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      margin: 0 !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .id-card-official img {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
   }
 </style>
 </head>
 <body>
-  <div class="no-print" style="background:#1e1b4b;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;text-transform:none;">
+  <div class="no-print" style="background:#1e1b4b;color:#fff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;text-transform:none;position:sticky;top:0;z-index:9999;box-shadow:0 2px 10px rgba(0,0,0,0.25);">
     <div>
-      <strong style="font-size:1rem;">🖨️ Cetak Kartu Peserta Massal</strong>
-      <span style="margin-left:12px;font-size:0.85rem;opacity:0.8;">${cards.length} KARTU SIAP DICETAK · UKURAN: 10CM × 14CM</span>
+      <strong style="font-size:1.05rem;"><i class="fa-solid fa-print"></i> Cetak Kartu Peserta Massal</strong>
+      <span style="margin-left:14px;font-size:0.875rem;opacity:0.85;">${cards.length} KARTU SIAP DICETAK · UKURAN STANDAR: 10CM × 14CM</span>
     </div>
-    <button onclick="window.print()" style="background:#f59e0b;color:#1e1b4b;border:none;padding:10px 24px;border-radius:8px;font-size:0.95rem;font-weight:800;cursor:pointer;">
-      🖨️ PRINT / SIMPAN PDF
-    </button>
+    <div style="display:flex;gap:10px;">
+      <button onclick="window.print()" style="background:#f59e0b;color:#1e1b4b;border:none;padding:10px 22px;border-radius:8px;font-size:0.95rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+        <i class="fa-solid fa-print"></i> CETAK / SIMPAN PDF
+      </button>
+      <button onclick="window.close()" style="background:#475569;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:0.95rem;font-weight:700;cursor:pointer;">
+        TUTUP
+      </button>
+    </div>
   </div>
   <div class="cards-wrapper">
     ${cardsHTML}
