@@ -504,11 +504,6 @@
   <main class="main-wrapper" style="flex: 1; padding: 24px 16px;">
     <div class="container" style="max-width: 1050px; margin: 0 auto;">
 
-      <!-- Featured Announcement Banner Image -->
-      <div style="margin: 0 auto 16px; max-width: 850px; text-align: center;">
-        <img src="/static/img/banner-pengumuman-finalis-olimpiade.webp" alt="Pengumuman Finalis 10 Besar Olimpiade Nasional Maskumambang Fest 4" style="width: 100%; height: auto; border-radius: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); border: 1px solid #e2e8f0; display: block;">
-      </div>
-
       <!-- Hero Header -->
       <div class="pengumuman-hero">
         <div class="sk-badge">
@@ -594,7 +589,7 @@
           <div class="search-input-wrapper">
             <i class="fa-solid fa-magnifying-glass"></i>
             <input type="text" id="filter-search-input" class="search-input-field"
-              placeholder="Ketik nama peserta, nomor registrasi, atau asal sekolah..."
+              placeholder="Cari semua peserta: ketik nama, no. registrasi, asal sekolah, atau bidang..."
               oninput="handleSearch(this.value)">
             <button type="button" id="btn-clear" class="btn-clear-search" onclick="clearSearch()"
               aria-label="Hapus Pencarian">
@@ -873,6 +868,10 @@
 
     function selectBranch(index) {
       currentBranchIndex = parseInt(index, 10);
+      if (searchQuery) {
+        clearSearch();
+        return;
+      }
       renderContent();
     }
 
@@ -895,6 +894,16 @@
       if (btn) btn.style.display = searchQuery ? 'block' : 'none';
     }
 
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function renderBranchDropdown() {
       const select = document.getElementById('branch-select');
       const list = OLYMPIAD_DATA[currentLevel];
@@ -907,49 +916,108 @@
     }
 
     function renderContent() {
+      const tbody = document.getElementById('finalists-table-body');
+      const titleEl = document.getElementById('active-bidang-title');
+
+      // 1. GLOBAL SEARCH ACROSS ALL BRANCHES & LEVELS
+      if (searchQuery) {
+        let allParticipants = [];
+        OLYMPIAD_DATA.sd.forEach(branch => {
+          branch.peserta.forEach(p => {
+            allParticipants.push({
+              ...p,
+              bidang: branch.bidang,
+              jenjang: 'SD / MI'
+            });
+          });
+        });
+        OLYMPIAD_DATA.smp.forEach(branch => {
+          branch.peserta.forEach(p => {
+            allParticipants.push({
+              ...p,
+              bidang: branch.bidang,
+              jenjang: 'SMP / MTs'
+            });
+          });
+        });
+
+        const filtered = allParticipants.filter(p =>
+          p.name.toLowerCase().includes(searchQuery) ||
+          p.school.toLowerCase().includes(searchQuery) ||
+          p.regNum.toLowerCase().includes(searchQuery) ||
+          p.bidang.toLowerCase().includes(searchQuery)
+        );
+
+        titleEl.innerHTML = `
+          Hasil Pencarian: &ldquo;${escapeHtml(searchQuery)}&rdquo;
+          <span style="font-weight: 600; font-size: 0.95rem; color: #64748b; display: block; margin-top: 4px;">
+            Ditemukan ${filtered.length} peserta di seluruh jenjang &amp; bidang lomba
+          </span>
+        `;
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="8" style="text-align: center; padding: 36px 16px; color: #64748b;">
+                <i class="fa-solid fa-circle-exclamation fa-2x" style="margin-bottom: 8px; display: block; color: #94a3b8;"></i>
+                Tidak ada peserta yang cocok dengan kata kunci &ldquo;<strong>${escapeHtml(searchQuery)}</strong>&rdquo; di seluruh bidang lomba.
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = filtered.map(p => {
+          let rankPrefix = `#${p.rank}`;
+          let rankColor = '#475569';
+          if (p.rank === 1) { rankPrefix = '🥇 1'; rankColor = '#b45309'; }
+          else if (p.rank === 2) { rankPrefix = '🥈 2'; rankColor = '#475569'; }
+          else if (p.rank === 3) { rankPrefix = '🥉 3'; rankColor = '#b45309'; }
+
+          return `
+            <tr>
+              <td class="rank-cell col-freeze" style="color: ${rankColor};" title="Peringkat ${p.rank} di ${p.bidang} (${p.jenjang})">
+                ${rankPrefix}
+              </td>
+              <td>
+                <code style="font-size: 0.82rem; background: #eef2ff; color: #3730a3; padding: 3px 6px; border-radius: 4px; font-weight: 700; border: 1px solid #c7d2fe;">
+                  ${p.regNum}
+                </code>
+              </td>
+              <td>
+                <strong style="color: #0f172a; font-size: 0.92rem; display: block;">${p.name}</strong>
+                <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; background: #eef2ff; color: #4338ca; padding: 2px 8px; border-radius: 9999px; margin-top: 4px; border: 1px solid #c7d2fe;">
+                  <i class="fa-solid fa-award"></i> ${p.bidang} &bull; ${p.jenjang}
+                </span>
+              </td>
+              <td style="color: #475569; font-size: 0.86rem;">
+                ${p.school}
+              </td>
+              <td style="text-align: center; font-weight: 700; color: #16a34a;">${p.benar}</td>
+              <td style="text-align: center; font-weight: 700; color: #dc2626;">${p.salah}</td>
+              <td style="text-align: center; font-weight: 700; color: #64748b;">${p.kosong}</td>
+              <td style="text-align: center;">
+                <span style="font-size: 0.98rem; font-weight: 800; color: #1e1b4b; background: #fef3c7; padding: 4px 10px; border-radius: 6px; border: 1px solid #fde68a; display: inline-block;">
+                  ${p.nilai}
+                </span>
+              </td>
+            </tr>
+          `;
+        }).join('');
+        return;
+      }
+
+      // 2. NORMAL FILTERED VIEW (BY LEVEL & BRANCH)
       const branch = OLYMPIAD_DATA[currentLevel][currentBranchIndex];
       if (!branch) return;
 
       const levelLabel = currentLevel === 'sd' ? 'Jenjang SD / MI' : 'Jenjang SMP / MTs';
-      document.getElementById('active-bidang-title').innerHTML = `
+      titleEl.innerHTML = `
         ${branch.bidang} <span style="font-weight: 600; font-size: 0.95rem; color: #64748b;">&bull; ${levelLabel}</span>
       `;
 
-      // Filter by search query
-      let filtered = branch.peserta;
-      if (searchQuery) {
-        filtered = filtered.filter(p =>
-          p.name.toLowerCase().includes(searchQuery) ||
-          p.school.toLowerCase().includes(searchQuery) ||
-          p.regNum.toLowerCase().includes(searchQuery)
-        );
-      }
-
-      // Summary Pill
-      const pill = document.getElementById('stats-summary-pill');
-      if (pill) {
-        if (searchQuery) {
-          pill.innerHTML = `<i class="fa-solid fa-filter"></i> Ditemukan: ${filtered.length} Peserta`;
-        } else {
-          pill.innerHTML = `<i class="fa-solid fa-users"></i> Menampilkan ${filtered.length} Peserta (10 Besar)`;
-        }
-      }
-
-      // Table Render (No Status Column, Freeze No Column)
-      const tbody = document.getElementById('finalists-table-body');
-      if (filtered.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="8" style="text-align: center; padding: 36px 16px; color: #64748b;">
-              <i class="fa-solid fa-circle-exclamation fa-2x" style="margin-bottom: 8px; display: block; color: #94a3b8;"></i>
-              Tidak ada peserta yang cocok dengan kata kunci "<strong>${searchQuery}</strong>".
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      tbody.innerHTML = filtered.map(p => {
+      const list = branch.peserta;
+      tbody.innerHTML = list.map(p => {
         let rankPrefix = `#${p.rank}`;
         let rankColor = '#475569';
         if (p.rank === 1) { rankPrefix = '🥇 1'; rankColor = '#b45309'; }
