@@ -35,3 +35,5 @@ coverage/
 *.dump
 data/
 scripts/
+import_excel_data.js
+
